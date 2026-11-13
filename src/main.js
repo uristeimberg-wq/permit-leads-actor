@@ -3,6 +3,7 @@ const { scorePermit, tierFor } = require('./scoring.js');
 const { toScorable } = require('./normalize.js');
 const { SOURCES } = require('./sources.js');
 const { getAdapter } = require('./adapters/index.js');
+const { redactPermit } = require('./privacy.js');
 
 Actor.main(async () => {
   const input = (await Actor.getInput()) ?? {};
@@ -34,7 +35,8 @@ Actor.main(async () => {
     const { score, reasons } = scorePermit(toScorable(permit), trade);
     if (score < minScore) continue;
 
-    leads.push({ ...permit, area, trade, score, tier: tierFor(score), reasons });
+    // The dataset is an export: owner and applicant fields stay out (rule 5).
+    leads.push({ ...redactPermit(permit), area, trade, score, tier: tierFor(score), reasons });
   }
 
   leads.sort((a, b) => b.score - a.score);

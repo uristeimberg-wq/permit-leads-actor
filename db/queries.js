@@ -16,16 +16,18 @@ const SORTS = {
   valuation: 'valuation DESC, filed_date DESC NULLS LAST',
 };
 
+// owner, applicant_name and applicant_phone are stored but never selected for
+// the API (src/privacy.js, CLAUDE.md rule 5). queries.test.js enforces it.
 const RESULT_COLUMNS = `
   id, source_area, permit_number, jurisdiction, address, street, city, state, zip,
   permit_type, work_description, valuation,
   status, status_raw, status_stage,
   permit_url, filed_date, trade_scores, first_seen_at, last_seen_at,
-  owner, parcel_number, parcel_block, parcel_lot, parcel_subdivision,
+  parcel_number, parcel_block, parcel_lot, parcel_subdivision,
   construction_type, other_construction_type,
   fees, fees_paid, fees_balance, inspections,
   contractor_name, contractor_phone, contractor_licence, contractor_trade,
-  contractor_city, applicant_name, applicant_phone`;
+  contractor_city`;
 
 function clampInt(value, { min, max, fallback }) {
   const n = Number.parseInt(value, 10);
@@ -96,7 +98,8 @@ function buildWhere(filters, params = []) {
 
   // Exact portal wording, for drilling into one specific status.
   if (filters.hasContact === 'true' || filters.hasContact === true) {
-    clauses.push('(contractor_phone IS NOT NULL OR applicant_phone IS NOT NULL)');
+    // Only the phone the client can see counts as "has contact".
+    clauses.push('contractor_phone IS NOT NULL');
   }
   if (filters.contractor) add('contractor_name ILIKE ?', `%${String(filters.contractor).trim()}%`);
   if (filters.statusRaw) add('lower(status_raw) = lower(?)', String(filters.statusRaw).trim());
@@ -346,6 +349,7 @@ async function getFreshness() {
 }
 
 module.exports = {
+  RESULT_COLUMNS,
   searchPermits, listAreas, listFilterOptions, getPermit, isZipCovered, getFreshness,
   mapClusters, searchContractors, getContractorHistory, isRealContractor,
   buildWhere, MAX_PAGE_SIZE, DEFAULT_PAGE_SIZE,
