@@ -12,6 +12,8 @@
 //
 // Pure functions only; ingest/resolve.js does the database work.
 
+const { SOURCES } = require('./sources.js');
+
 const RESOLVER_VERSION = 'contractors-v1';
 
 const NON_CONTRACTORS = new Set(['owner', 'owner builder', 'self', 'homeowner', 'na', 'n a', 'none', 'tbd', 'unknown', 'owner owner']);
@@ -101,60 +103,59 @@ function identityFor({ name, licence, state }) {
 
 // ---------- per-source extraction from raw records ----------
 
-const AUSTIN_TRADE = { EP: 'electrical', MP: 'mechanical', PP: 'plumbing' };
-const MIAMI_TRADE = { ELEC: 'electrical', MECH: 'mechanical', PLUM: 'plumbing' };
-
 const day = (v) => {
   if (v == null || v === '') return null;
   const d = typeof v === 'number' ? new Date(v) : new Date(String(v).length === 10 ? `${v}T00:00:00Z` : v);
   return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
 };
 
+const str = (v) => String(v ?? '').trim();
+
 /**
- * Reads the fields resolution needs from one raw payload. `groupKey` ties a
- * building permit to its trade permits: Austin's permit-number base
- * ("2026-104544" for "2026-104544 BP" and "... EP"), Miami-Dade's master permit
- * ("0000000000" means none, so the permit is its own group).
+ * Builds the extractor for one source from its `parties` block in
+ * src/sources.js (the connector template, ADR-14). The extractor reads the
+ * fields resolution needs from one raw payload. `groupKey` ties a building
+ * permit to its trade permits:
+ *   job.kind 'numberBase'  - the permit number without its type suffix
+ *                            (Austin: "2026-104544 BP" and "... EP")
+ *   job.kind 'masterField' - a parent-permit field; values matching job.none
+ *                            mean "no parent", so the permit is its own group
+ *                            (Miami-Dade: MasterPermitNumber, "0000000000")
  */
-const EXTRACTORS = {
-  'austin-tx': (p) => {
-    const permitNumber = String(p.permit_number ?? '').trim();
-    const typeCode = String(p.permittype ?? '').trim().toUpperCase() || (permitNumber.match(/\s([A-Z]{2,3})$/) || [])[1] || null;
+function extractorFor(spec) {
+  const none = spec.job && spec.job.none ? new RegExp(spec.job.none) : null;
+  return (p) => {
+    const permitNumber = str(p[spec.number]);
+    const typeCode = str(spec.typeField && p[spec.typeField]).toUpperCase()
+      || (spec.typeFromNumberSuffix ? (permitNumber.match(/\s([A-Z]{2,3})$/) || [])[1] : null) || null;
+    let groupKey = null;
+    if (spec.job && spec.job.kind === 'numberBase') groupKey = permitNumber.replace(/\s+[A-Z]{2,3}$/, '') || null;
+    else if (spec.job && spec.job.kind === 'masterField') {
+      const master = str(p[spec.job.field]);
+      groupKey = master && !(none && none.test(master)) ? master : permitNumber || null;
+    }
+    const field = (f) => (f ? p[f] || null : null);
     return {
       permitNumber,
       typeCode,
-      isBuilding: typeCode === 'BP',
-      trade: AUSTIN_TRADE[typeCode] || null,
-      groupKey: permitNumber.replace(/\s+[A-Z]{2,3}$/, '') || null,
-      issuedOn: day(p.issue_date),
-      name: p.contractor_company_name || null,
-      phone: p.contractor_phone || null,
-      licence: null,
-      rawTrade: p.contractor_trade || null,
-      city: p.contractor_city || null,
-      state: 'TX',
+      isBuilding: (spec.buildingTypes || []).includes(typeCode),
+      trade: (spec.tradeByType || {})[typeCode] || null,
+      groupKey,
+      issuedOn: day(p[spec.issued]),
+      name: field(spec.name),
+      phone: field(spec.phone),
+      licence: field(spec.licence),
+      rawTrade: field(spec.rawTrade),
+      city: field(spec.city),
+      state: spec.state,
     };
-  },
-  'miami-dade-fl': (p) => {
-    const permitNumber = String(p.PermitNumber ?? '').trim();
-    const typeCode = String(p.PermitType ?? '').trim().toUpperCase() || null;
-    const master = String(p.MasterPermitNumber ?? '').trim();
-    return {
-      permitNumber,
-      typeCode,
-      isBuilding: typeCode === 'BLDG',
-      trade: MIAMI_TRADE[typeCode] || null,
-      groupKey: master && !/^0+$/.test(master) ? master : permitNumber || null,
-      issuedOn: day(p.PermitIssuedDate),
-      name: p.ContractorName || null,
-      phone: p.ContractorPhone || null,
-      licence: p.ContractorNumber || null,
-      rawTrade: null,
-      city: p.ContractorCity || null,
-      state: 'FL',
-    };
-  },
-};
+  };
+}
+
+// One extractor per source that declares a `parties` block.
+const EXTRACTORS = Object.fromEntries(Object.entries(SOURCES)
+  .filter(([, src]) => src.parties)
+  .map(([slug, src]) => [slug, extractorFor(src.parties)]));
 
 /**
  * Resolves a batch of extracted parties. Returns contractors keyed by identity,
@@ -277,7 +278,7 @@ function buildRelationships(parties) {
 }
 
 module.exports = {
-  RESOLVER_VERSION, EXTRACTORS,
+  RESOLVER_VERSION, EXTRACTORS, extractorFor,
   normalizeName, isOwnerBuilder, partyKind, displayPolicy, toE164, cleanLicence, identityFor,
   resolveParties, buildRelationships,
 };

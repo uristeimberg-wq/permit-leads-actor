@@ -21,3 +21,7 @@ check('people, phones and emails are replaced; business and permit fields kept',
 check('empty values stay empty, so fill rates in the fixture stay honest', () => {
   assert.deepStrictEqual(redactRow({ contractor_phone: null, OwnerName: '' }), { contractor_phone: null, OwnerName: '' });
 });
+
+check('architect and engineer names are people too (Miami-Dade ArchitectName)', () => {
+  assert.deepStrictEqual(redactRow({ ArchitectName: 'Jane Doe', EngineerName: 'J Roe' }), { ArchitectName: 'REDACTED', EngineerName: 'REDACTED' });
+});

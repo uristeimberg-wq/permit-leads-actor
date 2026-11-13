@@ -132,6 +132,23 @@ const SOURCES = {
     // Health alarm (ingest/health.js): the newest issue date we hold should be
     // at most this old. Austin publishes 2-3 days after issue, plus weekends.
     maxDataAgeDays: 5,
+    // What the sources table must hold (checked by test/integration/registry
+    // and src/sources.contract.test.js). Terms: the City's Terms of Use page did
+    // not render when checked, so they are recorded as unread, not as allowed.
+    registry: {
+      jurisdiction: 'austin-tx', syncMode: 'date_window', expectedInterval: '1 day',
+      terms: { url: null, licenceTag: 'USGOV_WORKS', reviewedOn: null, automatedAccess: 'unknown', redistribution: 'unknown' },
+      fixture: 'test/fixtures/sources/austin-tx.json',
+    },
+    // Contractor extraction (src/contractors.js extractorFor). A permit's job is
+    // its number without the type suffix: "2026-104544 BP" and "... EP".
+    parties: {
+      number: 'permit_number', typeField: 'permittype', typeFromNumberSuffix: true,
+      buildingTypes: ['BP'], tradeByType: { EP: 'electrical', MP: 'mechanical', PP: 'plumbing' },
+      job: { kind: 'numberBase' }, issued: 'issue_date',
+      name: 'contractor_company_name', phone: 'contractor_phone', licence: null,
+      rawTrade: 'contractor_trade', city: 'contractor_city', state: 'TX',
+    },
     dateField: 'issue_date',
     defaultState: 'TX',
     fieldMap: {
@@ -205,6 +222,21 @@ const SOURCES = {
     backfillMaxPerRun: 40000,
     // Weekly refresh with up to ~9 days' lag (measured 2026-11-13).
     maxDataAgeDays: 17,
+    // The service states no terms; the county portal's terms are unread.
+    registry: {
+      jurisdiction: 'miami-dade-county-fl', syncMode: 'snapshot', expectedInterval: '1 day',
+      terms: { url: null, reviewedOn: null, automatedAccess: 'unknown', redistribution: 'unknown' },
+      fixture: 'test/fixtures/sources/miami-dade-fl.json',
+    },
+    // A trade permit names its building permit in MasterPermitNumber;
+    // "0000000000" means none, so the permit is its own job.
+    parties: {
+      number: 'PermitNumber', typeField: 'PermitType',
+      buildingTypes: ['BLDG'], tradeByType: { ELEC: 'electrical', MECH: 'mechanical', PLUM: 'plumbing' },
+      job: { kind: 'masterField', field: 'MasterPermitNumber', none: '^0+$' }, issued: 'PermitIssuedDate',
+      name: 'ContractorName', phone: 'ContractorPhone', licence: 'ContractorNumber',
+      rawTrade: null, city: 'ContractorCity', state: 'FL',
+    },
     dateField: 'PermitIssuedDate',
     // Without an order, offset paging over the layer is not stable. Newest
     // first, ObjectId as the tiebreak.

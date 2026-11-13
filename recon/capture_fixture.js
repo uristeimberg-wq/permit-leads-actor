@@ -14,7 +14,7 @@
 const { SOURCES } = require('../src/sources.js');
 const { getAdapter } = require('../src/adapters/index.js');
 
-const PERSON_FIELD = /owner|applicant|full_?name|first_?name|last_?name|contact_?name|agent/i;
+const PERSON_FIELD = /owner|applicant|full_?name|first_?name|last_?name|contact_?name|agent|architect|engineer|designer|surveyor/i;
 const PHONE_FIELD = /phone|tel|fax|mobile/i;
 const EMAIL_FIELD = /e_?mail/i;
 
