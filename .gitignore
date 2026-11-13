@@ -6,3 +6,4 @@ apify_storage/
 # One-off recon artifacts: saved portal HTML, screenshots, exports.
 # Useful while writing selectors, not worth versioning.
 recon/out/
+layout-shots/

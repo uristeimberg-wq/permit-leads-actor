@@ -40,7 +40,7 @@
     const href = window.telHref ? window.telHref(p.value) : null;
     const num = `<span class="phone mono prov" title="${esc(why)}">${phone(p.value)}</span>`;
     return (href ? `<a href="${esc(href)}" style="text-decoration:none">${num}</a>` : num)
-      + ` <span class="pill ${p.verification === 'corroborated' ? 'ok' : ''}">${esc(p.verification)}</span>`;
+      + ` <span class="pill prov ${p.verification === 'corroborated' ? 'ok' : ''}" title="${esc(why)}">${esc(p.verification)}</span>`;
   }
 
   function freshness(meta) {
@@ -60,7 +60,7 @@
     return `<header class="top"><div class="top-in">
       <a class="wordmark" href="index.html"><i aria-hidden="true"></i>Contractos<small>pilot</small></a>
       <nav class="nav" aria-label="Screens">${NAV.map(([href, label]) => `<a href="${href}"${href === here ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>
-      <span class="top-meta">From public permit records, synced daily <a class="signout" href="/logout">Sign out</a></span>
+      <span class="top-meta"><span class="top-note">From public permit records, synced daily</span> <a class="signout" href="/logout">Sign out</a></span>
     </div></header>`;
   }
 
@@ -134,10 +134,51 @@
     const credits = [...new Set(recs.map((r) => r.provenance && r.provenance.attribution).filter(Boolean))];
     const dbpr = recs.some((r) => r.provider === 'fl-dbpr');
     return `<ul class="lics">${rows}</ul>
-      <p class="note">Source: ${esc(credits.join('; '))}.${dbpr ? ' Status codes are DBPR’s own, shown as published.' : ''} Hover a licence for how it was matched.</p>`;
+      <p class="note">Source: ${esc(credits.join('; '))}.${dbpr ? ' Status codes are DBPR’s own, shown as published.' : ''} Tap or hover a licence for how it was matched.</p>`;
+  }
+
+  // ── Touch support ─────────────────────────────────────────
+  // Provenance lives in title attributes (rule 6), which touch screens never
+  // show. A tap on a dotted value opens the same text in a small panel.
+  const noHover = window.matchMedia && window.matchMedia('(hover: none)').matches;
+  let tip = null;
+  function closeTip() { if (tip) { tip.remove(); tip = null; } }
+  document.addEventListener('click', (e) => {
+    if (!noHover) return;
+    const el = e.target.closest && e.target.closest('.prov[title], .prov[data-title]');
+    if (!el || el.closest('a, button')) { if (!(e.target.closest && e.target.closest('.tip'))) closeTip(); return; }
+    e.preventDefault();
+    const text = el.getAttribute('title') || el.dataset.title;
+    // Keep the text off the title so the browser's own long-press tooltip doesn't double it.
+    if (el.hasAttribute('title')) { el.dataset.title = text; el.removeAttribute('title'); }
+    const same = tip && tip.dataset.for === text;
+    closeTip();
+    if (same) return;
+    tip = document.createElement('div');
+    tip.className = 'tip'; tip.setAttribute('role', 'status'); tip.dataset.for = text;
+    tip.innerHTML = `<p>${esc(text)}</p><button type="button" aria-label="Close">Close</button>`;
+    tip.querySelector('button').addEventListener('click', closeTip);
+    document.body.appendChild(tip);
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeTip(); });
+
+  // Tables with a header row become labelled cards on narrow screens
+  // (live.css, table.stack): each cell carries its column name.
+  function labelTables(root) {
+    for (const t of root.querySelectorAll('table')) {
+      const heads = [...t.querySelectorAll('thead th')].map((th) => th.textContent.trim());
+      if (heads.length < 3) continue;
+      t.classList.add('stack');
+      for (const tr of t.querySelectorAll('tbody tr')) {
+        [...tr.children].forEach((td, i) => { if (heads[i] && !td.hasAttribute('data-label')) td.setAttribute('data-label', heads[i]); });
+      }
+    }
+  }
+  if (window.MutationObserver) {
+    new MutationObserver(() => labelTables(document)).observe(document.documentElement, { childList: true, subtree: true });
   }
 
   const fail = (el, err) => { el.innerHTML = `<div class="state err">${esc(err.message)}</div>`; };
 
-  window.Live = { esc, params, qs, api, date, dateTime, money, pct, daysSince, phone, who, phoneCell, freshness, topBar, attribution, fail, propertyCard, registryList, AREA, TRADE, TRADE_PERSON };
+  window.Live = { esc, params, qs, api, date, dateTime, money, pct, daysSince, phone, who, phoneCell, freshness, topBar, attribution, fail, propertyCard, registryList, labelTables, noHover, AREA, TRADE, TRADE_PERSON };
 }());

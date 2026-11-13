@@ -139,7 +139,13 @@
       || '<li class="sub">No permits placed in this window.</li>';
     const el = $('map');
     if (!window.L || !m.pins.length) { el.classList.add('ov-map--off'); el.innerHTML = `<p class="state">${m.pins.length ? 'The map could not load; the busiest ZIPs are listed below.' : 'Nothing to map yet.'}</p>`; return; }
-    const map = window.L.map(el, { scrollWheelZoom: false, zoomControl: true, attributionControl: true });
+    // On touch screens one finger scrolls the page, not the map; pinch still
+    // zooms and the zoom buttons still work, so the map never traps the page.
+    const touch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    const map = window.L.map(el, { scrollWheelZoom: false, zoomControl: true, attributionControl: true, dragging: !touch, tap: false });
+    // Once zoomed in past the starting view, one finger pans the map.
+    let startZoom = Infinity;
+    if (touch) map.on('zoomend', () => { if (map.getZoom() > startZoom) map.dragging.enable(); else map.dragging.disable(); });
     window.L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 16, className: 'ov-tiles', attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map);
@@ -147,7 +153,7 @@
     const bounds = [];
     for (const pin of m.pins) {
       const v = pin.building || 0;
-      const radius = 3 + 15 * Math.sqrt(v / (max || 1));
+      const radius = (touch ? 8 : 3) + 15 * Math.sqrt(v / (max || 1)); // a fingertip needs a bigger pin
       const links = pin.zip ? `<br><a href="gcs.html?${L.qs({ source, zips: pin.zip })}">GCs working here</a> &nbsp; <a href="digest.html?${L.qs({ source, zips: pin.zip, days: 30 })}">Leads here</a>` : '';
       window.L.circleMarker([pin.lat, pin.lng], { radius, className: v ? 'ov-pin' : 'ov-pin ov-pin--quiet', weight: 1.5 })
         .bindPopup(`<strong>${L.esc(pin.label)}</strong><br>${n(v)} building permits, ${n(pin.permits)} permits in all, last ${m.days} days${links}`)
@@ -156,6 +162,7 @@
       bounds.push([pin.lat, pin.lng]);
     }
     map.fitBounds(bounds, { padding: [24, 24], maxZoom: 12 });
+    startZoom = map.getZoom();
   }
 
   function spark(weeks) {

@@ -905,11 +905,17 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
   .fchip { padding: 7px 8px 7px 13px; }
   .fchip button { width: 32px; height: 32px; }
   .select, .input { padding: 12px 13px; }
+  /* 16px stops iOS zooming the page when a field takes focus. */
+  .select, .input, .sheet input, .sheet select { font-size: 16px; }
   .select { padding-right: 36px; }
   .card { padding: var(--sp-4); }
   /* Leaflet's own zoom buttons are 26px by default. */
-  .leaflet-bar a { width: 36px; height: 36px; line-height: 36px; }
+  .leaflet-bar a { width: 44px; height: 44px; line-height: 44px; }
   .pin { padding: 8px 13px; }
+  /* Company names and phone numbers inside result cards: a taller hit area
+     without moving the text. */
+  .link-btn, #results a { padding-block: 8px; }
+  .btn-quiet { min-height: 44px; margin-block: -8px; }
 }
 
 /* ------------------------------------------------ mobile sheets + drawer -- */

@@ -46,3 +46,49 @@ jobs:
       - run: npm run test:integration
         env:
           DATABASE_URL: postgres://permits:permits@localhost:5433/permits
+
+  # Phones and tablets: every screen at 375, 414, 768 and 1024 px on sample
+  # data, failing on sideways scroll, controls under 44px, or page errors.
+  # Screenshots are kept as a run artifact.
+  layout:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: permits
+          POSTGRES_PASSWORD: permits
+          POSTGRES_DB: permits
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U permits" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://permits:permits@localhost:5433/permits
+      DEMO_PASSWORD: layout-check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      - run: npx playwright install --with-deps chromium
+      - run: node test/layout/seed.js
+      - name: Start the app
+        run: |
+          PORT=3000 node web/server.js > server.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:3000/healthz > /dev/null && break; sleep 1; done
+      - run: node test/layout/check.js http://localhost:3000
+        env:
+          OUT: layout-shots
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: layout-shots
+          path: layout-shots/
+          retention-days: 14
+      - if: failure()
+        run: tail -50 server.log

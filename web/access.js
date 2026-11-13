@@ -69,7 +69,9 @@ header div, footer div { max-width: 1320px; margin: 0 auto; padding: 0 16px; }
 header div { min-height: 52px; display: flex; align-items: center; }
 .wordmark { display: flex; align-items: center; gap: 8px; font: 700 20px/1 var(--font-display); text-transform: uppercase; color: var(--color-plate); letter-spacing: 0.01em; }
 .wordmark i { display: inline-block; width: 12px; height: 12px; background: var(--color-accent); }
-main { display: grid; place-items: center; padding: 40px 16px; }
+main { display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; padding: 40px 16px; }
+.plate { min-width: 0; }
+h1 { overflow-wrap: anywhere; }
 .plate { width: min(100%, 440px); background: var(--color-plate); border: 3px solid var(--color-ink); box-shadow: var(--shadow-plate); padding: 32px 32px 28px; }
 h1 { margin: 0; font: 700 2.25rem/1.02 var(--font-display); text-transform: uppercase; text-wrap: balance; }
 p { margin: 12px 0 0; color: var(--color-ink-2); text-wrap: pretty; }
@@ -83,6 +85,7 @@ button:active { translate: 0 3px; box-shadow: 0 0 0 var(--color-accent-deep); }
 .err { margin: 16px 0 0; padding: 8px 12px; background: var(--color-err-wash); color: var(--color-err); border-left: 3px solid var(--color-err); font-size: 14px; }
 footer { font-size: 12px; color: var(--color-muted); }
 footer div { padding-top: 16px; padding-bottom: 16px; border-top: 1px solid oklch(84% 0.012 85); }
+@media (max-width: 400px) { .plate { padding: 24px 20px 20px; } h1 { font-size: 1.875rem; } }
 @media (prefers-reduced-motion: reduce) { button { transition: none; } }
 </style>
 </head>

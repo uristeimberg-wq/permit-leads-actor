@@ -90,13 +90,13 @@
         <div class="desc">${L.esc(pm.work_description || 'No description published')}</div>
       </div>
 
-      <div class="card">
+      <div class="card call">
         <h2>Who to call</h2>
         ${d.gc && d.gc.name ? `
           <div class="who-big">${L.who(d.gc)}</div>
           <div class="sub">Contractor on the building permit${d.match ? ` · matched by ${L.esc(d.match.rule === 'licence' ? 'licence number' : 'exact name within the state')}` : ''}</div>
           <div class="who-phone">${L.phoneCell(d.gc.phone)}</div>
-          <p class="note">Hover the number for where it came from. "Corroborated" means it is on 3+ of this company's permits and no other company's. Nobody has called to check it.</p>
+          <p class="note">Tap or hover the label next to the number for where it came from. "Corroborated" means it is on 3+ of this company's permits and no other company's. Nobody has called to check it.</p>
           ${d.gcRegistry && d.gcRegistry.length ? `<h2 class="h-gap">State licence</h2>${L.registryList(d.gcRegistry, { compact: true })}` : ''}`
         : d.gc ? `<p>${L.who(d.gc)}</p><p class="note">${L.esc(d.gc.withheld)}</p>` : '<p class="sub">No contractor on this permit (owner-builder or not published).</p>'}
         ${h ? `<h2 class="h-gap">How this GC hires ${L.esc(L.TRADE_PERSON[trade])}</h2>
