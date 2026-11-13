@@ -192,6 +192,18 @@ CREATE TABLE permit_status_history (
 
 ## Contractors and contacts
 
+Built in `db/migrations/004_history_and_contractors.sql` (2026-11-13), in a
+first cut that differs from the target below:
+- `contractors.identity_key` holds the merge key.
+- `permit_parties` holds only the `contractor` role (owner and applicant stay
+  off, ADR-10).
+- `contractor_relationships` holds derived GC-to-sub links.
+- `resolver_runs` logs each rebuild.
+
+Permit history (`permit_versions`, `permit_status_history`) is kept by
+triggers on the existing `permits` table. Missing valuation is `NULL` from 004
+on. Rules: ADR-12.
+
 ```sql
 CREATE TABLE contractors (
   id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

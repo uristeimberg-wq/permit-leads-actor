@@ -96,7 +96,9 @@ function normalizePermit(fields) {
     // Kept separate from workDescription so the UI can facet on it.
     permitType: fields.permitType ?? null,
     workDescription: fields.workDescription ?? '',
-    valuation: Number(fields.valuation) || 0,
+    // Missing is null, never 0 (rule 1): no source reports a real $0 value, and
+    // a 0 here used to make "not reported" look like "free".
+    valuation: Number(fields.valuation) > 0 ? Number(fields.valuation) : null,
 
     // Three status values, each with a distinct job:
     //   status      — the applied/issued bucket scoring's TIMING_BONUS reads

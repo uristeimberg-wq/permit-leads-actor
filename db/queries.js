@@ -13,7 +13,7 @@ const DEFAULT_PAGE_SIZE = 25;
 const SORTS = {
   newest: 'filed_date DESC NULLS LAST, id DESC',
   oldest: 'filed_date ASC NULLS LAST, id ASC',
-  valuation: 'valuation DESC, filed_date DESC NULLS LAST',
+  valuation: 'valuation DESC NULLS LAST, filed_date DESC NULLS LAST',
 };
 
 // owner, applicant_name and applicant_phone are stored but never selected for

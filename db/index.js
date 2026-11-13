@@ -70,7 +70,7 @@ function toRow(permit, sourceArea) {
     permit.zip ?? null,
     permit.permitType ?? null,
     permit.workDescription ?? '',
-    permit.valuation ?? 0,
+    permit.valuation ?? null,
     permit.status ?? null,
     permit.statusRaw ?? null,
     permit.statusStage ?? null,

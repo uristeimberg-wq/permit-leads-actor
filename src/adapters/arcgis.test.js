@@ -87,7 +87,7 @@ check('mapFeatures builds a permit URL from a template', () => {
 check('mapFeatures leaves filedDate null when the date field is absent', () => {
   const [permit] = mapFeatures([{ attributes: {} }], SOURCE, { log: fakeLog() });
   assert.strictEqual(permit.filedDate, null);
-  assert.strictEqual(permit.valuation, 0);
+  assert.strictEqual(permit.valuation, null);
 });
 
 check('a source without a fieldMap refuses to run rather than guessing', async () => {

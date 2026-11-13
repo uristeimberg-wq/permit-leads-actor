@@ -168,3 +168,43 @@ what would make us revisit it. Never delete an entry; supersede it.
 - **Revisit when:** the probe shows `:updated_at` moving per row (re-run it
   monthly), or Austin publishes a change feed.
 
+## ADR-12: Contractor resolution is deterministic and merges only on strong keys
+
+- **Date:** 2026-11-13. **Status:** accepted. It refines the resolution order
+  in ARCHITECTURE.md ("licence, then phone and name, then name and city as a
+  candidate").
+- **Context:**
+  - A wrong merge invents a company and corrupts every count built on it: GC
+    relationships, permit counts, contact phones. A missed merge only splits
+    one firm into two rows.
+  - Phones are not identities: 49 Austin phones appear under 2+ company names,
+    including permit expediters and shared office lines.
+  - Austin publishes no contractor licence number. Miami-Dade does
+    (`ContractorNumber`).
+- **Decision:** `src/contractors.js` (`contractors-v1`), run as
+  `ingest/resolve.js` after every sync, rebuilds from the latest raw record of
+  each permit.
+  - **Merge rules:**
+    1. Licence number within a state (confidence 0.95).
+    2. Otherwise the exact normalized business name within a state, with
+       legal forms and punctuation removed and trade words kept
+       (confidence 0.80).
+  - **Near misses are not merged:** "Radiant Plumbing & AC" and "Radiant
+    Plumbing and Air Conditioning" stay two rows until a reviewed merge
+    (`contractor_merges`, later).
+  - **Phones are evidence, not keys:**
+    - A phone is `corroborated` only when it is on 3+ permits for that
+      contractor and on no other contractor.
+    - A person-like name ("John Smith") is `individual`, and its phone is
+      hidden.
+    - An unclear name is held for `review`. Only `show` reaches a client
+      (rule 5).
+  - **Owner-builders** (`OWNER`, `HOMEOWNER`, ...) are never contractors.
+  - **GC to sub:** within one job (Austin permit-number base, Miami-Dade
+    master permit), the building permit's contractor is the GC and each
+    trade permit's contractor is a sub. A job with two different GCs is
+    skipped as ambiguous.
+- **Revisit when:** licence files (TX TDLR, FL DBPR) are loaded. They give
+  Austin firms a licence key and allow corroboration against an independent
+  source.
+

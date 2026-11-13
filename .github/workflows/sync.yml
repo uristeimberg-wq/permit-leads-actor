@@ -64,6 +64,13 @@ jobs:
         env:
           DATABASE_URL: ${{ env.DB_URL }}
           SOCRATA_APP_TOKEN: ${{ secrets.SOCRATA_APP_TOKEN }}
+      # Contractors, contact points and GC -> sub links, rebuilt from the
+      # latest raw records (ADR-12). Runs even if one area failed, on what we have.
+      - name: Resolve contractors
+        if: always() && steps.secret.outputs.ready == 'true'
+        env:
+          DATABASE_URL: ${{ env.DB_URL }}
+        run: node ingest/resolve.js
       - name: Summary from sync_runs
         if: always() && steps.secret.outputs.ready == 'true'
         env:

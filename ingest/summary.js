@@ -19,6 +19,14 @@ async function main() {
   for (const r of rows) {
     lines.push(`| ${cell(r.slug)} | ${cell(r.status || 'never run')} | ${cell(r.started_at && r.started_at.toISOString().slice(0, 16))} | ${cell(r.requests_made)} | ${cell(r.records_fetched)} | ${cell(r.records_new)} | ${cell(r.records_changed)} | ${cell(r.records_failed)} | ${cell(r.error_class ? `${r.error_class}: ${r.error_detail}` : '')} |`);
   }
+  const { rows: [rr] } = await db.query(
+    "SELECT status, finished_at, stats, left(error_detail, 200) AS error FROM resolver_runs ORDER BY id DESC LIMIT 1").catch(() => ({ rows: [] }));
+  if (rr) {
+    const s = rr.stats || {};
+    lines.push('', '## Contractor resolution', '', rr.status === 'succeeded'
+      ? `${s.contractors} contractors from ${s.rawPermits} permits (${JSON.stringify(s.byRule)}); ${s.phonesShown} of ${s.phones} phones shown, ${s.phonesCorroborated} corroborated; ${s.relationships} GC-sub links.`
+      : `Status **${rr.status}**: ${cell(rr.error)}`);
+  }
   console.log(lines.join('\n'));
   await db.close();
 }

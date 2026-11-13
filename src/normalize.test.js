@@ -76,15 +76,16 @@ check('a present-but-empty status stays empty and earns no timing bonus', () => 
   assert.strictEqual(score, 95); // 95 base, no bonus
 });
 
-check('normalizePermit coerces valuation and defaults description', () => {
+check('normalizePermit coerces valuation (missing is null) and defaults description', () => {
   const p = normalizePermit({ status: 'applied' });
-  assert.strictEqual(p.valuation, 0);
+  assert.strictEqual(p.valuation, null);
   assert.strictEqual(p.workDescription, '');
   assert.strictEqual(p.address, null);
   assert.strictEqual(p.permitNumber, null);
 
   assert.strictEqual(normalizePermit({ valuation: '75000' }).valuation, 75000);
-  assert.strictEqual(normalizePermit({ valuation: 'n/a' }).valuation, 0);
+  assert.strictEqual(normalizePermit({ valuation: 'n/a' }).valuation, null);
+  assert.strictEqual(normalizePermit({ valuation: 0 }).valuation, null);
 });
 
 check('csv mapRows maps raw rows through the source columnMap', () => {
