@@ -1,0 +1,46 @@
+name: smoke
+
+# Post-deploy check of the hosted demo (ADR-13): it is up, the password gate
+# holds, and with the DEMO_PASSWORD secret it serves real pilot data.
+# Prints counts only, never names or phones.
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: Base URL of the deployment, e.g. https://permits-production-xxxx.up.railway.app
+        type: string
+        required: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      BASE: ${{ inputs.url }}
+      DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+    steps:
+      - name: Check
+        run: |
+          set -u
+          [[ "$BASE" =~ ^https://[a-z0-9.-]+$ ]] || { echo "::error::url must be https://host with no path"; exit 1; }
+          code() { curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$@"; }
+          fail=0
+          h=$(code "$BASE/healthz"); echo "healthz: $h"; [ "$h" = 200 ] || fail=1
+          for p in / /pilot/live/gcs.html /api/pilot/meta; do
+            c=$(code "$BASE$p"); echo "no password $p: $c (want 401)"; [ "$c" = 401 ] || fail=1
+          done
+          c=$(code -u "x:wrong-password" "$BASE/api/pilot/meta"); echo "wrong password: $c (want 401)"; [ "$c" = 401 ] || fail=1
+          if [ -n "$DEMO_PASSWORD" ]; then
+            for p in "/pilot/live/gcs.html" "/pilot/live/digest.html"; do
+              c=$(code -u "x:$DEMO_PASSWORD" "$BASE$p"); echo "page $p: $c"; [ "$c" = 200 ] || fail=1
+            done
+            curl -s --max-time 60 -u "x:$DEMO_PASSWORD" "$BASE/api/pilot/meta" \
+              | jq -c '{lastSyncAt, lastSyncStatus, historyFrom, historyTo}' || fail=1
+            curl -s --max-time 60 -u "x:$DEMO_PASSWORD" "$BASE/api/pilot/gcs?source=austin-tx&trade=electrical&months=12" \
+              | jq -c '{gcs: (.gcs|length), jobs: .baseline.jobs, linkedJobs: .baseline.linkedJobs, repeatRate: .baseline.repeatRate,
+                        withShownPhone: ([.gcs[]|select(.gc.phone)]|length), withheld: ([.gcs[]|select(.gc.name==null)]|length)}' || fail=1
+            curl -s --max-time 60 -u "x:$DEMO_PASSWORD" "$BASE/api/pilot/leads?trade=electrical&days=7" | jq -c '{leads: (.leads|length)}' || fail=1
+          else
+            echo "::notice::DEMO_PASSWORD secret not set: checked the gate only, not the data."
+          fi
+          exit $fail
