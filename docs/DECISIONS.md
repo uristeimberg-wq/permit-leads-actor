@@ -264,3 +264,39 @@ what would make us revisit it. Never delete an entry; supersede it.
 - **Known gaps:** Texas has no state general-contractor licence, so GC phones
   can be corroborated only across permits, never against a registry. Florida's
   licence files carry no phone.
+
+## ADR-15: Enrichment, measured: what each source is used for, and its limits
+
+- **Status:** accepted, 2026-11-13. Refines ADR-14 item 3 with the live
+  measurements in `docs/DATA_SOURCES.md` ("Enrichment sources", PR #27) and
+  the compliance review (PR #28).
+- **Context:** ADR-14 assumed licence files would supply contractor phones.
+  Measured, they mostly don't: permits already carry a phone on 91% (Austin)
+  and 82% (Miami-Dade) of rows; TDLR adds a phone for about 60% of electrical
+  and about 10% of HVAC permits; Florida DBPR has no phones.
+- **Decision:**
+  1. **Licences verify, they don't supply phones.** TDLR, TSBPE and DBPR give
+     licence status and confirm the business (DBPR matches 95.9% of Miami-Dade
+     permits after dropping leading zeros). A TSBPE phone is treated as a
+     person's contact (rule 5). Show a TDLR credit wherever its data appears.
+  2. **Parcels by the appraiser's own id.** `parcels` and `permit_parcels`
+     (migration 012) join on the folio from each permit's latest raw payload.
+     Only non-owner fields are requested (`outFields` is an explicit list).
+     Zeros become NULL. A parcel the appraiser lacks is stored as
+     `found = false` so it is not asked for daily. Parcels are re-read after
+     the provider's `refreshDays` (Miami-Dade: weekly). Enrichment providers
+     are `sources` rows with `role = 'enrichment'`, so their runs are in
+     `sync_runs` and the health alarm watches them.
+  3. **Travis CAD is internal only** until its terms are checked: nothing derived
+     from it is displayed.
+  4. **Census geocoder: job-site addresses only.** Its terms forbid using its
+     data to identify a business, so contractor business addresses are never
+     sent to it. Geocode only where the source has no coordinates (Austin has
+     them on about 61% of recent permits; City of Miami on all; the Miami-Dade
+     county layer gets them from the appraiser).
+  5. **Attribution is data.** Each source's credit line is its
+     `sources.attribution_text` and is shown with its data (City of Miami
+     CC BY 4.0; Property Appraiser "as is, for illustration only").
+- **Consequences:** City of Miami permits have no phones; they can be filled
+  only by matching the same business in the county layer or a licence file
+  (step 4).

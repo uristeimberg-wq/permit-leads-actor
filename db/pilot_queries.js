@@ -267,6 +267,32 @@ async function provenanceFor(rawRecordId) {
 }
 
 /**
+ * Facts about the parcel the permit is on, from an official appraiser, with
+ * where and when each came from (rule 6). Null when the permit's source has no
+ * parcel id or the appraiser has no such parcel. Owner fields are never stored.
+ */
+async function propertyFor(permitId) {
+  const { rows: [r] } = await query(`
+    SELECT c.parcel_key, c.land_use_code, c.land_use, c.year_built, c.heated_sqft, c.building_sqft, c.lot_sqft, c.bedrooms,
+           c.bathrooms, c.units, c.floors, c.assessed_value, c.assessment_year, c.site_zip, c.fetched_at, c.source_edited_at,
+           pc.match_rule, s.slug, s.endpoint_url, s.attribution_text
+      FROM permit_parcels pc JOIN parcels c ON c.id = pc.parcel_id
+      JOIN sources s ON s.slug = pc.provider
+     WHERE pc.permit_id = $1 AND c.found
+     ORDER BY pc.provider LIMIT 1`, [permitId]);
+  if (!r) return null;
+  const num = (v) => (v == null ? null : Number(v));
+  return {
+    parcelId: r.parcel_key, landUseCode: r.land_use_code, landUse: r.land_use, yearBuilt: r.year_built,
+    heatedSqft: num(r.heated_sqft), buildingSqft: num(r.building_sqft), lotSqft: num(r.lot_sqft), bedrooms: num(r.bedrooms),
+    bathrooms: num(r.bathrooms), units: num(r.units), floors: num(r.floors),
+    assessedValue: num(r.assessed_value), assessmentYear: r.assessment_year, siteZip: r.site_zip,
+    provenance: { source: r.slug, endpoint: r.endpoint_url, attribution: r.attribution_text, matchedBy: r.match_rule,
+      fetchedAt: r.fetched_at, sourceEditedAt: r.source_edited_at },
+  };
+}
+
+/**
  * The lead page: one building permit, the other permits on its job, the GC with
  * its displayable phone, and how that GC has hired this trade.
  */
@@ -313,6 +339,7 @@ async function getJob(permitId, f) {
 
   const tradeFiled = related.filter((r) => r.trade === f.trade);
   return {
+    property: await propertyFor(bp.id),
     trade: f.trade,
     permit: stripInternal(bp),
     isBuilding: Boolean(bp.is_building),

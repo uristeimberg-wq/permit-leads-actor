@@ -114,6 +114,8 @@ async function main() {
       assert.ok(body.provenance.rawRecordId > 0 && body.provenance.fetchedAt);
       assert.deepStrictEqual(body.gcHiring.subs.map((s) => [s.sub.name, s.jobs]), [['Sparky Electric Inc', 4], ['Volt Electric LLC', 1]]);
       assert.ok(!('owner' in body.permit) && !('applicant_phone' in body.permit));
+      // Austin has no appraiser join yet, so no property facts are claimed.
+      assert.strictEqual(body.property, null);
     });
 
     await check('leads: new building permits with no electrical permit yet', async () => {
