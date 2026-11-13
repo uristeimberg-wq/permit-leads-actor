@@ -37,7 +37,7 @@ source is re-checked. Never add a source here without fetching it.
 | --- | --- |
 | Endpoint | `https://services.arcgis.com/8Pc9XBTAsYuxx9Ny/arcgis/rest/services/miamidade_permit_data/FeatureServer/0` (ArcGIS REST table) |
 | Auth | None |
-| Terms | None stated on the service (no description, no copyright text). **Not reviewed**; check the Miami-Dade open data portal terms |
+| Terms | Item `6db5f56e886446df88313ca279e59120`: licence field is a disclaimer only ("as is", no responsibility for errors). County site disclaimer: no grant, "rights not expressly granted herein are reserved", no attribution rule. Read 2026-11-13; see `docs/COMPLIANCE.md` 1.2 |
 | Freshness | `dataLastEditDate` 2026-11-07 (verified), `hasStaticData: true`. Looks like a weekly full replace (to confirm over 3 weeks) |
 | Volume | **489,896 rows**, issued 2020-01-01 to 2026-11-05 (server count and statistics, 2026-11-13). The earlier 139,389 count was wrong. 106,070 rows in the last 18 months |
 | Paging | `maxRecordCount` 1000. The prototype found that `--max=6000` fails and pages of 500 work |

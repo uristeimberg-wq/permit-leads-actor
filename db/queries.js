@@ -6,7 +6,11 @@
 
 const { query } = require('./index.js');
 const { DEFAULT_STAGES, isValidStage } = require('../src/status.js');
-const { redactContractor, isShownContractor } = require('../src/privacy.js');
+const { redactContractor, isShownContractor, dropSuppressedPhone } = require('../src/privacy.js');
+const { maskDescription } = require('../src/description_names.js');
+
+// Names inside a description are masked for display (rule 5).
+const maskRow = (r) => (r && r.work_description != null ? { ...r, work_description: maskDescription(r.work_description) } : r);
 
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_PAGE_SIZE = 25;
@@ -161,9 +165,10 @@ async function searchPermits(filters = {}) {
     query(rowsSql, [...params, pageSize, (page - 1) * pageSize]),
     query(facetSql, facet.params),
   ]);
+  const suppressed = await suppressedPhones();
 
   return {
-    results: rows.rows.map(redactContractor),
+    results: rows.rows.map((r) => maskRow(dropSuppressedPhone(redactContractor(r), suppressed))),
     total: counted.rows[0].total,
     page,
     pageSize,
@@ -326,10 +331,10 @@ async function getContractorHistory(name) {
   return {
     name: key,
     ...summary.rows[0],
-    ...contact.rows[0],
+    ...dropSuppressedPhone(contact.rows[0], await suppressedPhones(), 'phone'),
     areas: areas.rows,
     permitTypes: types.rows,
-    recent: recent.rows,
+    recent: recent.rows.map(maskRow),
     similar: similar.rows.filter((r) => isShownContractor(r.name)),
   };
 }
@@ -337,7 +342,13 @@ async function getContractorHistory(name) {
 /** One permit, with everything we hold — backs the in-app detail view. */
 async function getPermit(id) {
   const { rows } = await query(`SELECT ${RESULT_COLUMNS} FROM permits WHERE id = $1`, [Number(id)]);
-  return rows[0] ? redactContractor(rows[0]) : null;
+  return rows[0] ? maskRow(dropSuppressedPhone(redactContractor(rows[0]), await suppressedPhones())) : null;
+}
+
+/** Phones under a removal request (009_suppressions.sql), as a Set of E.164. */
+async function suppressedPhones() {
+  const { rows } = await query('SELECT value FROM suppressed_phones');
+  return new Set(rows.map((r) => r.value));
 }
 
 /** Freshness: when each source last ingested successfully. */

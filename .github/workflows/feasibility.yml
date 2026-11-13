@@ -25,6 +25,9 @@ on:
       market_ckan:
         description: "Market scan: comma-separated CKAN portals to list permit datasets from"
         default: ''
+      descriptions:
+        description: "Names in Austin descriptions (recon/description_names.js): months of history; runs only this"
+        default: ''
 
 jobs:
   measure:
@@ -43,14 +46,18 @@ jobs:
           MARKETS: ${{ inputs.markets != 'all' && inputs.markets || '' }}
           CITIES: ${{ inputs.market_cities }}
           CKAN: ${{ inputs.market_ckan }}
+      - if: inputs.descriptions != ''
+        run: node recon/description_names.js --out=feasibility-report/description-names --months="$MONTHS"
+        env:
+          MONTHS: ${{ inputs.descriptions }}
       - if: inputs.market_links != ''
         run: node recon/market_links.js --out=feasibility-report/links ${LINKS:+--only="$LINKS"}
         env:
           LINKS: ${{ inputs.market_links != 'all' && inputs.market_links || '' }}
-      - if: inputs.only == '' && inputs.markets == '' && inputs.market_links == ''
+      - if: inputs.only == '' && inputs.markets == '' && inputs.market_links == '' && inputs.descriptions == ''
         run: node recon/plan_review.js --out=feasibility-report/plan-review --months=24
       # Inputs go through env, not inline, so they can't inject shell.
-      - if: always() && inputs.only != 'enrichment' && inputs.markets == '' && inputs.market_links == ''
+      - if: always() && inputs.only != 'enrichment' && inputs.markets == '' && inputs.market_links == '' && inputs.descriptions == ''
         run: node recon/feasibility.js --out=feasibility-report --months="$MONTHS" ${ONLY:+--only="$ONLY"}
         env:
           MONTHS: ${{ inputs.months }}

@@ -47,3 +47,18 @@ check('exports drop an individual contractor too', () => {
   const out = redactPermit({ permitNumber: 'B', contractorName: 'Jane Doe', contractorPhone: '5125550103' });
   assert.deepStrictEqual([out.contractorName, out.contractorPhone], [null, null]);
 });
+
+// Suppressions (009) and alias filtering.
+{
+  const { dropSuppressedPhone, publicAliases } = require('./privacy.js');
+  const sup = new Set(['+15125550100']);
+  assert.strictEqual(dropSuppressedPhone({ contractor_phone: '(512) 555-0100' }, sup).contractor_phone, null);
+  assert.strictEqual(dropSuppressedPhone({ contractor_phone: '512-555-0200' }, sup).contractor_phone, '512-555-0200');
+  assert.strictEqual(dropSuppressedPhone({ phone: '5125550100' }, sup, 'phone').phone, null);
+  assert.deepStrictEqual(dropSuppressedPhone(null, sup), null);
+  const row = { contractor_phone: '5125550100' };
+  assert.strictEqual(dropSuppressedPhone(row, new Set()), row);
+  const names = publicAliases([{ name: 'Smith Electric LLC', seen: 9 }, { name: 'John Smith', seen: 2 }, { name: null, seen: 1 }]);
+  assert.deepStrictEqual(names.map((a) => a.name), ['Smith Electric LLC']);
+  console.log('privacy: suppressions and aliases ok');
+}

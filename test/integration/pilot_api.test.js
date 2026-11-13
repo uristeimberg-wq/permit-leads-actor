@@ -132,6 +132,43 @@ async function main() {
       assert.ok(!JSON.stringify(ind.body).includes('Smith'));
     });
 
+    await check('a removal request hides the phone everywhere, and lifting it restores it', async () => {
+      const acmeId = gcs.gcs.find((g) => g.gc.name === 'Acme Builders LLC').gc.id;
+      const [bp] = await db.query("SELECT id FROM permits WHERE permit_number = '2026-1 BP'").then((r) => r.rows);
+      await db.query("INSERT INTO suppressions (kind, value, request, channel) VALUES ('phone', '+15125550100', 'remove', 'email')");
+      const list = await get('/api/pilot/gcs?source=austin-tx&trade=electrical&months=6');
+      assert.strictEqual(list.body.gcs.find((g) => g.gc.id === acmeId).gc.phone, null);
+      assert.strictEqual((await get(`/api/pilot/jobs/${bp.id}?trade=electrical`)).body.gc.phone, null);
+      assert.deepStrictEqual((await get(`/api/pilot/contractors/${acmeId}`)).body.phones, []);
+      assert.strictEqual((await get(`/api/permits/${bp.id}`)).body.contractor_phone, null);
+      const search = await get('/api/permits?contractor=Acme&stage=any');
+      assert.ok(search.body.results.length > 0 && search.body.results.every((r) => r.contractor_phone == null));
+      assert.ok(!JSON.stringify((await get('/api/pilot/overview?source=austin-tx')).body).includes('+15125550100'));
+      await db.query("UPDATE suppressions SET lifted_at = now() WHERE value = '+15125550100'");
+      assert.strictEqual((await get(`/api/pilot/jobs/${bp.id}?trade=electrical`)).body.gc.phone.value, '+15125550100');
+    });
+
+    await check('a contractor-level request hides all of its phones', async () => {
+      const [acme] = await db.query("SELECT id, identity_key FROM contractors WHERE display_name = 'Acme Builders LLC'").then((r) => r.rows);
+      await db.query("INSERT INTO suppressions (kind, value, request) VALUES ('contractor', $1, 'do_not_contact')", [acme.identity_key]);
+      assert.deepStrictEqual((await get(`/api/pilot/contractors/${acme.id}`)).body.phones, []);
+      await db.query('UPDATE suppressions SET lifted_at = now() WHERE value = $1', [acme.identity_key]);
+    });
+
+    await check('ingest stores a masked copy, and search never matches a name in a description', async () => {
+      const [{ n }] = await db.query("SELECT count(*)::int AS n FROM permits WHERE work_description_public IS NULL").then((r) => r.rows);
+      assert.strictEqual(n, 0, 'every ingested permit has its masked copy');
+      await db.query("UPDATE permits SET work_description = 'Remodel kitchen (Zelda Quuxly)', work_description_public = NULL WHERE permit_number = '2026-2 BP'");
+      assert.strictEqual(await db.maskStoredDescriptions(), 1);
+      assert.strictEqual(await db.maskStoredDescriptions(), 0, 'a second run changes nothing');
+      const byName = await get('/api/permits?q=Quuxly&stage=any');
+      assert.strictEqual(byName.body.total, 0);
+      const byWord = await get('/api/permits?q=kitchen&stage=any');
+      const hit = byWord.body.results.find((r) => r.permit_number === '2026-2 BP');
+      assert.ok(hit, 'still found by its ordinary words');
+      assert.strictEqual(hit.work_description, 'Remodel kitchen ([name withheld])');
+    });
+
     await check('bad ids are 400, unknown ids 404, no SQL in errors', async () => {
       assert.strictEqual((await get('/api/pilot/jobs/abc')).status, 400);
       assert.strictEqual((await get('/api/pilot/jobs/999999')).status, 404);

@@ -60,16 +60,18 @@
     return `<header class="top"><div class="top-in">
       <a class="wordmark" href="index.html"><i aria-hidden="true"></i>Contractos<small>pilot</small></a>
       <nav class="nav" aria-label="Screens">${NAV.map(([href, label]) => `<a href="${href}"${href === here ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>
-      <span class="top-meta">Live data from public permit records <a class="signout" href="/logout">Sign out</a></span>
+      <span class="top-meta">From public permit records, synced daily <a class="signout" href="/logout">Sign out</a></span>
     </div></header>`;
   }
 
   function attribution(meta) {
-    const src = meta && meta.source === 'miami-dade-fl'
-      ? 'Miami-Dade County Open Data (ArcGIS building permits layer)'
-      : 'City of Austin, Texas – data.austintexas.gov, dataset 3syk-w9eu';
+    // No meta (a contractor profile spans sources): name every source we use.
+    const AUSTIN = 'City of Austin, Texas – data.austintexas.gov, dataset 3syk-w9eu';
+    const MIAMI = 'Miami-Dade County Open Data (ArcGIS building permits layer)';
+    const src = !meta || !meta.source ? `${AUSTIN}; ${MIAMI}`
+      : meta.source === 'miami-dade-fl' ? MIAMI : AUSTIN;
     return `<div class="foot"><span>Source: ${esc(src)}. Contacts come from the public permit record; individuals are withheld.</span>
-      <span>Spot something wrong? Tell your pilot contact.</span></div>`;
+      <span>Not affiliated with or endorsed by these agencies. Data as published, may be incomplete. Wrong or want a listing removed? Tell your pilot contact.</span></div>`;
   }
 
   const fail = (el, err) => { el.innerHTML = `<div class="state err">${esc(err.message)}</div>`; };

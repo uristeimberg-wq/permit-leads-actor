@@ -10,6 +10,8 @@
 // number and raw record it was taken from, and when that record was fetched.
 
 const { query } = require('./index.js');
+const { publicAliases } = require('../src/privacy.js');
+const { maskDescription } = require('../src/description_names.js');
 
 const TRADES = ['electrical', 'mechanical', 'plumbing'];
 const SOURCES = ['austin-tx', 'miami-dade-fl'];
@@ -67,6 +69,7 @@ const BEST_PHONE = `
              'source', cp.source, 'sourceRef', cp.source_ref) AS phone
       FROM contact_points cp
      WHERE cp.contractor_id = c.id AND cp.kind = 'phone' AND cp.display_policy = 'show'
+       AND cp.value NOT IN (SELECT value FROM suppressed_phones)
      ORDER BY (cp.verification <> 'unverified') DESC, cp.seen_on_permits DESC, cp.last_seen_on DESC NULLS LAST
      LIMIT 1) ph ON true`;
 
@@ -329,7 +332,9 @@ async function getJob(permitId, f) {
 function stripInternal(r) {
   const { job_key: _j, contractor_id: _c, raw_record_id: _r, match_rule: _m, match_confidence: _mc,
     trade: _t, is_building: _b, issued_on: _i, ...rest } = r;
-  return { ...rest, id: Number(rest.id), valuation: rest.valuation == null ? null : Number(rest.valuation) };
+  return { ...rest, id: Number(rest.id), valuation: rest.valuation == null ? null : Number(rest.valuation),
+    // Names inside a description are masked for display (rule 5).
+    work_description: maskDescription(rest.work_description) };
 }
 
 /** A contractor's profile. Individuals return a withheld stub, never their details. */
@@ -343,6 +348,7 @@ async function getContractor(id) {
   const [phones, aliases, licences, asGc, asSub, recent] = await Promise.all([
     query(`SELECT value, verification, seen_on_permits, shared_with_other_contractors, last_seen_on, source, source_ref
              FROM contact_points WHERE contractor_id = $1 AND kind = 'phone' AND display_policy = 'show'
+              AND value NOT IN (SELECT value FROM suppressed_phones)
             ORDER BY seen_on_permits DESC`, [id]),
     query('SELECT raw_name, seen_count FROM contractor_aliases WHERE contractor_id = $1 ORDER BY seen_count DESC LIMIT 20', [id]),
     query('SELECT licence_state, licence_number, source FROM contractor_licenses WHERE contractor_id = $1', [id]),
@@ -360,7 +366,7 @@ async function getContractor(id) {
       firstPermitOn: c.first_permit_on, lastPermitOn: c.last_permit_on, permitCount: c.permit_count, resolverVersion: c.resolver_version },
     phones: phones.rows.map((p) => ({ value: p.value, verification: p.verification, seenOnPermits: p.seen_on_permits,
       sharedWithOtherContractors: p.shared_with_other_contractors, lastSeenOn: p.last_seen_on, source: p.source, sourceRef: p.source_ref })),
-    aliases: aliases.rows.map((a) => ({ name: a.raw_name, seen: a.seen_count })),
+    aliases: publicAliases(aliases.rows.map((a) => ({ name: a.raw_name, seen: a.seen_count }))),
     licences: licences.rows.map((l) => ({ state: l.licence_state, number: l.licence_number, source: l.source })),
     subsHired: asGc.rows.map(rel),
     gcsWorkedFor: asSub.rows.map(rel),

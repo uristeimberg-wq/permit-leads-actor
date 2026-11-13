@@ -61,7 +61,7 @@
     ['all', 'All GCs', () => true],
     ['spread', 'Spread work', (g) => g.segments.spread],
     ['changed', 'Changed sub recently', (g) => g.segments.changed],
-    ['open', 'Jobs open now', (g) => g.openNow > 0],
+    ['open', 'Jobs with no trade permit yet', (g) => g.openNow > 0],
     ['small', 'Small GCs (1-3 jobs)', (g) => g.segments.small],
   ];
 
@@ -101,7 +101,7 @@
     if (!rows.length) { el.innerHTML = '<div class="state">No GCs in this segment for these filters.</div>'; return; }
     el.innerHTML = `<table>
       <thead><tr><th>General contractor</th><th class="n">Building jobs</th><th class="n hide-sm">With ${L.esc(f.trade)} permit</th>
-        <th class="n">${L.esc(L.TRADE_PERSON[f.trade])} used</th><th>Top one's share</th><th class="n">Open now</th><th>Phone</th></tr></thead>
+        <th class="n">${L.esc(L.TRADE_PERSON[f.trade])} used</th><th>Top one's share</th><th class="n">No permit yet</th><th>Phone</th></tr></thead>
       <tbody>${rows.map((g) => `<tr>
         <td>${L.who(g.gc)}<div class="sub">${g.segments.spread ? '<span class="pill">spreads work</span>' : ''}${g.segments.changed ? '<span class="pill warn">changed sub</span>' : ''}
           last job ${L.esc(L.date(g.lastJobOn))}${g.selfPerformedJobs ? ` · does own ${L.esc(f.trade)} on ${g.selfPerformedJobs}` : ''}</div></td>

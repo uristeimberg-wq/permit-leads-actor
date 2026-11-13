@@ -147,6 +147,8 @@ async function resolveAll() {
 async function main() {
   await db.applySchema();
   const stats = await resolveAll();
+  // Keep the searchable (masked) descriptions current; see migration 010.
+  stats.descriptionsMasked = await db.maskStoredDescriptions();
   console.log(JSON.stringify(stats, null, 2));
   await db.close();
 }

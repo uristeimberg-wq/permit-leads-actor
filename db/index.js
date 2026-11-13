@@ -3,6 +3,7 @@
 
 const { Pool, types } = require('pg');
 const { migrate } = require('./migrate.js');
+const { maskDescription } = require('../src/description_names.js');
 
 // Return DATE (OID 1082) as the plain 'YYYY-MM-DD' string the column actually
 // holds. By default node-pg builds a JS Date at LOCAL midnight, which then
@@ -53,7 +54,7 @@ const MAX_BIND_PARAMS = 60000;
 // Column order shared by the INSERT and its parameter builder.
 const COLUMNS = [
   'source_area', 'permit_number', 'jurisdiction', 'address', 'street', 'city',
-  'state', 'zip', 'permit_type', 'work_description', 'valuation',
+  'state', 'zip', 'permit_type', 'work_description', 'work_description_public', 'valuation',
   'status', 'status_raw', 'status_stage',
   'permit_url', 'filed_date', 'trade_scores',
   'owner', 'parcel_number', 'parcel_block', 'parcel_lot', 'parcel_subdivision',
@@ -75,6 +76,8 @@ function toRow(permit, sourceArea) {
     permit.zip ?? null,
     permit.permitType ?? null,
     permit.workDescription ?? '',
+    // Masked copy for search (010); names are never indexed.
+    maskDescription(permit.workDescription ?? ''),
     permit.valuation ?? null,
     permit.status ?? null,
     permit.statusRaw ?? null,
@@ -164,6 +167,9 @@ async function upsertPermits(permits, sourceArea) {
       work_description = CASE WHEN EXCLUDED.work_description <> ''
                               THEN EXCLUDED.work_description
                               ELSE permits.work_description END,
+      work_description_public = CASE WHEN EXCLUDED.work_description <> ''
+                              THEN EXCLUDED.work_description_public
+                              ELSE permits.work_description_public END,
       valuation        = CASE WHEN EXCLUDED.valuation > 0
                               THEN EXCLUDED.valuation
                               ELSE permits.valuation END,
@@ -335,8 +341,33 @@ async function insertRawRecords(sourceId, syncRunId, records, { batchSize = 500 
   return { newCount, changed };
 }
 
+/**
+ * Brings work_description_public (010) in line with the current mask, for
+ * rows written before 010 and after any change to the mask's vocabulary.
+ * Only rows whose masked text differs are updated. Returns the count.
+ */
+async function maskStoredDescriptions(batch = 5000) {
+  let updated = 0;
+  for (let lastId = 0; ;) {
+    const { rows } = await query(
+      'SELECT id, work_description, work_description_public FROM permits WHERE id > $1 ORDER BY id LIMIT $2', [lastId, batch]);
+    if (!rows.length) break;
+    lastId = Number(rows[rows.length - 1].id);
+    const changed = rows
+      .map((r) => ({ id: r.id, masked: r.work_description == null ? null : maskDescription(r.work_description), was: r.work_description_public }))
+      .filter((r) => r.masked !== r.was);
+    if (changed.length) {
+      await query(`UPDATE permits p SET work_description_public = t.masked
+                     FROM unnest($1::bigint[], $2::text[]) AS t(id, masked) WHERE p.id = t.id`,
+      [changed.map((r) => r.id), changed.map((r) => r.masked)]);
+      updated += changed.length;
+    }
+  }
+  return updated;
+}
+
 module.exports = {
-  getPool, query, close, applySchema,
+  getPool, query, close, applySchema, maskStoredDescriptions,
   upsertPermits, existingPermitNumbers,
   startIngestRun, finishIngestRun,
   getSourceId, startSyncRun, finishSyncRun, insertRawRecords,

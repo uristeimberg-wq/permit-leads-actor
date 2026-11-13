@@ -47,7 +47,8 @@ function pickFilters(query) {
 const asyncRoute = (handler) => (req, res) => {
   Promise.resolve(handler(req, res)).catch((err) => {
     console.error(err);
-    res.status(500).json({ error: 'Query failed', detail: err.message });
+    // No SQL, table names or stack to the client; the log has the detail.
+    res.status(500).json({ error: 'Query failed' });
   });
 };
 

@@ -27,6 +27,7 @@ const BEST_PHONE = `
              'source', cp.source, 'sourceRef', cp.source_ref) AS phone
       FROM contact_points cp
      WHERE cp.contractor_id = c.id AND cp.kind = 'phone' AND cp.display_policy = 'show'
+       AND cp.value NOT IN (SELECT value FROM suppressed_phones)
      ORDER BY (cp.verification <> 'unverified') DESC, cp.seen_on_permits DESC, cp.last_seen_on DESC NULLS LAST
      LIMIT 1) ph ON true`;
 
@@ -38,7 +39,8 @@ async function totals(source) {
     WITH p AS (
       SELECT p.id, p.filed_date, p.valuation, pp.is_building, pp.trade, pp.contractor_id, c.party_kind,
              EXISTS (SELECT 1 FROM contact_points cp WHERE cp.contractor_id = c.id AND cp.kind = 'phone'
-                        AND cp.display_policy = 'show') AS has_phone
+                        AND cp.display_policy = 'show'
+                        AND cp.value NOT IN (SELECT value FROM suppressed_phones)) AS has_phone
         FROM permits p
         LEFT JOIN permit_parties pp ON pp.permit_id = p.id AND pp.role = 'contractor'
         LEFT JOIN contractors c ON c.id = pp.contractor_id

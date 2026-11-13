@@ -10,7 +10,7 @@
 // (src/contractors.js partyKind, ADR-12): a phone is shown only for a
 // business-looking name; a person-looking or unclear name is withheld too.
 
-const { partyKind, isOwnerBuilder } = require('./contractors.js');
+const { partyKind, isOwnerBuilder, toE164 } = require('./contractors.js');
 
 const HIDDEN_PERMIT_COLUMNS = ['owner', 'applicant_name', 'applicant_phone'];
 const HIDDEN_PERMIT_FIELDS = ['owner', 'applicantName', 'applicantPhone'];
@@ -50,4 +50,27 @@ function redactContractor(row) {
   return out;
 }
 
-module.exports = { HIDDEN_PERMIT_COLUMNS, HIDDEN_PERMIT_FIELDS, redactPermit, redactContractor, isShownContractor };
+/**
+ * A copy of a row with its contractor phone removed when the number is under a
+ * removal request (db/migrations/009_suppressions.sql). `suppressed` is a Set
+ * of E.164 numbers, from the suppressed_phones view.
+ */
+function dropSuppressedPhone(row, suppressed, field = 'contractor_phone') {
+  if (!row || !suppressed || !suppressed.size || row[field] == null) return row;
+  const e164 = toE164(row[field]);
+  return e164 && suppressed.has(e164) ? { ...row, [field]: null } : row;
+}
+
+/**
+ * The name spellings of a contractor a client may see. A licence-keyed
+ * contractor can carry its licence holder's personal name as one of its
+ * spellings; those are left out, like any other person-looking name.
+ */
+function publicAliases(aliases) {
+  return (aliases || []).filter((a) => isShownContractor(a.name));
+}
+
+module.exports = {
+  HIDDEN_PERMIT_COLUMNS, HIDDEN_PERMIT_FIELDS, redactPermit, redactContractor, isShownContractor,
+  dropSuppressedPhone, publicAliases,
+};
