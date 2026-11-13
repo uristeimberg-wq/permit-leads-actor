@@ -13,6 +13,18 @@ on:
       only:
         description: Comma-separated sections (austin, austinUpdatedAt, austinWindows, miamiWindow, miami); empty runs all
         default: ''
+      markets:
+        description: "Market scan (recon/market_scan.js) instead of the measurements: 'all' for discovery plus probes, or a comma-separated --only list"
+        default: ''
+      market_cities:
+        description: "Market scan: comma-separated city names to search on ArcGIS and Socrata"
+        default: ''
+      market_links:
+        description: "Market scan: building-to-trade link rates (recon/market_links.js): 'all' or a comma-separated source list"
+        default: ''
+      market_ckan:
+        description: "Market scan: comma-separated CKAN portals to list permit datasets from"
+        default: ''
 
 jobs:
   measure:
@@ -25,10 +37,20 @@ jobs:
           node-version: 20
       # Plan-review timing and GC-sub stickiness (recon/plan_review.js); skipped
       # when only specific feasibility sections are requested.
-      - if: inputs.only == ''
+      - if: inputs.markets != ''
+        run: node recon/market_scan.js --out=feasibility-report/markets ${MARKETS:+--only="$MARKETS"} ${CITIES:+--cities="$CITIES"} ${CKAN:+--ckan="$CKAN"}
+        env:
+          MARKETS: ${{ inputs.markets != 'all' && inputs.markets || '' }}
+          CITIES: ${{ inputs.market_cities }}
+          CKAN: ${{ inputs.market_ckan }}
+      - if: inputs.market_links != ''
+        run: node recon/market_links.js --out=feasibility-report/links ${LINKS:+--only="$LINKS"}
+        env:
+          LINKS: ${{ inputs.market_links != 'all' && inputs.market_links || '' }}
+      - if: inputs.only == '' && inputs.markets == '' && inputs.market_links == ''
         run: node recon/plan_review.js --out=feasibility-report/plan-review --months=24
       # Inputs go through env, not inline, so they can't inject shell.
-      - if: always()
+      - if: always() && inputs.markets == '' && inputs.market_links == ''
         run: node recon/feasibility.js --out=feasibility-report --months="$MONTHS" ${ONLY:+--only="$ONLY"}
         env:
           MONTHS: ${{ inputs.months }}

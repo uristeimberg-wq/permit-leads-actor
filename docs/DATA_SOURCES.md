@@ -160,7 +160,7 @@ product, not only about timing.
 
 | Source | Endpoint | Freshness (verified) | Contractor fields | Notes |
 | --- | --- | --- | --- | --- |
-| Dallas, Building Permits | `https://www.dallasopendata.com/resource/e7gq-4sah.json` | Updated 2026-11-12 | One free-text `contractor` field, sometimes with phone and address | `issued_date` is text `MM/DD/YY`, so sort and filter need parsing. No status column. Dallas also publishes "Active Contractors" (`jhgk-eg9m`) with phone |
+| Dallas, Building Permits | `https://www.dallasopendata.com/resource/e7gq-4sah.json` | Updated 2026-11-12 | One free-text `contractor` field, sometimes with phone and address. **2026-11-13: empty on the 2,000 most recent rows** (see the expansion scan) | `issued_date` is text `MM/DD/YY`, so sort and filter need parsing. No status column. Dallas also publishes "Active Contractors" (`jhgk-eg9m`) with phone |
 | Orlando, Permit Applications | `https://data.cityoforlando.net/resource/ryhf-m453.json` | "Updated daily"; updated 2026-11-12 | `contractor_name`, `contractor_phone_number`, `contractor_address` | Property and parcel owner names. About 1.1M rows. Applications, so earlier than issued |
 | Chicago, Building Permits | `https://data.cityofchicago.org/resource/ydr8-5enu.json` | Updated 2026-11-12; latest issue 2026-11-11 | Contact slots by role (`contact_n_type/name`), city, state and ZIP only, **no phone** | Large volume. Needs phone enrichment |
 | City of Miami, iBuildPermits | `https://gis.miami.gov/gis/rest/services/Maps/iBuildPermits/MapServer/0` | Latest issue 2026-11-13 | **None** | Has `MasterPermitNumber`, `FOLIO`. Use only if the county layer lacks City of Miami permits |
@@ -169,6 +169,97 @@ product, not only about timing.
 | San Francisco | `https://data.sf.gov/resource/i98e-djp9.json` | Updated 2026-11-12 | None in the main table; a separate contacts dataset (`3pee-9qhc`) | |
 | Phoenix, ShapePHX permits | `https://mapportal.phoenix.gov/pds/rest/services/ShapePHX/ShapePHXPermitsPoints_DL/MapServer/0` | "Updated on a weekly basis" | One `CONTACT` field (contents unknown) | `OWNER_NAME`, `APN` |
 | Mecklenburg County (Charlotte) | metadata only | Weekly; metadata from 2019 | None | CO-required permits only. Skip |
+
+## Expansion market scan (2026-11-13)
+
+Goal: rank US jurisdictions beyond Austin and Miami-Dade where permits can be
+ingested legally and reliably, weighted by volume and by how well the data
+supports the GC-sub relationship view (a building permit linked to the trade
+permits on the same job, with a different company named on each).
+
+**Method.** All numbers come from live API calls made from GitHub Actions on
+2026-11-13 (the sandbox cannot reach government hosts), with
+`recon/market_scan.js` and `recon/market_links.js` (`feasibility` workflow,
+inputs `markets`, `market_cities`, `market_links`; runs 43438702588,
+43440944714, 43442610269, 43443947497). Discovery swept Socrata's public
+catalog (456 permit datasets), ArcGIS Online search (243 permit services) and
+7 CKAN portals, then probed about 55 datasets. Terms pages were read through a
+web fetch, not from Actions.
+
+- *Volume* = permits issued in the last 90 days (2026-08-15 to 2026-11-13),
+  all types, from a server-side count.
+- *Phone* and *company* = share of the 1,000-2,000 most recent rows with a
+  10-digit contractor phone / a contractor company name.
+- *Link* = residential building permits issued 12 to 6 months ago that get an
+  electrical / plumbing / mechanical permit on the same key within -30..+180
+  days; *sub differs* = share of those links where the trade permit names a
+  different company than the building permit. Same definition as Austin's
+  trade gap (Austin: 50-78% by permit-number base).
+- **Verified** means measured as above. **Assumed** means not measured.
+
+### Ranked table
+
+| # | Market | Source (endpoint) | Volume, 90 d | Fresh (latest issue) | Phone | Company | Link key: E / P / M linked, sub differs | History | Terms | Verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | **City of Miami, FL** | ArcGIS `services1.arcgis.com/CvuPhqcTQpZPT9qY/.../Building_Permits_Since_2014/FeatureServer/0` | 7,815 | Daily (2026-11-12) | 0% | 96% | `ApplicationNumber`: E 45%, P 43%; sub differs 99% / 87%. Mechanical not found (suffix `ME` is rare; `MA` unknown) | 2012- | Not found on the service or the city data page. **Unread** | Add first: same market as the pilot, fixes the county layer's weekly lag and the open municipal-coverage question. Phones must come from the county layer or licences |
+| 2 | **Philadelphia, PA** | ArcGIS `services.arcgis.com/fLeGjb7u4uXqeF9q/.../PERMITS/FeatureServer/0` | 11,249 | Daily (2026-11-12) | 0% | 86% | `parentjobid`: E 51%, P 54%, M 36%; sub differs 96% / 94% / 56%. Parcel: 64% / 67% / 48% | 2007- | "City of Philadelphia License": "reserves all rights in the database". **Must be read before use** | Best GC-sub structure measured outside Austin; no phone; licence terms are the blocker |
+| 3 | **Raleigh, NC** | ArcGIS `services.arcgis.com/v400IkDOw1ad7Yad/.../Building_Permits/FeatureServer/0` and `.../Permits_Other_Than_Buildings/FeatureServer/0` | 1,482 building + 6,046 trade | Daily (2026-11-12) | 76% building, 85% trade; email 85-91% | 90-96% | Trade layer has `contractortype` (trade) and `workclass = "Sub Permit"` on about half of recent rows, `pin` 99.7%, `projectname` 22%. **Link rate not measured** (the 12-month trade query failed with 400/504; retry with smaller pages) | 2000- | No licence named on the city page. **Unread** | Best contact data after Austin, and sub-permits are explicit. Smaller volume |
+| 4 | **Orlando, FL** | Socrata `data.cityoforlando.net/resource/ryhf-m453.json` | 6,666 | Daily (2026-11-12) | 51% | 96% | `parcel_number` only: E 34%, P 29%, M 26% (median 8-33 d); sub differs 96-99% | 1907- (bulk from about 2000) | No terms on the portal page; "Legal" link not read | Asked for by the user. Workable, but half the phones are missing and the link is parcel-only, so it is noisier than Austin |
+| 5 | **New Orleans, LA** | Socrata `data.nola.gov/resource/72f9-bi28.json` | 5,580 | Daily (2026-11-11) | 0% | 76-90% | `pin`: E 48%, P 38%, M 31% (median 50-59 d); sub differs 90-98% | 2001- | **CC0 1.0** (dataset metadata, verified) | Cleanest licence; has contractor licence and trade; needs phone enrichment |
+| 6 | **New York City, NY** | Socrata `data.cityofnewyork.us/resource/rbx6-tga4.json` (DOB NOW Build) + `dm9a-ab7w.json` (electrical) | 43,737 + 13,309 | Daily (2026-11-11) | 0% | 100% (permittee business) | `bin`: P 55% (sub differs 99%), M 45% (36%: the GC often holds it). Job number: P 33%. Electrical is a separate dataset keyed by BIN (not linked here) | 2016- | NYC.gov: "All rights are reserved"; Open Data portal terms page failed to load. **Unread** | Largest volume by far, but dense multifamily and commercial work, crowded market, no phone |
+| 7 | **San Diego County (unincorporated), CA** | Socrata `data.sandiegocounty.gov/resource/red2-qccu.json` + `4ju2-mf55` (contractors) + `wc68-2ej9` (contractor trades) | 2,657 | Daily (2026-11-12) | 87% permit; 99.6% contractor table | 87% | **No GC-sub view**: the contractor table holds one licensee per permit (0.2% of residential permits list 2+). CSLB licence number on 100% | 1986- | Not found. **Unread** | Excellent contacts and CA licence numbers, but no separate trade permits to link |
+| 8 | **Cleveland, OH** | ArcGIS `services3.arcgis.com/dty2kHktVXHrqO8i/.../Building_Permits/FeatureServer/0` | 3,633 | Weekly-ish (edit 2026-11-08) | 0% | 91% (+ licence ID 91%) | `ASSOCIATED_PROJECT` links nothing (0%); parcel: E 15%, P 12%, M 7% | 2015- | Unread | Weak links. Skip for now |
+| 9 | **Anaheim, CA** | ArcGIS `services3.arcgis.com/hPs600I3X0RTaaaq/.../Accela_Building_Permits/FeatureServer/0` | 899 | Daily (2026-11-12) | 80% | 80% | Trades in the same layer; `parcel` 99.9%. Link **not measured** | 1999- | Unread | Good contacts, small market |
+| 10 | **Mesa, AZ** | Socrata `citydata.mesaaz.gov/resource/dzpk-hxfb.json` (the older `2gkz-7z4f` is retired) | 1,182 | Daily (2026-11-11) | 35% | 51% (+ licence 51%) | `parcel_number` 99.7%. Link **not measured** | 1987- | "See Terms of Use". Unread | Thin contact coverage |
+| 11 | **Denver, CO** | ArcGIS `services1.arcgis.com/zdB7qR0BtYrg0Xpl/.../ODC_DEV_RESIDENTIALCONSTPERMIT_P/FeatureServer/316` (+ commercial `/317`) | 910 + 557 | Daily (2026-11-12) | 0% | 97-100% | **No trade permits** in these layers | 2011- | Attribution string only | GC list only, no sub view |
+| 12 | **East Baton Rouge, LA** | Socrata `data.brla.gov/resource/7fq7-8j7r.json` | 1,997 | Daily (2026-11-07) | 0% | 100% | Trades in the same dataset; no parcel field seen. Link **not measured** | 2011- | Public Domain (metadata) | Small, clean licence |
+| 13 | **Cincinnati, OH** | Socrata `data.cincinnati-oh.gov/resource/uhjb-xac9.json` | 2,507 | Daily (2026-11-10) | 0% | 99% | `pin` 98.6%. Link **not measured** | 2010- | Public Domain (metadata) | Small, clean licence |
+
+Smaller sources that also work (verified fields, not ranked): Everett, WA
+`data.everettwa.gov/3w3u-656c` (2,067 / 90 d, contractor 100%, no phone);
+Marin County, CA `data.marincounty.gov/mkbn-caye` (1,123, contractor 99%);
+Seattle trade permits `cos-data.seattle.gov/c87v-5hwh` and electrical
+`c4tj-daue` (contractor 81-83%, text dates; building permits only 7%).
+
+### Checked and not usable now
+
+| Market | What was found (2026-11-13) |
+| --- | --- |
+| Dallas | `e7gq-4sah` is daily, but `contractor` is **empty on all 2,000 most recent rows**, and `issued_date` is text. This contradicts the older note above ("sometimes with phone"); the earlier rows may differ. Downgraded |
+| Chicago | `ydr8-5enu`: no contractor company or phone in recent rows (contact slots only) |
+| Phoenix | ShapePHX layer: no contractor field; `OWNER_NAME` only |
+| Tempe, AZ | Contractor columns exist but are filled on about 2% of rows |
+| San Antonio | CKAN `data.sanantonio.gov` "Building Permits": one free-text `PRIMARY CONTACT`, mixed with engineers and banner permits; weekly (modified 2026-11-08); CC BY |
+| Wake County, NC | `CONTRACTOR` empty on recent rows |
+| Boston | `6ddcd912-...`: `applicant` only (PDDL licence) |
+| Nashville, Charlotte, Houston, Fort Worth, Jacksonville, Tampa, Atlanta, Las Vegas, Columbus, Indianapolis, Fort Lauderdale, Orange County FL, Hillsborough County FL, Sacramento, Scottsdale, Frisco, Plano, Cape Coral, Durham | No open building-permit dataset with contractor fields found by ArcGIS or Socrata search. This is "not found", not "does not exist": most of these run Accela, EnerGov or Tyler portals that would need scraping, which rule 4 and the terms of each portal must clear first. Houston publishes monthly counts only |
+| CivicData.com (Accela's CKAN) | Many cities, but stale: Tampa, Charlotte, Cincinnati and Clearwater files end 2015-2023; the freshest are mid-2026 annual drops |
+| Tallahassee / Leon County | Layer holds only currently active permits (1,398 rows), so no history |
+
+### Recommended next 3
+
+1. **City of Miami.** Cheapest to add and strengthens the pilot that already
+   exists: daily instead of weekly, 7,815 permits per quarter, and the
+   application number links building to electrical and plumbing permits at
+   43-45% with a different company 87-99% of the time. Blocker to clear:
+   no phone, so contact data has to come from the Miami-Dade layer
+   (`ContractorPhone`, 82%) by licence or name match. That match rate is
+   **not measured yet**.
+2. **Raleigh.** The best contact data found outside Austin (76-85% phone,
+   85-91% email), and the trade layer marks sub-permits and the trade of each
+   contractor. Measure the link rate before committing; volume is about a
+   quarter of Austin's.
+3. **Philadelphia** if its licence allows commercial reuse, otherwise
+   **Orlando.** Philadelphia has the strongest GC-sub links measured (51-54%
+   by parent job, 64-67% by parcel) and the most volume after NYC, but its
+   licence reserves all rights and there is no phone. Orlando is the user's
+   pick and has phones on half its rows, but its links are parcel-only and
+   weaker (26-34%).
+
+What would change this ranking: Philadelphia's licence text; the City of
+Miami to county phone match rate; Raleigh's measured link rate; and the
+expediter caveat from Austin (if one company pulls trade permits for many
+GCs, "sub differs" overstates real subs).
 
 ## Licence sources
 
