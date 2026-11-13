@@ -28,7 +28,7 @@ jobs:
           code() { curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$@"; }
           fail=0
           h=$(code "$BASE/healthz"); echo "healthz: $h"; [ "$h" = 200 ] || fail=1
-          for p in / /pilot/live/ /pilot/live/gcs.html; do
+          for p in / /pilot/live/ /pilot/live/early.html /pilot/live/gcs.html; do
             c=$(code -H 'accept: text/html' "$BASE$p"); echo "no session $p: $c (want 302 to /login)"; [ "$c" = 302 ] || fail=1
           done
           c=$(code "$BASE/login"); echo "sign-in page: $c (want 200)"; [ "$c" = 200 ] || fail=1
@@ -39,7 +39,7 @@ jobs:
             jar=$(mktemp)
             c=$(code -c "$jar" -X POST --data-urlencode "password=$DEMO_PASSWORD" --data-urlencode "next=/pilot/live/" "$BASE/login")
             echo "sign-in: $c (want 303)"; [ "$c" = 303 ] || fail=1
-            for p in "/pilot/live/" "/pilot/live/gcs.html" "/pilot/live/digest.html" "/search.html"; do
+            for p in "/pilot/live/" "/pilot/live/early.html" "/pilot/live/gcs.html" "/pilot/live/digest.html" "/search.html"; do
               c=$(code -b "$jar" "$BASE$p"); echo "page $p: $c"; [ "$c" = 200 ] || fail=1
             done
             curl -s --max-time 90 -b "$jar" "$BASE/api/pilot/overview?source=austin-tx" \
@@ -52,6 +52,13 @@ jobs:
               | jq -c '{gcs: (.gcs|length), jobs: .baseline.jobs, linkedJobs: .baseline.linkedJobs, repeatRate: .baseline.repeatRate,
                         withShownPhone: ([.gcs[]|select(.gc.phone)]|length), withheld: ([.gcs[]|select(.gc.name==null)]|length)}' || fail=1
             curl -s --max-time 60 -u "x:$DEMO_PASSWORD" "$BASE/api/pilot/leads?trade=electrical&days=7" | jq -c '{leads: (.leads|length)}' || fail=1
+            # Every pilot market, and the Early filings screen where a market has one.
+            for src in austin-tx miami-dade-fl miami-city-fl raleigh-nc; do
+              curl -s --max-time 60 -u "x:$DEMO_PASSWORD" "$BASE/api/pilot/gcs?source=$src&trade=electrical&months=12" \
+                | jq -ec --arg s "$src" 'select(.filters.source == $s) | {source: $s, gcs: (.gcs|length), jobs: .baseline.jobs, lastSyncAt: .meta.lastSyncAt}' || fail=1
+              curl -s --max-time 60 -u "x:$DEMO_PASSWORD" "$BASE/api/pilot/early?source=$src&days=30" \
+                | jq -ec --arg s "$src" 'select(.filters.source == $s) | {source: $s, early: .available, filings: (.filings|length), stages: .counts}' || fail=1
+            done
           else
             echo "::notice::DEMO_PASSWORD secret not set: checked the gate only, not the data."
           fi
