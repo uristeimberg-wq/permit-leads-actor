@@ -1,0 +1,23 @@
+const fs=require('node:fs'); const {chromium}=require('playwright');
+const fmt=(d)=>`${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()}`;
+(async()=>{
+  const b=await chromium.launch();
+  const p=await b.newPage({userAgent:'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36'});
+  await p.goto('https://aca-prod.accela.com/CLACKAMAS/Cap/CapHome.aspx?module=Building&TabName=Home',{waitUntil:'domcontentloaded',timeout:60000});
+  const s='#ctl00_PlaceHolderMain_generalSearchForm_txtGSStartDate';
+  const e='#ctl00_PlaceHolderMain_generalSearchForm_txtGSEndDate';
+  await p.waitForSelector(s,{timeout:30000});
+  const end=new Date(), start=new Date(Date.now()-7*86400000);
+  await p.click(s); await p.fill(s,''); await p.type(s,fmt(start),{delay:50}); await p.keyboard.press('Tab');
+  await p.click(e); await p.fill(e,''); await p.type(e,fmt(end),{delay:50}); await p.keyboard.press('Tab');
+  console.log('typed:', await p.inputValue(s), '->', await p.inputValue(e));
+  await p.click('#ctl00_PlaceHolderMain_btnNewSearch');
+  await p.waitForLoadState('networkidle',{timeout:60000}).catch(()=>{});
+  await p.waitForTimeout(5000);
+  console.log('url after search:', p.url());
+  fs.writeFileSync('recon/out/diag_search.html', await p.content());
+  const txt=(await p.locator('body').innerText().catch(()=>'')).replace(/\n{2,}/g,'\n');
+  console.log('--- body text (1200) ---\n'+txt.slice(0,1200));
+  console.log('\ngrid count:', await p.locator('#ctl00_PlaceHolderMain_dgvPermitList_gdvPermitList').count());
+  await b.close();
+})().catch(e=>{console.error('FAIL:',e.message);process.exit(1);});

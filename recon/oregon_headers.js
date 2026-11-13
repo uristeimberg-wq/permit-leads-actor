@@ -1,0 +1,20 @@
+const { chromium } = require('playwright');
+const pad=(n)=>String(n).padStart(2,'0');
+const fmt=(d)=>`${pad(d.getMonth()+1)}/${pad(d.getDate())}/${d.getFullYear()}`;
+(async()=>{
+  const b=await chromium.launch();
+  const p=await b.newPage({userAgent:'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36'});
+  await p.goto('https://aca-oregon.accela.com/oregon/Cap/CapHome.aspx?module=Building&TabName=Home',{waitUntil:'domcontentloaded',timeout:60000});
+  const s='#ctl00_PlaceHolderMain_generalSearchForm_txtGSStartDate', e='#ctl00_PlaceHolderMain_generalSearchForm_txtGSEndDate';
+  await p.waitForSelector(s,{timeout:30000});
+  const end=new Date(), start=new Date(Date.now()-5*86400000);
+  await p.click(s); await p.fill(s,''); await p.type(s,fmt(start),{delay:50}); await p.keyboard.press('Tab');
+  await p.click(e); await p.fill(e,''); await p.type(e,fmt(end),{delay:50}); await p.keyboard.press('Tab');
+  await p.click('#ctl00_PlaceHolderMain_btnNewSearch');
+  await p.waitForSelector('#ctl00_PlaceHolderMain_dgvPermitList_gdvPermitList',{timeout:90000});
+  const heads=await p.$$eval('#ctl00_PlaceHolderMain_dgvPermitList_gdvPermitList th',ths=>ths.map(t=>t.innerText.replace(/\s+/g,' ').trim()).filter(Boolean));
+  console.log('OREGON HEADERS:', JSON.stringify(heads));
+  const rows=await p.$$eval('#ctl00_PlaceHolderMain_dgvPermitList_gdvPermitList tr',trs=>trs.filter(tr=>tr.querySelector('a[href*="CapDetail"]')).slice(0,6).map(tr=>[...tr.querySelectorAll('td')].map(td=>td.innerText.replace(/\s+/g,' ').trim())));
+  rows.forEach(r=>console.log(JSON.stringify(r)));
+  await b.close();
+})().catch(e=>{console.error('FAIL:',e.message);process.exit(1);});

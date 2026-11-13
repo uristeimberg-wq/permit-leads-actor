@@ -1,0 +1,24 @@
+# Local Postgres for development.
+#
+# Port 5433, not the default 5432 — this machine already runs an unrelated
+# Postgres container on 5432, and this project must not touch it.
+services:
+  db:
+    image: postgres:17
+    container_name: permit-leads-postgres
+    environment:
+      POSTGRES_USER: permits
+      POSTGRES_PASSWORD: permits
+      POSTGRES_DB: permits
+    ports:
+      - "5433:5432"
+    volumes:
+      - permit-leads-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U permits -d permits"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  permit-leads-pgdata:
