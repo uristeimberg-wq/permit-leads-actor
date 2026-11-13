@@ -88,10 +88,31 @@ understanding, not checked against a primary source.
 | 1.8 | **Oregon** sources in code (Washington County, Clackamas, statewide Accela, Portland CSV) | 🟢 while off | V (config) | Washington County is CAPTCHA-gated and excluded (rule 2). Accela portals are off (ADR-5). Accela Citizen Access sites commonly forbid automated access in their terms **[A]** | Keep off. Turning one on needs its terms read and a `sources` entry |
 | 1.9 | **TDLR** licence file, data.texas.gov `7358-krk7` (planned) | 🟡 | V (metadata); portal terms unread | Metadata requires attribution "Texas Department of Licensing and Regulation" with link to the TDLR licence search. Rows hold `owner_name` and `owner_telephone`, which are individuals' data | Show the attribution wherever a TDLR value appears. Never display `owner_*`. Treat `business_telephone` of a one-person licensee as possibly personal (2.3) |
 | 1.10 | **TSBPE** plumber lists (planned) | 🟡 | V | "Free licensee list" CSVs, updated daily. Only a disclaimer: "we make no guarantees". No commercial or redistribution rule found. Lists are of individual licensees with a "last known company name" | Use the company name and licence number only; hide personal names |
-| 1.11 | **Travis CAD** appraisal exports (planned) | 🟡 | V (pages read; no terms found) | Bulk exports posted "for public review"; no licence, commercial-use rule or Tax Code §25.027 statement found. Records hold owner names and mailing addresses; §25.027 makes some owners' home addresses confidential **[A]** | Join by parcel ID only; store property facts, not owner names (ADR-14 step 3). Counsel Q9 |
+| 1.11 | **Travis CAD** appraisal exports (planned) | 🟢 for property facts, with the rules below / 🔴 for owner, exemption and sale fields | V (Actions run 43462398001: TCAD page, export layout, statute text) | TCAD posts the exports on its public-information page "for public review" with no terms, licence, disclaimer, fee or login (searched the page for terms, licence, commercial, disclaim, resale: none). Gov't Code §552.007(b): information a body releases voluntarily "must be made available to any person". In the sections read, no statute limits what a private recipient does with released roll data. But the layout carries owner name and mailing address, a "Confidential Flag", an "Address Suppression Flag", a "Current Appraisal Owner Confidential Name", homestead, over-65 and disabled-veteran exemptions, and deed fields. Tax Code §25.027 bars posting on the Internet any appraisal-record information that "indicates the age of a property owner, including ... 65 years of age or older", or a residential "photograph, sketch, or floor plan". §25.025 makes listed people's home addresses (peace officers, judges, family-violence victims and others) confidential. §22.27 makes renditions and promised-confidential sale prices confidential, and (c) makes it a misdemeanor for anyone who "legally obtains" them to disclose them | Follow "Travis CAD use rules" below. Counsel Q9 still applies |
 | 1.12 | **Miami-Dade Property Appraiser** (planned) | 🟡 | V (disclaimer); search app unreadable | "As is"; "all rights not expressly granted herein are reserved"; users must not present themselves as the Appraiser's representative. Florida s. 119.071(4)(d) exempts some protected people's home addresses **[A]** | As 1.11. Counsel Q9 |
 | 1.13 | **US Census geocoder** (planned) | 🟡 | V | API terms: users "will not use these data, alone or in combination with any other ... data, to identify any individual person, household, business or other entity", and must show "This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau." It is unclear whether the geocoder is covered; the clause targets Census data, but its words are broad. Batch limit 10,000 | Counsel Q4. Show the notice anyway; never present a geocoded point as a person's location |
 | 1.14 | OpenStreetMap tiles and Nominatim (map, `data/area-coords.json`) | 🟡 | A (policies from memory, not re-read) | The tile and Nominatim usage policies require attribution (shown), forbid heavy or bulk use, and point commercial products at a paid tile provider. Area centroids were geocoded once and committed | Before paid launch, move tiles to a provider whose terms allow commercial use |
+
+#### Travis CAD use rules (2026-11-13)
+
+These apply to the property-data join (ADR-14 step 3). The pipeline enforces
+them at load time, not at display.
+
+1. **Load only property facts**: parcel ID, year built, living area, land and
+   improvement value, land use or state code, and improvement type and class.
+2. **Never load** owner name, owner ID, owner or mailing address, deed fields,
+   exemption flags or amounts (homestead, over-65, disabled, veteran and the
+   rest), sale prices, renditions, or any photo, sketch or floor plan.
+   Over-65 status is barred from Internet posting outright (§25.027). Disability
+   and veteran exemptions are sensitive personal data.
+3. **Skip the whole parcel** when its Confidential Flag or Address Suppression
+   Flag is `T`. That keeps us from adding facts to a §25.025 protected person's
+   home.
+4. **Attribution and freshness**: credit "Travis Central Appraisal District",
+   and show the roll year (certified July, with supplements) next to every
+   value. It is an appraisal estimate, not a sale price or a market quote.
+5. Read the export's own header lines once when the loader is built. If an
+   export ever carries sale price, drop the column.
 
 ### 2. Privacy: what the demo and exports can leak
 
