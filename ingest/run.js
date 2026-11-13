@@ -56,7 +56,9 @@ function parseArgs(argv) {
 async function ingestArea(area, { days, daysExplicit = false, max: requestedMax, allDetails, kind = 'manual' }) {
   const source = SOURCES[area];
   if (!source) throw new Error(`Unknown area "${area}". Known: ${Object.keys(SOURCES).join(', ')}`);
-  const max = requestedMax === undefined ? source.maxPerRun : Math.min(requestedMax, source.maxPerRun);
+  // A backfill may exceed the daily cap, up to the source's own backfill ceiling.
+  const ceiling = kind === 'backfill' && source.backfillMaxPerRun ? source.backfillMaxPerRun : source.maxPerRun;
+  const max = requestedMax === undefined ? ceiling : Math.min(requestedMax, ceiling);
 
   const runId = await db.startIngestRun(area);
   // sync_runs is the new record of every attempt; ingest_runs stays until the

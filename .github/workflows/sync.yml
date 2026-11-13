@@ -13,6 +13,14 @@ on:
         description: Dry run against a throwaway Postgres in the job instead of DATABASE_URL
         type: boolean
         default: false
+      backfill_days:
+        description: Backfill instead of the daily windows, e.g. 180. Blank = normal daily sync
+        type: string
+        default: ''
+      backfill_area:
+        description: Area to backfill (austin-tx or miami-dade-fl)
+        type: string
+        default: austin-tx
 
 concurrency:
   group: sync
@@ -21,7 +29,7 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     # Only used by an ephemeral dry run; cheap to start otherwise.
     services:
       postgres:
@@ -60,10 +68,23 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
       # Applies pending migrations, then syncs the pilot areas.
       - run: node ingest/run.js --strict --kind=scheduled
-        if: steps.secret.outputs.ready == 'true'
+        if: steps.secret.outputs.ready == 'true' && !inputs.backfill_days
         env:
           DATABASE_URL: ${{ env.DB_URL }}
           SOCRATA_APP_TOKEN: ${{ secrets.SOCRATA_APP_TOKEN }}
+      # One-off history pull for the GC relationships view. Inputs go through
+      # env and are validated, never interpolated into the shell.
+      - name: Backfill
+        if: steps.secret.outputs.ready == 'true' && inputs.backfill_days
+        env:
+          DATABASE_URL: ${{ env.DB_URL }}
+          SOCRATA_APP_TOKEN: ${{ secrets.SOCRATA_APP_TOKEN }}
+          DAYS: ${{ inputs.backfill_days }}
+          AREA: ${{ inputs.backfill_area }}
+        run: |
+          [[ "$DAYS" =~ ^[0-9]{1,4}$ ]] || { echo "::error::backfill_days must be a number"; exit 1; }
+          [[ "$AREA" =~ ^(austin-tx|miami-dade-fl)$ ]] || { echo "::error::unknown backfill_area"; exit 1; }
+          node ingest/run.js --strict --kind=backfill --area="$AREA" --days="$DAYS"
       # Contractors, contact points and GC -> sub links, rebuilt from the
       # latest raw records (ADR-12). Runs even if one area failed, on what we have.
       - name: Resolve contractors

@@ -126,6 +126,9 @@ const SOURCES = {
     // ~4,700 issued in 30 days plus ~11,000 status changes in 14 days, before
     // overlap. 25,000 leaves headroom (25 requests); ingest warns if hit.
     maxPerRun: 25000,
+    // A backfill (--kind=backfill --days=N) may pull more; 12 months of Austin
+    // is roughly 150k permits.
+    backfillMaxPerRun: 200000,
     dateField: 'issue_date',
     defaultState: 'TX',
     fieldMap: {
@@ -196,6 +199,7 @@ const SOURCES = {
     // "fetch failed" at --max=6000 before the adapter retried; 5,000 was pulled
     // live with retries (recon/feasibility.js --only=miamiWindow).
     maxPerRun: 5000,
+    backfillMaxPerRun: 40000,
     dateField: 'PermitIssuedDate',
     // Without an order, offset paging over the layer is not stable. Newest
     // first, ObjectId as the tiebreak.

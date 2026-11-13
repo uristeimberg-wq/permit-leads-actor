@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Weekly digest</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="live.css">
+</head>
+<body>
+<div id="top"></div>
+<main style="max-width:760px">
+  <div class="head">
+    <div>
+      <span class="eyebrow" id="eyebrow">Weekly digest preview</span>
+      <h1 id="title">Leads</h1>
+      <p class="lede" id="lede">Loading…</p>
+    </div>
+  </div>
+  <form class="filters" id="filters">
+    <label>Area <select name="source"><option value="austin-tx">Austin, TX</option><option value="miami-dade-fl">Miami-Dade, FL</option></select></label>
+    <label>Trade <select name="trade"><option value="electrical">Electrical</option><option value="plumbing">Plumbing</option><option value="mechanical">Mechanical</option></select></label>
+    <label>First seen in <select name="days"><option value="7">last 7 days</option><option value="14">last 14 days</option><option value="30">last 30 days</option></select></label>
+    <label>ZIPs <input name="zips" placeholder="all" size="14"></label>
+    <label>Min value $ <input name="minValuation" placeholder="any" size="8" inputmode="numeric"></label>
+    <button type="submit">Apply</button>
+  </form>
+  <div id="list"><div class="state">Loading…</div></div>
+  <div id="foot"></div>
+</main>
+<script src="../../links.js"></script>
+<script src="live.js"></script>
+<script>
+(function () {
+  const L = window.Live;
+  const p = L.params();
+  const f = { source: p.source || 'austin-tx', trade: p.trade || 'electrical', days: p.days || '7', zips: p.zips || '', minValuation: p.minValuation || '' };
+  const form = document.getElementById('filters');
+  for (const k of Object.keys(f)) form.elements[k].value = f[k];
+  form.addEventListener('submit', (e) => { e.preventDefault(); location.search = L.qs(Object.fromEntries(new FormData(form))); });
+  document.getElementById('top').innerHTML = L.topBar();
+
+  L.api(`/api/pilot/leads?${L.qs(f)}`).then(render).catch((e) => L.fail(document.getElementById('list'), e));
+
+  function render(d) {
+    const n = d.leads.length;
+    document.getElementById('eyebrow').textContent = `Weekly digest preview · ${L.AREA[f.source]}`;
+    document.getElementById('title').textContent = `${n} ${f.trade} lead${n === 1 ? '' : 's'} in ${L.AREA[f.source]}`;
+    document.getElementById('lede').innerHTML = `Building permits we first saw in the last ${d.days} days with no ${L.esc(f.trade)} permit issued on the job yet, ranked by how well the description fits ${L.esc(f.trade)} work. Call the contractor named on the permit.`
+      + `<br><span class="sub">Data as of ${L.esc(L.dateTime(d.meta && d.meta.lastSyncAt))}. ${L.esc(d.meta && d.meta.publicationLag)}; anything later goes in next week's list. No ${L.esc(f.trade)} permit issued does not mean no sub is hired.</span>`;
+    const list = document.getElementById('list');
+    list.innerHTML = n ? d.leads.map((l, i) => `
+      <div class="card" style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <div><span class="mono sub">${String(i + 1).padStart(2, '0')}</span> <strong>${L.esc(l.address || 'Address not published')}</strong>${l.zip && !String(l.address || '').includes(l.zip) ? `, ${L.esc(l.zip)}` : ''}
+            <div class="sub">${L.esc(l.permit_type || '')} · issued ${L.esc(L.date(l.filed_date))} · ${L.esc(L.money(l.valuation))} · ${L.esc(l.status_raw || 'status unknown')}</div></div>
+          <div class="mono sub" title="Trade fit score from the description's wording">fit ${l.score == null ? '—' : l.score}</div>
+        </div>
+        <p style="font-size:13px;margin:8px 0">${L.esc((l.work_description || '').slice(0, 220))}${(l.work_description || '').length > 220 ? '…' : ''}</p>
+        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center">
+          <div>${L.who(l.gc)} <span class="sub">· GC on the building permit</span></div>
+          <div>${l.gc && l.gc.name ? L.phoneCell(l.gc.phone) : ''}</div>
+        </div>
+        <p class="note" style="margin-bottom:0"><a href="job.html?${L.qs({ id: l.id, trade: f.trade })}">Open lead</a> · permit <span class="mono">${L.esc(l.permit_number)}</span></p>
+      </div>`).join('') : '<div class="card state">No new building permits without a trade permit in this window.</div>';
+    document.getElementById('foot').innerHTML = L.attribution(d.meta);
+  }
+}());
+</script>
+</body>
+</html>

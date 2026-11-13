@@ -1,0 +1,44 @@
+/* Live pilot screens. Tokens follow the static templates (docs/PILOT_UX.md). */
+:root{--ink:#17191C;--ink2:#3E4248;--mute:#5A5F66;--line:#D8D6CF;--line2:#C9C6BD;--paper:#F5F4F0;--card:#FFFFFF;--bar:#ECEAE4;--link:#1D4B8F;--warn:#8A5A00;--ok:#1E6B3A}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.5 'IBM Plex Sans',Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+a{color:var(--link)}a:hover{color:#123566}
+.mono{font-family:'IBM Plex Mono',monospace}
+.top{background:var(--ink);color:var(--paper);font-size:12px;padding:8px 16px;display:flex;gap:16px;flex-wrap:wrap}
+.top a{color:var(--paper)}
+main{max-width:1280px;margin:0 auto;padding:28px 16px 48px;display:flex;flex-direction:column;gap:20px}
+.head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;padding-bottom:16px;border-bottom:2px solid var(--ink);flex-wrap:wrap}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+h1{margin:4px 0;font-size:26px;line-height:1.2;font-weight:600}
+h2{margin:0 0 8px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+.lede{margin:0;color:var(--ink2);max-width:760px;font-size:13.5px}
+.fresh{font-size:12.5px;color:var(--ink2);text-align:right;display:flex;flex-direction:column;gap:2px}
+.card{background:var(--card);border:1px solid var(--line);padding:18px 20px;overflow-x:auto}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;font-size:13px}
+.tabs button{padding:6px 12px;border:1px solid var(--line2);background:transparent;color:var(--ink);border-radius:2px;cursor:pointer;font:inherit}
+.tabs button[aria-pressed=true]{background:var(--ink);color:#fff;border-color:var(--ink)}
+form.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:end;font-size:13px}
+form.filters label{display:flex;flex-direction:column;gap:2px;color:var(--mute);font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+form.filters select,form.filters input{font:inherit;font-size:13px;padding:5px 8px;border:1px solid var(--line2);background:#fff;color:var(--ink);text-transform:none;letter-spacing:0}
+form.filters button{font:inherit;padding:6px 14px;background:var(--ink);color:#fff;border:0;border-radius:2px;cursor:pointer}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);text-align:left;padding:8px 10px;border-bottom:1px solid var(--ink)}
+td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
+td.n,th.n{text-align:right}
+.sub{font-size:12px;color:var(--mute)}
+.share{display:flex;align-items:center;gap:8px;min-width:140px}
+.share .track{flex:1;height:8px;background:var(--bar)}
+.share .fill{height:8px;background:var(--mute)}
+.pill{display:inline-block;font-size:11px;padding:1px 6px;border:1px solid var(--line2);border-radius:2px;color:var(--ink2);margin-right:4px}
+.pill.ok{border-color:var(--ok);color:var(--ok)}.pill.warn{border-color:var(--warn);color:var(--warn)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px}
+.kv{display:grid;grid-template-columns:160px 1fr;gap:6px 14px;font-size:13px;margin:0}
+.kv dt{color:var(--mute)}.kv dd{margin:0}
+.prov{border-bottom:1px dotted var(--mute);cursor:help}
+.note{font-size:12px;color:var(--mute)}
+.state{padding:24px;text-align:center;color:var(--mute)}
+.err{color:#9B1C1C}
+.phone{font-weight:600;text-decoration:none}
+.desc{white-space:pre-wrap;font-size:13px;background:var(--paper);padding:10px;border:1px solid var(--line)}
+.foot{border-top:1px solid var(--line);padding-top:12px;display:flex;justify-content:space-between;gap:12px;font-size:12px;color:var(--mute);flex-wrap:wrap}
+@media (max-width:720px){.hide-sm{display:none}.kv{grid-template-columns:1fr}.fresh{text-align:left}h1{font-size:22px}}

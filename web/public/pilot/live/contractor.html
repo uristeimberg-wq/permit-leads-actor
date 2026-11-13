@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Contractor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="live.css">
+</head>
+<body>
+<div id="top"></div>
+<main id="main"><div class="state">Loading…</div></main>
+<script src="../../links.js"></script>
+<script src="live.js"></script>
+<script>
+(function () {
+  const L = window.Live;
+  const p = L.params();
+  document.getElementById('top').innerHTML = L.topBar();
+  const main = document.getElementById('main');
+  if (!/^\d+$/.test(p.id || '')) { L.fail(main, new Error('No contractor given')); return; }
+  L.api(`/api/pilot/contractors/${p.id}`).then(render).catch((e) => L.fail(main, e));
+
+  const relTable = (rows, otherLabel) => (rows.length
+    ? `<table><thead><tr><th>${otherLabel}</th><th>Trade</th><th class="n">Jobs</th><th class="hide-sm">Latest</th></tr></thead><tbody>
+      ${rows.map((r) => `<tr><td>${L.who(r.other)}</td><td>${L.esc(L.TRADE[r.trade] || r.trade)}</td><td class="n mono">${r.jobs}</td><td class="mono hide-sm">${L.esc(L.date(r.lastJobOn))}</td></tr>`).join('')}</tbody></table>`
+    : '<p class="sub">None linked in our data.</p>');
+
+  function render(d) {
+    const c = d.contractor;
+    if (!c.name) {
+      main.innerHTML = `<div class="card"><h1>Individual contractor</h1><p>${L.esc(c.withheld)}</p></div>`;
+      return;
+    }
+    document.title = c.name;
+    main.innerHTML = `
+    <div class="head">
+      <div>
+        <span class="eyebrow">Contractor · ${L.esc(c.businessState || '')}${c.businessCity ? ` · ${L.esc(c.businessCity)}` : ''}</span>
+        <h1>${L.esc(c.name)}</h1>
+        <p class="lede">${c.permitCount} permits in our data, issued ${L.esc(L.date(c.firstPermitOn))} to ${L.esc(L.date(c.lastPermitOn))}${c.primaryTrade ? ` · mostly ${L.esc(c.primaryTrade)}` : ''}.</p>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <h2>Phones from permits</h2>
+        ${d.phones.length ? d.phones.map((ph) => `<div style="margin:6px 0">${L.phoneCell(ph)}</div>`).join('') : '<p class="sub">No phone we can show.</p>'}
+        <h2 style="margin-top:14px">Names on permits</h2>
+        <p style="font-size:13px;margin:0">${d.aliases.map((a) => `${L.esc(a.name)} <span class="sub mono">×${a.seen}</span>`).join(' · ')}</p>
+        ${d.licences.length ? `<h2 style="margin-top:14px">Licences on permits</h2><p class="mono" style="margin:0">${d.licences.map((l) => `${L.esc(l.state)} ${L.esc(l.number)}`).join(', ')}</p>
+          <p class="note">Read from the permit record, not yet checked against the state licence file.</p>` : ''}
+        <p class="note">Merged by ${d.licences.length ? 'licence number' : 'exact business name within the state'} (${L.esc(c.resolverVersion)}). Phones are evidence, never used to merge companies.</p>
+      </div>
+      <div class="card"><h2>Subs it hires (as GC)</h2>${relTable(d.subsHired, 'Sub')}</div>
+      <div class="card"><h2>GCs it works for (as sub)</h2>${relTable(d.gcsWorkedFor, 'GC')}</div>
+    </div>
+    <div class="card">
+      <h2>Recent permits</h2>
+      <table><thead><tr><th>Permit</th><th>Type</th><th class="hide-sm">Address</th><th>Issued</th><th class="n">Value</th></tr></thead><tbody>
+      ${d.recentPermits.map((r) => `<tr><td class="mono"><a href="job.html?${L.qs({ id: r.id, trade: r.trade || 'electrical' })}">${L.esc(r.permit_number)}</a></td>
+        <td>${L.esc(r.isBuilding ? 'Building' : (L.TRADE[r.trade] || r.permit_type || ''))}</td><td class="hide-sm">${L.esc(r.address || '')}</td>
+        <td class="mono">${L.esc(L.date(r.issuedOn))}</td><td class="n mono">${L.esc(L.money(r.valuation))}</td></tr>`).join('')}
+      </tbody></table>
+    </div>
+    ${L.attribution(null)}`;
+  }
+}());
+</script>
+</body>
+</html>

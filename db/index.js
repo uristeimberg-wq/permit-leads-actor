@@ -22,6 +22,11 @@ function getPool() {
       connectionString: process.env.DATABASE_URL || DEFAULT_URL,
       max: Number(process.env.PGPOOL_MAX || 10),
     });
+    // An idle client can be dropped by the server (Neon suspends idle
+    // compute; an admin can terminate it). Without a listener, pg re-emits
+    // that as an unhandled 'error' and the process dies. The pool discards
+    // the dead client and the next query opens a new one.
+    pool.on('error', (err) => console.error(`Postgres idle client error (${err.code || 'no code'}): ${err.message}`));
   }
   return pool;
 }

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Lead</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="live.css">
+</head>
+<body>
+<div id="top"></div>
+<main id="main"><div class="state">Loading…</div></main>
+<script src="../../links.js"></script>
+<script src="live.js"></script>
+<script>
+(function () {
+  const L = window.Live;
+  const p = L.params();
+  const trade = ['electrical', 'plumbing', 'mechanical'].includes(p.trade) ? p.trade : 'electrical';
+  document.getElementById('top').innerHTML = L.topBar();
+  const main = document.getElementById('main');
+  if (!/^\d+$/.test(p.id || '')) { L.fail(main, new Error('No permit given')); return; }
+
+  L.api(`/api/pilot/jobs/${p.id}?${L.qs({ trade })}`).then(render).catch((e) => L.fail(main, e));
+
+  // Hover text saying where a value came from (rule 6).
+  const prov = (d, field) => d.provenance
+    ? `From ${d.permit.permit_number}, field ${field}, raw record ${d.provenance.rawRecordId}, fetched ${L.dateTime(d.provenance.fetchedAt)} (sync run ${d.provenance.syncRunId})`
+    : 'Provenance not recorded for this permit';
+  const val = (d, field, html) => `<span class="prov" title="${L.esc(prov(d, field))}">${html}</span>`;
+
+  function render(d) {
+    const pm = d.permit;
+    document.title = `${pm.permit_number} · ${L.TRADE[trade]} lead`;
+    const age = L.daysSince(pm.filed_date);
+    const tradeRows = ['electrical', 'plumbing', 'mechanical'].map((t) => {
+      const got = d.related.filter((r) => r.trade === t);
+      if (!got.length) return `<tr><td>${L.TRADE[t]}</td><td class="sub">none issued yet</td><td>—</td><td>${t === trade ? '<span class="pill">your trade</span>' : '—'}</td></tr>`;
+      return got.map((r) => `<tr><td>${L.TRADE[t]}</td><td class="mono"><a href="job.html?${L.qs({ id: r.id, trade })}">${L.esc(r.permit_number)}</a></td><td class="mono">${L.esc(L.date(r.issuedOn))}</td><td>${L.who(r.contractor)}</td></tr>`).join('');
+    }).join('');
+    const others = d.related.filter((r) => !r.trade);
+    const h = d.gcHiring;
+
+    main.innerHTML = `
+    <div class="head">
+      <div>
+        <span class="eyebrow">${L.esc(L.TRADE[trade])} · ${L.esc(L.AREA[pm.source_area] || pm.source_area)} · ${d.isBuilding ? 'building permit' : 'permit'}</span>
+        <h1>${L.esc(pm.permit_type || 'Permit')}${pm.city ? ` · ${L.esc(pm.city)}` : ''}</h1>
+        <p class="lede">${val(d, 'address', L.esc(pm.address || 'Address not published'))}${pm.zip && !String(pm.address || '').includes(pm.zip) ? ` ${L.esc(pm.zip)}` : ''}</p>
+        <p class="lede" style="margin-top:6px"><strong>${d.tradePermitIssued ? `A ${L.esc(trade)} permit has been issued on this job.` : `No ${L.esc(trade)} permit issued on this job yet.`}</strong>
+          <span class="sub">${d.tradePermitIssued ? '' : 'The source lists issued permits only, so one may be in review, and a sub may already be lined up.'}</span></p>
+      </div>
+      ${L.freshness(d.meta)}
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h2>Building permit</h2>
+        <dl class="kv">
+          <dt>Permit</dt><dd class="mono">${val(d, 'permit_number', L.esc(pm.permit_number))}${window.safeHttpUrl(pm.permit_url) ? ` · <a href="${L.esc(window.safeHttpUrl(pm.permit_url))}" rel="noopener noreferrer" target="_blank">view at source</a>` : ''}</dd>
+          <dt>Status</dt><dd>${val(d, 'status', L.esc(pm.status_raw || 'unknown'))} <span class="sub">(${L.esc(pm.status_stage || 'unknown')})</span></dd>
+          <dt>Issued</dt><dd>${val(d, 'issue date', L.esc(L.date(pm.filed_date)))}${age != null ? ` <span class="sub">· ${age} days ago</span>` : ''}</dd>
+          <dt>Declared value</dt><dd>${val(d, 'valuation', L.esc(L.money(pm.valuation)))}</dd>
+          <dt>First seen by us</dt><dd>${L.esc(L.dateTime(pm.first_seen_at))}</dd>
+          <dt>Trade fit score</dt><dd class="mono">${pm.trade_scores && pm.trade_scores[trade === 'mechanical' ? 'hvac' : trade] != null ? pm.trade_scores[trade === 'mechanical' ? 'hvac' : trade] : '—'} <span class="sub">from the description's wording</span></dd>
+        </dl>
+        <h2 style="margin-top:14px">Description, as filed</h2>
+        <div class="desc">${L.esc(pm.work_description || 'No description published')}</div>
+      </div>
+
+      <div class="card">
+        <h2>Who to call</h2>
+        ${d.gc && d.gc.name ? `
+          <div style="font-size:18px;font-weight:600">${L.who(d.gc)}</div>
+          <div class="sub">Contractor on the building permit${d.match ? ` · matched by ${L.esc(d.match.rule === 'licence' ? 'licence number' : 'exact name within the state')}` : ''}</div>
+          <div style="margin:10px 0;font-size:18px">${L.phoneCell(d.gc.phone)}</div>
+          <p class="note">Hover the number for where it came from. "Corroborated" means it is on 3+ of this company's permits and no other company's. Nobody has called to check it.</p>`
+        : d.gc ? `<p>${L.who(d.gc)}</p><p class="note">${L.esc(d.gc.withheld)}</p>` : '<p class="sub">No contractor on this permit (owner-builder or not published).</p>'}
+        ${h ? `<h2 style="margin-top:14px">How this GC hires ${L.esc(L.TRADE_PERSON[trade])}</h2>
+          <p style="margin:0 0 8px;font-size:13px">${h.buildingJobs} building jobs in our data, latest ${L.esc(L.date(h.lastJobOn))}.
+          ${h.subsUsed ? `Used ${h.subsUsed} ${L.esc(L.TRADE_PERSON[trade])}; the top one on ${L.pct(h.topSubShare)} of linked jobs.` : `No ${L.esc(trade)} hires linked yet.`}</p>
+          ${h.subs.length ? `<table><tbody>${h.subs.map((s) => `<tr><td>${L.who(s.sub)}</td><td class="n mono">${s.jobs} job${s.jobs === 1 ? '' : 's'}</td></tr>`).join('')}</tbody></table>` : ''}
+          <p class="note"><a href="gcs.html?${L.qs({ source: pm.source_area, trade })}">All GCs in ${L.esc(L.AREA[pm.source_area] || '')}</a></p>` : ''}
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Trade permits on this job</h2>
+      <table><thead><tr><th>Trade</th><th>Permit</th><th>Issued</th><th>Pulled by</th></tr></thead><tbody>${tradeRows}</tbody></table>
+      ${others.length ? `<p class="note">Also on this job: ${others.map((r) => `<a class="mono" href="job.html?${L.qs({ id: r.id, trade })}">${L.esc(r.permit_number)}</a>`).join(', ')}</p>` : ''}
+      <p class="note">Linked by permit number. Austin creates trade permits with the building permit, so issue dates, not application dates, are what tell trades apart here.</p>
+    </div>
+    ${L.attribution(d.meta)}`;
+  }
+}());
+</script>
+</body>
+</html>

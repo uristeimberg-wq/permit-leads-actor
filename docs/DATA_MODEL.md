@@ -199,6 +199,10 @@ first cut that differs from the target below:
   off, ADR-10).
 - `contractor_relationships` holds derived GC-to-sub links.
 - `resolver_runs` logs each rebuild.
+- Migration 005 adds `job_key`, `is_building`, `trade` and `issued_on` to
+  `permit_parties`, so a building job and its trade permits can be joined in
+  SQL by date and ZIP. The pilot screens (`db/pilot_queries.js`) read these;
+  `contractor_relationships` stays as the all-time rollup.
 
 Permit history (`permit_versions`, `permit_status_history`) is kept by
 triggers on the existing `permits` table. Missing valuation is `NULL` from 004

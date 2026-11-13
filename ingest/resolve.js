@@ -81,15 +81,19 @@ async function writeAll(client, { contractors, parties, relationships }) {
   // Parties join to the stored permit by (area, permit number); raw records
   // whose permit was never mapped (no key) are skipped.
   const { rowCount: partiesWritten } = await client.query(`
-    INSERT INTO permit_parties (permit_id, role, contractor_id, raw_name, raw_trade, match_rule, match_confidence, raw_record_id)
-    SELECT p.id, 'contractor', t.contractor_id, t.raw_name, t.raw_trade, t.rule, t.conf, t.raw_id
-      FROM unnest($1::text[], $2::text[], $3::bigint[], $4::text[], $5::text[], $6::text[], $7::numeric[], $8::bigint[])
-           AS t(area, permit_number, contractor_id, raw_name, raw_trade, rule, conf, raw_id)
+    INSERT INTO permit_parties (permit_id, role, contractor_id, raw_name, raw_trade, match_rule, match_confidence, raw_record_id,
+                                job_key, is_building, trade, issued_on)
+    SELECT p.id, 'contractor', t.contractor_id, t.raw_name, t.raw_trade, t.rule, t.conf, t.raw_id,
+           t.job_key, t.is_building, t.trade, t.issued_on
+      FROM unnest($1::text[], $2::text[], $3::bigint[], $4::text[], $5::text[], $6::text[], $7::numeric[], $8::bigint[],
+                  $9::text[], $10::boolean[], $11::text[], $12::date[])
+           AS t(area, permit_number, contractor_id, raw_name, raw_trade, rule, conf, raw_id, job_key, is_building, trade, issued_on)
       JOIN permits p ON p.source_area = t.area AND p.permit_number = t.permit_number
     ON CONFLICT (permit_id, role) DO NOTHING`,
   [parties.map((p) => p.sourceSlug), parties.map((p) => p.sourceKey), parties.map((p) => (p.identityKey ? idOf.get(p.identityKey) : null)),
     parties.map((p) => p.name), parties.map((p) => p.rawTrade), parties.map((p) => p.rule), parties.map((p) => p.confidence),
-    parties.map((p) => p.rawRecordId)]);
+    parties.map((p) => p.rawRecordId), parties.map((p) => p.groupKey || null), parties.map((p) => Boolean(p.isBuilding)),
+    parties.map((p) => p.trade || null), parties.map((p) => p.issuedOn || null)]);
   if (relationships.length) {
     await client.query(`INSERT INTO contractor_relationships (gc_id, sub_id, trade, jobs, first_job_on, last_job_on)
       SELECT * FROM unnest($1::bigint[], $2::bigint[], $3::text[], $4::int[], $5::date[], $6::date[])`,

@@ -208,3 +208,18 @@ what would make us revisit it. Never delete an entry; supersede it.
   Austin firms a licence key and allow corroboration against an independent
   source.
 
+
+## ADR-13: Live demo on Railway, behind a shared password
+
+- **Status:** accepted, 2026-11-13 (owner chose Railway)
+- **Context:** the sales team needs a URL showing real data. The sync already
+  runs in GitHub Actions against Neon (ADR-7); only the read-only web app needs
+  a host.
+- **Decision:** Railway runs `node web/server.js` from `main`, with
+  `DATABASE_URL` (Neon) and `DEMO_PASSWORD` set in Railway's variables. The
+  whole site needs HTTP Basic auth while `DEMO_PASSWORD` is set.
+- **Consequences:** about $5/month after the trial. A shared password is a
+  demo control, not customer auth: per-subscriber signed links (PILOT_UX) are
+  still to build before a paying pilot. The live screens show only
+  `display_policy = 'show'` phones and withhold names that look like people
+  (rule 5).

@@ -439,6 +439,12 @@ Measured, not claimed:
   recommendation, because it runs both from one repo with cron and Postgres.
   Fly.io is the alternative. Supabase works only for the database; it adds
   auth we don't need yet.
+- **Production (as built, ADR-13):** the daily sync and resolver run in
+  GitHub Actions (`sync.yml`) against Neon Postgres (ADR-7). The web app runs
+  on Railway from `main` (`railway.json`, `node web/server.js`), reading the
+  same Neon database. `DEMO_PASSWORD` puts the whole site behind HTTP Basic
+  auth; `/healthz` stays open for the health check and touches no data.
+  The app never writes to the database, so the web tier holds no ingest state.
 - **CI:** GitHub Actions runs unit tests and, with a Postgres service,
   integration tests on every PR. Deploys go from `main` only.
 - **Environments:** `dev` (local) and `prod`. A `staging` environment waits

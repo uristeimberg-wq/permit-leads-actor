@@ -27,6 +27,16 @@ async function main() {
       ? `${s.contractors} contractors from ${s.rawPermits} permits (${JSON.stringify(s.byRule)}); ${s.phonesShown} of ${s.phones} phones shown, ${s.phonesCorroborated} corroborated; ${s.relationships} GC-sub links.`
       : `Status **${rr.status}**: ${cell(rr.error)}`);
   }
+  // Storage: Neon's free plan stops writes at 0.5 GB, so show where we are.
+  const { rows: [size] } = await db.query(`
+    SELECT pg_database_size(current_database()) AS total,
+           (SELECT pg_total_relation_size('raw_records')) AS raw,
+           (SELECT pg_total_relation_size('permits')) AS permits,
+           (SELECT count(*) FROM permits) AS permit_rows`).catch(() => ({ rows: [] }));
+  if (size) {
+    const mb = (b) => `${(Number(b) / 1048576).toFixed(0)} MB`;
+    lines.push('', '## Storage', '', `Database ${mb(size.total)} (raw_records ${mb(size.raw)}, permits ${mb(size.permits)}, ${Number(size.permit_rows).toLocaleString('en-US')} permits).`);
+  }
   console.log(lines.join('\n'));
   await db.close();
 }

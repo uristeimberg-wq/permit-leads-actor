@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>GC relationships</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="live.css">
+</head>
+<body>
+<div id="top"></div>
+<main>
+  <div class="head">
+    <div>
+      <span class="eyebrow" id="eyebrow">GC relationships</span>
+      <h1 id="title">Which GCs hire new subs</h1>
+      <p class="lede" id="lede">Loading…</p>
+    </div>
+    <div id="fresh"></div>
+  </div>
+
+  <form class="filters" id="filters">
+    <label>Area <select name="source"><option value="austin-tx">Austin, TX</option><option value="miami-dade-fl">Miami-Dade, FL</option></select></label>
+    <label>Trade <select name="trade"><option value="electrical">Electrical</option><option value="plumbing">Plumbing</option><option value="mechanical">Mechanical</option></select></label>
+    <label>Building permits from <select name="months"><option value="3">last 3 months</option><option value="6">last 6 months</option><option value="12">last 12 months</option><option value="24">last 24 months</option></select></label>
+    <label>ZIPs (comma separated) <input name="zips" placeholder="all" size="18" inputmode="numeric"></label>
+    <button type="submit">Apply</button>
+  </form>
+
+  <div class="tabs" id="tabs" role="group" aria-label="Segment"></div>
+
+  <div class="card" id="table"><div class="state">Loading…</div></div>
+
+  <div class="grid2">
+    <div class="card" id="changed"></div>
+    <div class="card" id="market"></div>
+  </div>
+
+  <div id="foot"></div>
+</main>
+<script src="../../links.js"></script>
+<script src="live.js"></script>
+<script>
+(function () {
+  const L = window.Live;
+  const p = L.params();
+  const f = { source: p.source || 'austin-tx', trade: p.trade || 'electrical', months: p.months || '12', zips: p.zips || '', seg: p.seg || 'all', me: p.me || '' };
+  const form = document.getElementById('filters');
+  for (const k of ['source', 'trade', 'months', 'zips']) form.elements[k].value = f[k];
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const fd = Object.fromEntries(new FormData(form));
+    location.search = L.qs({ ...fd, seg: f.seg, me: f.me });
+  });
+  document.getElementById('top').innerHTML = L.topBar();
+
+  const SEGMENTS = [
+    ['all', 'All GCs', () => true],
+    ['spread', 'Spread work', (g) => g.segments.spread],
+    ['changed', 'Changed sub recently', (g) => g.segments.changed],
+    ['open', 'Jobs open now', (g) => g.openNow > 0],
+    ['small', 'Small GCs (1-3 jobs)', (g) => g.segments.small],
+  ];
+
+  L.api(`/api/pilot/gcs?${L.qs({ source: f.source, trade: f.trade, months: f.months, zips: f.zips, me: f.me })}`)
+    .then(render)
+    .catch((err) => { L.fail(document.getElementById('table'), err); document.getElementById('lede').textContent = ''; });
+
+  function render(d) {
+    const subs = L.TRADE_PERSON[f.trade];
+    const b = d.baseline;
+    document.getElementById('eyebrow').textContent = `${L.TRADE[f.trade]} · ${L.AREA[f.source]}${f.zips ? ` · ZIPs ${f.zips}` : ''} · building permits from the last ${f.months} months`;
+    document.getElementById('title').textContent = `Which GCs hire new ${subs}`;
+    document.getElementById('lede').innerHTML = b.repeatRate == null
+      ? 'Not enough linked jobs in this window to measure repeat hiring yet.'
+      : `In this data, <strong>${L.pct(b.repeatRate)}</strong> of ${L.esc(subs)} hired by a GC with an earlier ${L.esc(f.trade)} job were ones that GC had used before (${b.repeatHires.toLocaleString()} of ${b.eligibleHires.toLocaleString()} hires). The GCs below are where that is less true: they spread work, switched recently, or have jobs with no ${L.esc(f.trade)} permit yet.`;
+    document.getElementById('fresh').innerHTML = L.freshness(d.meta)
+      + `<span class="fresh mono">${b.jobs.toLocaleString()} building jobs, ${b.linkedJobs.toLocaleString()} linked to a ${L.esc(f.trade)} permit by permit number</span>`;
+
+    const tabs = document.getElementById('tabs');
+    tabs.innerHTML = SEGMENTS.map(([k, label, test]) =>
+      `<button type="button" data-seg="${k}" aria-pressed="${k === f.seg}">${L.esc(label)} (${d.gcs.filter(test).length})</button>`).join('');
+    tabs.addEventListener('click', (e) => {
+      const k = e.target.closest('button')?.dataset.seg;
+      if (k) { history.replaceState(null, '', `?${L.qs({ ...f, seg: k })}`); f.seg = k; drawTable(d); for (const btn of tabs.children) btn.setAttribute('aria-pressed', btn.dataset.seg === k); }
+    });
+    drawTable(d);
+    drawChanged(d);
+    drawMarket(d);
+    document.getElementById('foot').innerHTML = L.attribution(d.meta)
+      + '<p class="note">Linking is by permit number (Austin: same base number; Miami-Dade: master permit). A job with two different GCs is left out as ambiguous. A GC doing its own trade work is not counted as a hire. Unchecked: a permit expediter filing for many GCs can make repeat hiring look higher.</p>';
+  }
+
+  function drawTable(d) {
+    const test = (SEGMENTS.find(([k]) => k === f.seg) || SEGMENTS[0])[2];
+    const rows = d.gcs.filter(test).slice(0, 200);
+    const el = document.getElementById('table');
+    if (!rows.length) { el.innerHTML = '<div class="state">No GCs in this segment for these filters.</div>'; return; }
+    el.innerHTML = `<table>
+      <thead><tr><th>General contractor</th><th class="n">Building jobs</th><th class="n hide-sm">With ${L.esc(f.trade)} permit</th>
+        <th class="n">${L.esc(L.TRADE_PERSON[f.trade])} used</th><th>Top one's share</th><th class="n">Open now</th><th>Phone</th></tr></thead>
+      <tbody>${rows.map((g) => `<tr>
+        <td>${L.who(g.gc)}<div class="sub">${g.segments.spread ? '<span class="pill">spreads work</span>' : ''}${g.segments.changed ? '<span class="pill warn">changed sub</span>' : ''}
+          last job ${L.esc(L.date(g.lastJobOn))}${g.selfPerformedJobs ? ` · does own ${L.esc(f.trade)} on ${g.selfPerformedJobs}` : ''}</div></td>
+        <td class="n mono">${g.jobs}</td>
+        <td class="n mono hide-sm">${g.tradeJobs}</td>
+        <td class="n mono">${g.subsUsed}</td>
+        <td>${g.topSubShare == null ? '<span class="sub">no hires yet</span>' : `<div class="share"><div class="track"><div class="fill" style="width:${Math.round(g.topSubShare * 100)}%"></div></div><span class="mono">${L.pct(g.topSubShare)}</span></div>`}</td>
+        <td class="n">${g.openNow ? `<span class="mono prov" title="Building permits in the last ${d.openWindowDays} days, not finished, with no ${L.esc(f.trade)} permit issued yet. One may be in review: the source lists issued permits only.">${g.openNow}</span>` : '<span class="sub">—</span>'}</td>
+        <td>${g.gc.name ? L.phoneCell(g.gc.phone) : '<span class="sub">withheld</span>'}</td>
+      </tr>`).join('')}</tbody></table>
+      ${d.gcs.filter(test).length > rows.length ? `<p class="note">Showing the first ${rows.length} by job count.</p>` : ''}`;
+  }
+
+  function drawChanged(d) {
+    const ch = d.gcs.filter((g) => g.segments.changed).slice(0, 12);
+    document.getElementById('changed').innerHTML = `<h2>Changed ${L.esc(L.TRADE_PERSON[f.trade])} recently</h2>
+      ${ch.length ? ch.map((g) => `<div style="padding:8px 0;border-bottom:1px solid var(--line);font-size:13px">
+        <strong>${L.who(g.gc)}</strong> used ${L.who(g.change.usual)} on ${g.change.usualJobs} of ${g.change.beforeJobs} earlier jobs,
+        then ${L.who(g.change.latest)} on ${L.esc(L.date(g.change.latestOn))} (<span class="mono">${L.esc(g.change.latestPermit)}</span>).</div>`).join('')
+        : '<p class="sub">None in this window. A switch needs 3+ earlier jobs with one sub on 75%+ of them.</p>'}
+      <p class="note">A switch can mean the usual sub was busy, not that the GC is unhappy. It is a reason to call, not proof of an opening.</p>`;
+  }
+
+  function drawMarket(d) {
+    const top = d.baseline.topSubs.slice(0, 12);
+    document.getElementById('market').innerHTML = `<h2>Most active ${L.esc(L.TRADE_PERSON[f.trade])} and their top GC</h2>
+      ${top.length ? `<table><thead><tr><th>${L.esc(L.TRADE[f.trade])}</th><th class="n">Jobs</th><th class="n">GCs</th><th>Top GC (jobs)</th></tr></thead><tbody>
+      ${top.map((t) => `<tr${t.isMe ? ' style="background:var(--bar)"' : ''}><td>${L.who(t.sub)}${t.isMe ? ' <span class="pill">you</span>' : ''}</td><td class="n mono">${t.jobs}</td><td class="n mono">${t.gcs}</td><td>${L.who(t.topGc)} <span class="mono sub">${t.topGcJobs}</span></td></tr>`).join('')}
+      </tbody></table>` : '<p class="sub">No linked jobs in this window.</p>'}
+      <p class="note">Counts are ${L.esc(f.trade)} permits on GC building jobs in this window. Individuals are withheld.</p>`;
+  }
+}());
+</script>
+</body>
+</html>

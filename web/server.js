@@ -8,9 +8,18 @@ const path = require('node:path');
 const express = require('express');
 const queries = require('../db/queries.js');
 const db = require('../db/index.js');
+const { router: pilotApi } = require('./pilot_api.js');
+const { demoGate } = require('./access.js');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
+
+// Liveness for the host's health check. Before the gate, and touches no data.
+app.get('/healthz', (_req, res) => res.type('text').send('ok'));
+
+// A hosted demo sets DEMO_PASSWORD; see web/access.js.
+app.use(demoGate());
+app.disable('x-powered-by');
 
 // Only these reach the query builder. Anything else a client sends is ignored
 // rather than passed through to SQL.
@@ -173,6 +182,8 @@ app.get('/api/filters', asyncRoute(async (_req, res) => res.json(await queries.l
 app.get('/api/freshness', asyncRoute(async (_req, res) => {
   res.json({ sources: await queries.getFreshness() });
 }));
+
+app.use('/api/pilot', pilotApi);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
