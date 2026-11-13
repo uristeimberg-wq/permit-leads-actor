@@ -189,8 +189,16 @@ const SOURCES = {
   async raleigh() {
     const base = 'https://services.arcgis.com/v400IkDOw1ad7Yad/arcgis/rest/services';
     const w = `issueddate >= TIMESTAMP '${FROM} 00:00:00'`;
-    const bld = await arcgisAll(`${base}/Building_Permits/FeatureServer/0`, w, 'issueddate,permitclassmapped,workclass,workclassmapped,contractorcompanyname,contractorphone,pin,projectname,permitnum');
-    const oth = await arcgisAll(`${base}/Permits_Other_Than_Buildings/FeatureServer/0`, w, 'issueddate,permittype,permittypemapped,workclass,contractorcompanyname,contractorphone,contractortype,pin,projectname,permitnum');
+    const monthly = async (url, fields) => {
+      const out = [];
+      for (let m = 0; m < 13; m += 1) {
+        const a = isoDay(NOW - (365 - 30 * m) * DAY); const b = isoDay(NOW - (365 - 30 * (m + 1)) * DAY);
+        out.push(...await arcgisAll(url, `issueddate >= TIMESTAMP '${a} 00:00:00' AND issueddate < TIMESTAMP '${b} 00:00:00'`, fields));
+      }
+      return out;
+    };
+    const bld = await monthly(`${base}/Building_Permits/FeatureServer/0`, 'issueddate,permitclassmapped,workclass,workclassmapped,contractorcompanyname,contractorphone,pin,projectname,permitnum');
+    const oth = await monthly(`${base}/Permits_Other_Than_Buildings/FeatureServer/0`, 'issueddate,permittype,permittypemapped,workclass,contractorcompanyname,contractorphone,contractortype,pin,projectname,permitnum');
     const pinOf = (r) => r.pin || r.PIN || r.pinnum || r.pin_num || null;
     const phone = (r) => String(r.contractorphone || '').replace(/\D/g, '').length >= 10;
     const rows = [

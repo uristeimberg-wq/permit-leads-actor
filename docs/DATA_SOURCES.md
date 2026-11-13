@@ -13,7 +13,7 @@ source is re-checked. Never add a source here without fetching it.
 | Endpoint | `https://data.austintexas.gov/resource/3syk-w9eu.json` (Socrata SODA) |
 | Metadata | `https://data.austintexas.gov/api/views/3syk-w9eu.json` |
 | Auth | None needed. An app token raises the rate limit (to obtain) |
-| Licence tag | `USGOV_WORKS`. Attribution: "City of Austin, Texas - data.austintexas.gov". The Terms of Use page did not render for review, so it has **not been read** |
+| Licence tag | `USGOV_WORKS`. Attribution: "City of Austin, Texas - data.austintexas.gov". Terms read 2026-11-13 (see the licence review): public domain, "offered free and without restriction" |
 | Freshness | Rows updated 2026-11-12; latest `issue_date` 2026-11-11 (verified) |
 | Volume | 6,636 permits issued 2026-10-01 to 2026-11-11 (verified), about 158/day across all types. The prototype README says 2.37M records are available in total |
 | Contractor | `contractor_trade`, `contractor_company_name`, `contractor_full_name`, `contractor_phone`, `contractor_address1/2`, `contractor_city`, `contractor_zip`. Phone on 92% of rows per the prototype README |
@@ -204,9 +204,9 @@ web fetch, not from Actions.
 
 | # | Market | Source (endpoint) | Volume, 90 d | Fresh (latest issue) | Phone | Company | Link key: E / P / M linked, sub differs | History | Terms | Verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | **City of Miami, FL** | ArcGIS `services1.arcgis.com/CvuPhqcTQpZPT9qY/.../Building_Permits_Since_2014/FeatureServer/0` | 7,815 | Daily (2026-11-12) | 0% | 96% | `ApplicationNumber`: E 45%, P 43%; sub differs 99% / 87%. Mechanical not found (suffix `ME` is rare; `MA` unknown) | 2012- | Not found on the service or the city data page. **Unread** | Add first: same market as the pilot, fixes the county layer's weekly lag and the open municipal-coverage question. Phones must come from the county layer or licences |
-| 2 | **Philadelphia, PA** | ArcGIS `services.arcgis.com/fLeGjb7u4uXqeF9q/.../PERMITS/FeatureServer/0` | 11,249 | Daily (2026-11-12) | 0% | 86% | `parentjobid`: E 51%, P 54%, M 36%; sub differs 96% / 94% / 56%. Parcel: 64% / 67% / 48% | 2007- | "City of Philadelphia License": "reserves all rights in the database". **Must be read before use** | Best GC-sub structure measured outside Austin; no phone; licence terms are the blocker |
-| 3 | **Raleigh, NC** | ArcGIS `services.arcgis.com/v400IkDOw1ad7Yad/.../Building_Permits/FeatureServer/0` and `.../Permits_Other_Than_Buildings/FeatureServer/0` | 1,482 building + 6,046 trade | Daily (2026-11-12) | 76% building, 85% trade; email 85-91% | 90-96% | Trade layer has `contractortype` (trade) and `workclass = "Sub Permit"` on about half of recent rows, `pin` 99.7%, `projectname` 22%. **Link rate not measured** (the 12-month trade query failed with 400/504; retry with smaller pages) | 2000- | No licence named on the city page. **Unread** | Best contact data after Austin, and sub-permits are explicit. Smaller volume |
+| 1 | **City of Miami, FL** | ArcGIS `services1.arcgis.com/CvuPhqcTQpZPT9qY/.../Building_Permits_Since_2014/FeatureServer/0` | 7,815 | Daily (2026-11-12) | 0% | 96% | `ApplicationNumber`: E 45%, P 43%; sub differs 99% / 87%. Mechanical not found (suffix `ME` is rare; `MA` unknown) | 2012- | **CC BY 4.0** (item metadata) | Add first: same market as the pilot, fixes the county layer's weekly lag and the open municipal-coverage question. Phones must come from the county layer or licences |
+| 2 | **Philadelphia, PA** | ArcGIS `services.arcgis.com/fLeGjb7u4uXqeF9q/.../PERMITS/FeatureServer/0` | 11,249 | Daily (2026-11-12) | 0% | 86% | `parentjobid`: E 51%, P 54%, M 36%; sub differs 96% / 94% / 56%. Parcel: 64% / 67% / 48% | 2007- | **Blocked**: city terms prohibit commercial use without written permission (licence review below) | Strong GC-sub links, but no phone, and not usable without the City's written permission |
+| 3 | **Raleigh, NC** | ArcGIS `services.arcgis.com/v400IkDOw1ad7Yad/.../Building_Permits/FeatureServer/0` and `.../Permits_Other_Than_Buildings/FeatureServer/0` | 1,482 building + 6,046 trade | Daily (2026-11-12) | 76% building, 86% trade; email 85-91% | 88-97% | `pin`: E 85%, M 73%, P 72%; sub differs 97-98%; **median 0 days** (trade permits are issued with the building permit). `contractortype` names the trade; half the trade rows are `workclass = "Sub Permit"`. `projectname` links only 14% | 2000- | Open Raleigh Data Policy (see the licence review below) | Strongest GC-sub view measured, Austin included. No timing gap, so it supports relationship intelligence, not "reach the job first" |
 | 4 | **Orlando, FL** | Socrata `data.cityoforlando.net/resource/ryhf-m453.json` | 6,666 | Daily (2026-11-12) | 51% | 96% | `parcel_number` only: E 34%, P 29%, M 26% (median 8-33 d); sub differs 96-99% | 1907- (bulk from about 2000) | No terms on the portal page; "Legal" link not read | Asked for by the user. Workable, but half the phones are missing and the link is parcel-only, so it is noisier than Austin |
 | 5 | **New Orleans, LA** | Socrata `data.nola.gov/resource/72f9-bi28.json` | 5,580 | Daily (2026-11-11) | 0% | 76-90% | `pin`: E 48%, P 38%, M 31% (median 50-59 d); sub differs 90-98% | 2001- | **CC0 1.0** (dataset metadata, verified) | Cleanest licence; has contractor licence and trade; needs phone enrichment |
 | 6 | **New York City, NY** | Socrata `data.cityofnewyork.us/resource/rbx6-tga4.json` (DOB NOW Build) + `dm9a-ab7w.json` (electrical) | 43,737 + 13,309 | Daily (2026-11-11) | 0% | 100% (permittee business) | `bin`: P 55% (sub differs 99%), M 45% (36%: the GC often holds it). Job number: P 33%. Electrical is a separate dataset keyed by BIN (not linked here) | 2016- | NYC.gov: "All rights are reserved"; Open Data portal terms page failed to load. **Unread** | Largest volume by far, but dense multifamily and commercial work, crowded market, no phone |
@@ -239,6 +239,52 @@ Seattle trade permits `cos-data.seattle.gov/c87v-5hwh` and electrical
 | CivicData.com (Accela's CKAN) | Many cities, but stale: Tampa, Charlotte, Cincinnati and Clearwater files end 2015-2023; the freshest are mid-2026 annual drops |
 | Tallahassee / Leon County | Layer holds only currently active permits (1,398 rows), so no history |
 
+### Licence and terms review (2026-11-13)
+
+This is a reading of the published text, **not legal advice**. Item licences
+were read from ArcGIS Online item metadata (`recon/market_terms.js`, Actions
+run 43447100887). Website terms and statutes were read with a web fetch. Quotes
+are verbatim.
+
+| Source | What the text says | Status for a commercial B2B product |
+| --- | --- | --- |
+| City of Miami, `Building_Permits_Since_2014` | Item licence: "This work is licensed under a Creative Commons Attribution 4.0 International License". Credit line: "© 2019 City of Miami, Department of Innovation and Technology, GIS Team". The city's own terms and disclaimer pages did not load (the portal returns an empty JavaScript page and miami.gov/Copyright returned an error) | **Cleared for ingest and display, with attribution.** CC BY 4.0 allows commercial use. Show the credit line and a licence link wherever the data appears, and note any changes we make |
+| Raleigh, `Building_Permits` and `Permits_Other_Than_Buildings` | Item licence: "Open Raleigh Data Policy". It disclaims warranties, says use is "at one's own risk", and says the City may "require the termination of any and all displaying, distributing or otherwise using any or all of the data for any reason". It incorporates the "City of Raleigh Open Data Privacy Policy", which was **not readable** (empty JavaScript page). No ban on commercial use or redistribution appears | **Cleared for ingest, with two open items.** (1) The City can order us to stop using the data at any time, so the connector must be easy to switch off and to purge. (2) The privacy policy it incorporates is unread |
+| Philadelphia, `PERMITS` | Item licence: data "is provided “as is”", and the user "will hold the City of Philadelphia harmless from any and all claims" (indemnity). phila.gov Terms of Use: "Commercial use is prohibited without the prior written permission of the City." and "All rights are reserved." The OpenDataPhilly listing names a "City of Philadelphia License" that "reserves all rights in the database". The specific licence page (metadata.phila.gov) did not render | **Blocked.** The only terms we could read prohibit commercial use without written permission, and the item adds an indemnity. Do not build until the City grants written permission or a lawyer concludes the website terms do not apply to the open data |
+| Miami-Dade County, `miamidade_permit_data`, ArcGIS item | Item licence is a disclaimer only: data is "as is" and "not guaranteed to be accurate, correct or complete". No licence grant or restriction | No restriction found; no explicit grant either |
+| Austin, `3syk-w9eu` (already integrated) | Terms: `https://data.austintexas.gov/stories/s/City-of-Austin-Open-Data-Terms-of-Use/ranj-cccq/`, read 2026-11-13 through the Storyteller API (`/stories/api/v1/stories/ranj-cccq/published/latest`) because the page renders empty. "Data available through the City of Austin Open Data Portal are offered free and without restriction." "Unless otherwise noted in metadata, datasets ... are in the public domain". The terms incorporate the City of Austin Privacy Notice (not read). The no-warranty text says use is "at your own risk". Nothing on automated access appears in the part read (the first 6,000 characters; the text after "Confidentiality" was not read) | **Cleared**: public domain, so redistribution is allowed. Credit is not required; the dataset's attribution string "City of Austin, Texas - data.austintexas.gov" is a courtesy |
+| Miami-Dade County, `miamidade_permit_data` (already integrated), website agreement | `https://www.miamidade.gov/global/disclaimer/disclaimer.page`, read 2026-11-13. The user agrees to use the site "as permitted by applicable local, state, and federal laws", and "taking action which results in blocking access to this website by other users will be deemed an unauthorized use". The user "expressly consents to administrative monitoring". "Any rights not expressly granted herein are reserved." No licence grant, and no clause on redistribution or commercial use. The open-data hub's own terms page (gis-mdc.opendata.arcgis.com/pages/terms-of-use) renders empty and was not read | **Unclear, for a lawyer.** Automated access is fine at polite rates (the agreement only bars blocking other users). Redistribution is neither granted nor prohibited. Florida ch. 119 makes the records public, but "rights ... reserved" leaves the question open. Keep a credit line ("Source: Miami-Dade County") |
+| Orlando, `ryhf-m453` | No licence in the Socrata metadata; the portal's "Legal" page was not read | Not cleared: no terms read |
+
+**Public records statutes (context only).** Florida ch. 119.01(1): records are
+"open for personal inspection and copying by any person", subject (119.01(2)(d))
+to "copyright and trade secret laws and public records exemptions"; no limit on
+the purpose of use was found in 119.01 or 119.07. North Carolina G.S. 132-1:
+"the people may obtain copies of their public records"; records "are the
+property of the people"; no purpose limit. Neither statute replaces a portal's
+licence or terms.
+
+**For a lawyer.** These are open questions, not conclusions:
+
+1. Whether the phila.gov website terms (no commercial use) govern the Philadelphia
+   open-data layer, and whether the City would grant permission.
+2. Outreach rules for contacting contractors found in the data: calls and texts
+   to contractor phones (TCPA and the federal and state do-not-call rules, even
+   for B2B numbers that may be mobiles), emails to the Raleigh contractor emails
+   (CAN-SPAM, NC law), and Florida's telemarketing rules (FTSA). This product
+   and its customers both make such contacts.
+3. Raleigh's right to "require the termination" of our use: what notice we would
+   get and what we would have to delete.
+4. Philadelphia's indemnity clause, if Philadelphia is ever used.
+5. Miami-Dade: whether redistributing the county permit layer in a paid product
+   is allowed, given that the website agreement reserves all rights it does not
+   grant and the hub's own terms are unreadable.
+6. Texas ch. 302 registration (already flagged in `docs/COMPLIANCE.md`), and
+   whether Florida or North Carolina have an equivalent for selling lead lists.
+
+Rule 5 still applies everywhere: contractor names that look like individuals,
+and owner names, stay hidden until the homeowner-track compliance gate passes.
+
 ### Recommended next 3
 
 1. **City of Miami.** Cheapest to add and strengthens the pilot that already
@@ -248,19 +294,19 @@ Seattle trade permits `cos-data.seattle.gov/c87v-5hwh` and electrical
    no phone, so contact data has to come from the Miami-Dade layer
    (`ContractorPhone`, 82%) by licence or name match. That match rate is
    **not measured yet**.
-2. **Raleigh.** The best contact data found outside Austin (76-85% phone,
-   85-91% email), and the trade layer marks sub-permits and the trade of each
-   contractor. Measure the link rate before committing; volume is about a
-   quarter of Austin's.
-3. **Philadelphia** if its licence allows commercial reuse, otherwise
-   **Orlando.** Philadelphia has the strongest GC-sub links measured (51-54%
-   by parent job, 64-67% by parcel) and the most volume after NYC, but its
-   licence reserves all rights and there is no phone. Orlando is the user's
-   pick and has phones on half its rows, but its links are parcel-only and
-   weaker (26-34%).
+2. **Raleigh.** The best contact data found outside Austin (76-86% phone,
+   85-91% email) and the strongest GC-sub links measured anywhere (72-85% by
+   parcel, a different company 97-98% of the time). Trade permits are issued
+   the same day as the building permit, so the data shows relationships, not an
+   early window. Volume is about a quarter of Austin's.
+3. **Orlando**, now that Philadelphia is blocked by its terms (see the licence
+   review). Orlando is the user's pick and has phones on half its rows, but its
+   links are parcel-only and weaker (26-34%), and its terms have not been read
+   yet. Philadelphia (51-67% links, most volume after NYC) needs the City's
+   written permission first.
 
-What would change this ranking: Philadelphia's licence text; the City of
-Miami to county phone match rate; Raleigh's measured link rate; and the
+What would change this ranking: written permission from Philadelphia; the
+City of Miami to county phone match rate; Orlando's terms; and the
 expediter caveat from Austin (if one company pulls trade permits for many
 GCs, "sub differs" overstates real subs).
 

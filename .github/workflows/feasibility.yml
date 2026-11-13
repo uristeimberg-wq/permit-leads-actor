@@ -22,6 +22,9 @@ on:
       market_links:
         description: "Market scan: building-to-trade link rates (recon/market_links.js): 'all' or a comma-separated source list"
         default: ''
+      market_terms:
+        description: "Market scan: print licence/terms metadata (recon/market_terms.js) for a comma-separated --only list"
+        default: ''
       market_ckan:
         description: "Market scan: comma-separated CKAN portals to list permit datasets from"
         default: ''
@@ -71,10 +74,14 @@ jobs:
         run: node recon/market_links.js --out=feasibility-report/links ${LINKS:+--only="$LINKS"}
         env:
           LINKS: ${{ inputs.market_links != 'all' && inputs.market_links || '' }}
-      - if: inputs.only == '' && inputs.markets == '' && inputs.market_links == '' && inputs.descriptions == '' && inputs.tcad == ''
+      - if: inputs.market_terms != ''
+        run: node recon/market_terms.js --only="$TERMS"
+        env:
+          TERMS: ${{ inputs.market_terms }}
+      - if: inputs.only == '' && inputs.markets == '' && inputs.market_links == '' && inputs.market_terms == '' && inputs.descriptions == '' && inputs.tcad == ''
         run: node recon/plan_review.js --out=feasibility-report/plan-review --months=24
       # Inputs go through env, not inline, so they can't inject shell.
-      - if: always() && !startsWith(inputs.only, 'enrichment') && inputs.markets == '' && inputs.market_links == '' && inputs.descriptions == '' && inputs.tcad == ''
+      - if: always() && !startsWith(inputs.only, 'enrichment') && inputs.markets == '' && inputs.market_links == '' && inputs.market_terms == '' && inputs.descriptions == '' && inputs.tcad == ''
         run: node recon/feasibility.js --out=feasibility-report --months="$MONTHS" ${ONLY:+--only="$ONLY"}
         env:
           MONTHS: ${{ inputs.months }}
