@@ -51,7 +51,9 @@
         <h2 class="h-gap">Names on permits</h2>
         <p class="body-sm">${d.aliases.map((a) => `${L.esc(a.name)} <span class="sub mono">×${a.seen}</span>`).join(' · ')}</p>
         ${d.licences.length ? `<h2 class="h-gap">Licences on permits</h2><p class="mono body-sm">${d.licences.map((l) => `${L.esc(l.state)} ${L.esc(l.number)}`).join(', ')}</p>
-          <p class="note">Read from the permit record, not yet checked against the state licence file.</p>` : ''}
+          <p class="note">Read from the permit record.${d.registry && d.registry.length ? '' : ' Not matched to a state licence file yet.'}</p>` : ''}
+        <h2 class="h-gap">State licence records</h2>
+        ${L.registryList(d.registry)}
         <p class="note">Merged by ${d.licences.length ? 'licence number' : 'exact business name within the state'} (${L.esc(c.resolverVersion)}). Phones are evidence, never used to merge companies.</p>
       </div>
       <div class="card"><h2>Subs it hires (as GC)</h2>${relTable(d.subsHired, 'Sub')}</div>

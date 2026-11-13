@@ -69,12 +69,75 @@
     const AUSTIN = 'City of Austin, Texas – data.austintexas.gov, dataset 3syk-w9eu';
     const MIAMI = 'Miami-Dade County Open Data (ArcGIS building permits layer)';
     const src = !meta || !meta.source ? `${AUSTIN}; ${MIAMI}`
-      : meta.source === 'miami-dade-fl' ? MIAMI : AUSTIN;
+      : meta.source === 'miami-dade-fl' ? MIAMI : meta.source === 'austin-tx' ? AUSTIN : (meta.attribution || meta.source);
     return `<div class="foot"><span>Source: ${esc(src)}. Contacts come from the public permit record; individuals are withheld.</span>
       <span>Not affiliated with or endorsed by these agencies. Data as published, may be incomplete. Wrong or want a listing removed? Tell your pilot contact.</span></div>`;
   }
 
+  // ── Enrichment panels (ADR-15) ─────────────────────────────
+  const num = (v, unit = '') => (v == null ? null : `${Number(v).toLocaleString('en-US', { maximumFractionDigits: 1 })}${unit}`);
+
+  /** Appraiser facts for the job's parcel, with the appraiser's credit. Missing reads as missing (rule 1). */
+  function propertyCard(pr, area) {
+    if (!pr) {
+      return `<div class="card"><h2>The property</h2><p class="sub">No appraiser record joined to this permit${area === 'austin-tx' || area === 'miami-dade-fl' ? '' : ' (no appraiser source for this market yet)'}.</p></div>`;
+    }
+    const v = pr.provenance || {};
+    const how = [`Matched by ${v.matchedBy || 'parcel id'}${pr.parcelId ? ` ${pr.parcelId}` : ''}`,
+      `fetched ${dateTime(v.fetchedAt)}`, v.sourceEditedAt ? `appraiser record edited ${date(v.sourceEditedAt)}` : ''].filter(Boolean).join(', ');
+    const cell = (x) => (x == null ? '<span class="sub">not recorded</span>' : `<span class="prov" title="${esc(how)}">${esc(x)}</span>`);
+    const facts = [
+      ['Land use', pr.landUse || pr.landUseCode],
+      ['Year built', pr.yearBuilt],
+      [pr.heatedSqft != null ? 'Heated area' : 'Building area', num(pr.heatedSqft ?? pr.buildingSqft, ' sq ft')],
+      ['Lot', num(pr.lotSqft, ' sq ft')],
+    ];
+    const opt = [
+      ['Units', num(pr.units)], ['Floors', num(pr.floors)], ['Bedrooms', num(pr.bedrooms)], ['Bathrooms', num(pr.bathrooms)],
+      ['Improvement', pr.improvementType],
+    ].filter(([, x]) => x != null);
+    const values = [
+      ['Assessed value', pr.assessedValue != null ? money(pr.assessedValue) : null],
+      ['Land value', pr.landValue != null ? money(pr.landValue) : null],
+      ['Improvement value', pr.improvementValue != null ? money(pr.improvementValue) : null],
+    ].filter(([, x]) => x != null);
+    const dl = (rows) => rows.map(([k, x]) => `<dt>${esc(k)}</dt><dd>${cell(x)}</dd>`).join('');
+    return `<div class="card prop">
+      <h2>The property</h2>
+      <dl class="kv">${dl(facts)}${dl(opt)}</dl>
+      ${values.length ? `<h3 class="prop-h">${esc(pr.valueNote || (pr.assessmentYear ? `Appraisal, ${pr.assessmentYear} roll` : 'Appraisal'))}</h3><dl class="kv">${dl(values)}</dl>` : ''}
+      <p class="note">Source: ${esc(v.attribution || v.source || 'appraiser')}. ${pr.parcelId ? `Parcel <span class="mono">${esc(pr.parcelId)}</span>. ` : ''}Owner, sale and exemption fields are not collected.</p>
+    </div>`;
+  }
+
+  const PROVIDER = { 'fl-dbpr': 'Florida DBPR', 'tx-tdlr': 'Texas TDLR' };
+  const MATCHED = { licence: 'licence number on its permits', phone: 'phone on its permits', name_state: 'business name in the state' };
+
+  /** State licence records matched to a business, with how each was matched and the file's credit. */
+  function registryList(recs, { compact = false } = {}) {
+    if (!recs || !recs.length) {
+      return compact ? '' : '<p class="sub">No state licence record matched yet.</p>';
+    }
+    const rows = recs.map((r) => {
+      const st = r.status ? [r.status.primary, r.status.secondary].filter(Boolean).join(' / ') : null;
+      const stLabel = st ? (r.provider === 'fl-dbpr' ? `DBPR status code ${st}` : `status ${st}`) : 'status not published';
+      const exp = r.expiresOn
+        ? (r.expired ? `<span class="pill bad">expired ${esc(date(r.expiresOn))}</span>` : `<span class="pill ok">valid to ${esc(date(r.expiresOn))}</span>`)
+        : '<span class="pill">no expiry published</span>';
+      const v = r.provenance || {};
+      const how = `Matched by ${MATCHED[r.matchedBy] || r.matchedBy}, confidence ${pct(r.confidence)}. File dated ${date(v.fileDate)}, fetched ${dateTime(v.fetchedAt)}.`;
+      return `<li class="lic">
+        <div class="lic-row"><span class="prov" title="${esc(how)}"><b>${esc(PROVIDER[r.provider] || r.provider)}</b> <span class="mono">${esc(r.number)}</span></span>${exp}</div>
+        <div class="sub">${esc([r.type, r.classCode].filter(Boolean).join(' · ') || 'type not published')} · ${esc(stLabel)} · matched by ${esc(MATCHED[r.matchedBy] || r.matchedBy)}</div>
+      </li>`;
+    }).join('');
+    const credits = [...new Set(recs.map((r) => r.provenance && r.provenance.attribution).filter(Boolean))];
+    const dbpr = recs.some((r) => r.provider === 'fl-dbpr');
+    return `<ul class="lics">${rows}</ul>
+      <p class="note">Source: ${esc(credits.join('; '))}.${dbpr ? ' Status codes are DBPR’s own, shown as published.' : ''} Hover a licence for how it was matched.</p>`;
+  }
+
   const fail = (el, err) => { el.innerHTML = `<div class="state err">${esc(err.message)}</div>`; };
 
-  window.Live = { esc, params, qs, api, date, dateTime, money, pct, daysSince, phone, who, phoneCell, freshness, topBar, attribution, fail, AREA, TRADE, TRADE_PERSON };
+  window.Live = { esc, params, qs, api, date, dateTime, money, pct, daysSince, phone, who, phoneCell, freshness, topBar, attribution, fail, propertyCard, registryList, AREA, TRADE, TRADE_PERSON };
 }());

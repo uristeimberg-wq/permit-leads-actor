@@ -96,7 +96,8 @@
           <div class="who-big">${L.who(d.gc)}</div>
           <div class="sub">Contractor on the building permit${d.match ? ` · matched by ${L.esc(d.match.rule === 'licence' ? 'licence number' : 'exact name within the state')}` : ''}</div>
           <div class="who-phone">${L.phoneCell(d.gc.phone)}</div>
-          <p class="note">Hover the number for where it came from. "Corroborated" means it is on 3+ of this company's permits and no other company's. Nobody has called to check it.</p>`
+          <p class="note">Hover the number for where it came from. "Corroborated" means it is on 3+ of this company's permits and no other company's. Nobody has called to check it.</p>
+          ${d.gcRegistry && d.gcRegistry.length ? `<h2 class="h-gap">State licence</h2>${L.registryList(d.gcRegistry, { compact: true })}` : ''}`
         : d.gc ? `<p>${L.who(d.gc)}</p><p class="note">${L.esc(d.gc.withheld)}</p>` : '<p class="sub">No contractor on this permit (owner-builder or not published).</p>'}
         ${h ? `<h2 class="h-gap">How this GC hires ${L.esc(L.TRADE_PERSON[trade])}</h2>
           <p class="body-sm">${h.buildingJobs} building jobs in our data, latest ${L.esc(L.date(h.lastJobOn))}.
@@ -106,11 +107,14 @@
       </div>
     </div>
 
+    <div class="grid2">
+    ${L.propertyCard(d.property, pm.source_area)}
     <div class="card">
       <h2>Trade permits on this job</h2>
       <table><thead><tr><th>Trade</th><th>Permit</th><th>Issued</th><th>Pulled by</th></tr></thead><tbody>${tradeRows}</tbody></table>
       ${others.length ? `<p class="note">Also on this job: ${others.map((r) => `<a class="mono" href="job.html?${L.qs({ id: r.id, trade })}">${L.esc(r.permit_number)}</a>`).join(', ')}</p>` : ''}
       <p class="note">Linked by permit number. Austin creates trade permits with the building permit, so issue dates, not application dates, are what tell trades apart here.</p>
+    </div>
     </div>
     ${L.attribution(d.meta)}`;
   }
