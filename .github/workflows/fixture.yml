@@ -1,0 +1,42 @@
+name: fixture
+
+# Records a redacted fixture from a live source (CLAUDE.md rule 10) through the
+# sync's own adapter. Read the result from the run log between the BEGIN and
+# END FIXTURE markers and commit it under test/fixtures/sources/.
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: Source slug from src/sources.js
+        type: string
+        required: true
+      rows:
+        description: Rows to keep
+        type: string
+        default: '20'
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      - name: Capture
+        env:
+          SOURCE: ${{ inputs.source }}
+          ROWS: ${{ inputs.rows }}
+          SOCRATA_APP_TOKEN: ${{ secrets.SOCRATA_APP_TOKEN }}
+        run: |
+          [[ "$SOURCE" =~ ^[a-z0-9-]+$ ]] || { echo "::error::bad source slug"; exit 1; }
+          [[ "$ROWS" =~ ^[0-9]{1,3}$ ]] || { echo "::error::rows must be a number"; exit 1; }
+          node recon/capture_fixture.js --source="$SOURCE" --rows="$ROWS"
