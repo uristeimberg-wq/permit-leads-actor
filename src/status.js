@@ -42,6 +42,8 @@ const STAGE_BY_STATUS = {
   'revision request accepted': STAGES.PENDING,
   // Austin: the permit is paused awaiting a revision, so it is back in review.
   'inactive pending revision': STAGES.PENDING,
+  // Austin, seen in the first live sync (2026-11-13): not yet issued.
+  'pending permit': STAGES.PENDING,
   submitted: STAGES.PENDING,
   applied: STAGES.PENDING,
   prescreen: STAGES.PENDING,
@@ -87,6 +89,11 @@ const STAGE_BY_STATUS = {
   aborted: STAGES.CANCELLED,
   'cancelled - contractor required': STAGES.CANCELLED,
   'void - duplicate': STAGES.CANCELLED,
+  // Austin, seen in the first live sync (2026-11-13). Expired like any other
+  // expiry; the reason (the contractor's licence) doesn't change the stage.
+  'expired - license': STAGES.CANCELLED,
+  // 'on hold' (27 Austin rows) is deliberately NOT mapped: it can mean paused
+  // in review or paused after issue, so it stays 'unknown' and is reported.
 };
 
 // Stages a user is normally looking for: work that might still happen.

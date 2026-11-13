@@ -170,6 +170,8 @@ const SOURCES = {
       aborted: 'applied',
       'cancelled - contractor required': 'applied',
       'inactive pending revision': 'applied',
+      'pending permit': 'applied',
+      'expired - license': 'issued',
     },
   },
 

@@ -109,3 +109,9 @@ check('Austin\u2019s "Active" is approved, never confused with "Final"', () => {
 });
 
 console.log('\nDone.');
+
+check('Austin values from the first live sync map, and "on hold" stays unknown', () => {
+  assert.strictEqual(stageFor('Pending Permit'), STAGES.PENDING);
+  assert.strictEqual(stageFor('Expired - License'), STAGES.CANCELLED);
+  assert.strictEqual(stageFor('On Hold'), 'unknown');
+});
