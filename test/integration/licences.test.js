@@ -16,8 +16,13 @@ const austin = [1, 2, 3].map((n) => ({
   issue_date: `${today}T00:00:00.000`, original_address1: `${n} MAIN ST`, original_city: 'AUSTIN', original_state: 'TX',
   contractor_company_name: 'Sparky Electric LLC', contractor_phone: '5125550142',
 }));
+// A City of Miami permit by the same firm as the county's CGC1539958 holder:
+// no phone column, and no licence number, only the company name.
+const city = [{ PermitNumber: 'BD26000001001B001', ApplicationNumber: 'BD26000001', IssuedDate: Date.now() - 86400000,
+  CompanyName: 'MADS CONSTRUCTION INC', ScopeofWork: 'NEW CONSTRUCTION', DeliveryAddress: '1 NW 1 ST', BuildingPermitStatusDescription: 'Active' }];
 let mode = 'miami';
-global.fetch = async () => ({ ok: true, status: 200, json: async () => (mode === 'miami' ? { features: miami.map((attributes) => ({ attributes })) } : austin), text: async () => '' });
+global.fetch = async () => ({ ok: true, status: 200, json: async () => (mode === 'austin' ? austin
+  : { features: (mode === 'city' ? city : miami).map((attributes) => ({ attributes })) }), text: async () => '' });
 
 // DBPR: the county's CGC1539958 is written with a leading zero; one row is noise.
 const dbpr = [
@@ -52,13 +57,16 @@ async function main() {
     const q = async (sql, p) => (await db.query(sql, p)).rows;
     await db.applySchema();
     await ingestArea('miami-dade-fl', { days: 14, max: 100, allDetails: false });
+    mode = 'city';
+    await ingestArea('miami-city-fl', { days: 14, max: 100, allDetails: false });
     mode = 'austin';
     await ingestArea('austin-tx', { days: 14, max: 100, allDetails: false });
     await resolveAll();
 
     await check('Florida: the permit licence number finds its DBPR row despite the leading zero; unrelated rows are not stored', async () => {
       const s = await enrichLicences('fl-dbpr', { fetchImpl: licenceFetch });
-      assert.deepStrictEqual([s.rows, s.kept, s.byRule], [2, 1, { licence: 1 }]);
+      // The county holder links by licence number, the City of Miami firm by its unique name.
+      assert.deepStrictEqual([s.rows, s.kept, s.byRule], [2, 1, { licence: 1, name_state: 1 }]);
       const [l] = await q("SELECT l.licence_number, l.primary_status, l.expires_on::text, c.identity_key FROM contractor_registry_licences cl JOIN registry_licences l ON l.id = cl.licence_id JOIN contractors c ON c.id = cl.contractor_id WHERE cl.provider = 'fl-dbpr'");
       assert.deepStrictEqual([l.licence_number, l.primary_status, l.expires_on, l.identity_key], ['CGC01539958', 'C', '2026-08-31', 'lic:FL:CGC1539958']);
     });
@@ -77,6 +85,17 @@ async function main() {
       assert.deepStrictEqual([registry.length, registry[0].number, registry[0].matchedBy, registry[0].status.primary], [1, 'CGC01539958', 'licence', 'C']);
       assert.ok(registry[0].provenance.attribution.includes('Florida'));
       assert.ok(!JSON.stringify(registry).includes('DOE'));
+    });
+
+    await check('a City of Miami firm gets the county licence holder\'s phone, labelled as reached through the licence', async () => {
+      const { getContractor } = require('../../db/pilot_queries.js');
+      const [{ id: cityId }] = await q("SELECT c.id FROM contractors c JOIN permit_parties pp ON pp.contractor_id = c.id JOIN permits p ON p.id = pp.permit_id WHERE p.source_area = 'miami-city-fl'");
+      const [{ id: countyId, phone }] = await q("SELECT c.id, cp.value AS phone FROM contractors c JOIN contact_points cp ON cp.contractor_id = c.id WHERE c.identity_key = 'lic:FL:CGC1539958'");
+      const { contractor } = await getContractor(cityId);
+      assert.deepStrictEqual([contractor.phone.value, contractor.phone.verification, contractor.phone.viaLicence.number, Number(contractor.phone.viaLicence.contractorId)],
+        [phone, 'via_licence', 'CGC01539958', Number(countyId)]);
+      // The county holder keeps its own phone, not a borrowed one.
+      assert.notStrictEqual((await getContractor(countyId)).contractor.phone.verification, 'via_licence');
     });
 
     await check('a re-run replaces links instead of duplicating them', async () => {

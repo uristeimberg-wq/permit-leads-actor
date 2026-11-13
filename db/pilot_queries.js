@@ -59,19 +59,42 @@ function publicContractor(c) {
   };
 }
 
-// Best displayable phone per contractor, with provenance. Corroborated first,
-// then the one seen on most permits.
+// Best displayable phone per contractor, with provenance. The contractor's own
+// phones first (corroborated, then the one seen on most permits). Failing
+// that, a phone reached through the state licence registry: this business
+// matched a DBPR licence by its unique name, and the county contractor that
+// pulls permits under that same licence number has a shown phone. That is how
+// City of Miami firms (no phone column) get one; it is labelled
+// 'via_licence' with the licence number, never passed off as its own (rule 6).
 const BEST_PHONE = `
   LEFT JOIN LATERAL (
-    SELECT jsonb_build_object(
-             'value', cp.value, 'verification', cp.verification, 'seenOnPermits', cp.seen_on_permits,
-             'sharedWithOtherContractors', cp.shared_with_other_contractors, 'lastSeenOn', cp.last_seen_on,
-             'source', cp.source, 'sourceRef', cp.source_ref) AS phone
-      FROM contact_points cp
-     WHERE cp.contractor_id = c.id AND cp.kind = 'phone' AND cp.display_policy = 'show'
-       AND cp.value NOT IN (SELECT value FROM suppressed_phones)
-     ORDER BY (cp.verification <> 'unverified') DESC, cp.seen_on_permits DESC, cp.last_seen_on DESC NULLS LAST
-     LIMIT 1) ph ON true`;
+    SELECT x.phone FROM (
+      (SELECT 1 AS pri, jsonb_build_object(
+               'value', cp.value, 'verification', cp.verification, 'seenOnPermits', cp.seen_on_permits,
+               'sharedWithOtherContractors', cp.shared_with_other_contractors, 'lastSeenOn', cp.last_seen_on,
+               'source', cp.source, 'sourceRef', cp.source_ref) AS phone
+         FROM contact_points cp
+        WHERE cp.contractor_id = c.id AND cp.kind = 'phone' AND cp.display_policy = 'show'
+          AND cp.value NOT IN (SELECT value FROM suppressed_phones)
+        ORDER BY (cp.verification <> 'unverified') DESC, cp.seen_on_permits DESC, cp.last_seen_on DESC NULLS LAST
+        LIMIT 1)
+      UNION ALL
+      (SELECT 2, jsonb_build_object(
+               'value', cp.value, 'verification', 'via_licence', 'seenOnPermits', cp.seen_on_permits,
+               'sharedWithOtherContractors', cp.shared_with_other_contractors, 'lastSeenOn', cp.last_seen_on,
+               'source', cp.source, 'sourceRef', cp.source_ref,
+               'viaLicence', jsonb_build_object('provider', l.provider, 'number', l.licence_number, 'contractorId', o.id))
+         FROM contractor_registry_licences mine
+         JOIN registry_licences l ON l.id = mine.licence_id
+         JOIN contractor_registry_licences theirs ON theirs.licence_id = l.id AND theirs.contractor_id <> mine.contractor_id
+                                                 AND theirs.match_rule = 'licence'
+         JOIN contractors o ON o.id = theirs.contractor_id AND o.party_kind = 'business'
+         JOIN contact_points cp ON cp.contractor_id = o.id AND cp.kind = 'phone' AND cp.display_policy = 'show'
+        WHERE mine.contractor_id = c.id AND mine.match_rule = 'name_state' AND c.party_kind = 'business'
+          AND cp.value NOT IN (SELECT value FROM suppressed_phones)
+        ORDER BY cp.seen_on_permits DESC, cp.last_seen_on DESC NULLS LAST
+        LIMIT 1)
+    ) x ORDER BY x.pri LIMIT 1) ph ON true`;
 
 // One row per building job in the window that has exactly one GC, and the
 // trade permits on it. Shared by the GC list and the market baseline.

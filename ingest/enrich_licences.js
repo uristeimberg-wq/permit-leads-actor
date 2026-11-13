@@ -168,6 +168,21 @@ async function main() {
       console.error(`Licences (${slug}) FAILED: ${err.message}`);
     }
   }
+  // Coverage the licence chain adds where permits carry no phone (City of
+  // Miami): businesses with their own shown phone vs one reached via licence.
+  const { rows: [cov] } = await db.query(`
+    WITH firms AS (
+      SELECT DISTINCT c.id FROM contractors c JOIN permit_parties pp ON pp.contractor_id = c.id
+        JOIN permits p ON p.id = pp.permit_id WHERE p.source_area = 'miami-city-fl' AND c.party_kind = 'business')
+    SELECT count(*)::int AS firms,
+           count(*) FILTER (WHERE EXISTS (SELECT 1 FROM contact_points cp WHERE cp.contractor_id = f.id AND cp.kind = 'phone' AND cp.display_policy = 'show'))::int AS own,
+           count(*) FILTER (WHERE EXISTS (
+             SELECT 1 FROM contractor_registry_licences mine
+               JOIN contractor_registry_licences theirs ON theirs.licence_id = mine.licence_id AND theirs.contractor_id <> mine.contractor_id AND theirs.match_rule = 'licence'
+               JOIN contact_points cp ON cp.contractor_id = theirs.contractor_id AND cp.kind = 'phone' AND cp.display_policy = 'show'
+              WHERE mine.contractor_id = f.id AND mine.match_rule = 'name_state'))::int AS via
+      FROM firms f`);
+  if (cov.firms) console.log(`City of Miami: ${cov.via} of ${cov.firms} businesses (${((100 * cov.via) / cov.firms).toFixed(1)}%) reach a phone through their licence; ${cov.own} have their own.`);
   await db.close();
   if (failed) process.exitCode = 1;
 }
