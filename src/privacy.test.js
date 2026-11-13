@@ -1,5 +1,5 @@
 const assert = require('node:assert');
-const { HIDDEN_PERMIT_COLUMNS, redactPermit } = require('./privacy.js');
+const { redactContractor, HIDDEN_PERMIT_COLUMNS, redactPermit } = require('./privacy.js');
 const { RESULT_COLUMNS, buildWhere } = require('../db/queries.js');
 
 function check(name, fn) {
@@ -24,6 +24,26 @@ check('"has contact" only counts the contractor phone the client can see', () =>
 });
 
 check('exports drop owner and applicant fields but keep the contractor', () => {
-  const out = redactPermit({ permitNumber: 'A', owner: 'JANE DOE', applicantName: 'J DOE', applicantPhone: '3055550100', contractorName: 'Acme', contractorPhone: '5125550100' });
-  assert.deepStrictEqual(out, { permitNumber: 'A', contractorName: 'Acme', contractorPhone: '5125550100' });
+  const out = redactPermit({ permitNumber: 'A', owner: 'JANE DOE', applicantName: 'J DOE', applicantPhone: '3055550100', contractorName: 'Acme Builders LLC', contractorPhone: '5125550100' });
+  assert.deepStrictEqual(out, { permitNumber: 'A', contractorName: 'Acme Builders LLC', contractorPhone: '5125550100' });
+});
+
+check('an individual contractor loses name and phone in API rows', () => {
+  const out = redactContractor({ id: 1, contractor_name: 'John Smith', contractor_phone: '5125550999' });
+  assert.deepStrictEqual(out, { id: 1, contractor_name: null, contractor_phone: null, contractor_withheld: true });
+});
+
+check('a business keeps name and phone; an owner-builder keeps the label but not the phone', () => {
+  assert.strictEqual(redactContractor({ contractor_name: 'Acme Builders LLC', contractor_phone: '5125550100' }).contractor_phone, '5125550100');
+  const owner = redactContractor({ contractor_name: 'OWNER', contractor_phone: '5125550101' });
+  assert.deepStrictEqual([owner.contractor_name, owner.contractor_phone], ['OWNER', null]);
+});
+
+check('a phone with no contractor name is not shown', () => {
+  assert.strictEqual(redactContractor({ contractor_name: null, contractor_phone: '5125550102' }).contractor_phone, null);
+});
+
+check('exports drop an individual contractor too', () => {
+  const out = redactPermit({ permitNumber: 'B', contractorName: 'Jane Doe', contractorPhone: '5125550103' });
+  assert.deepStrictEqual([out.contractorName, out.contractorPhone], [null, null]);
 });

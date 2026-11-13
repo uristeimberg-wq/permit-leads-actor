@@ -499,7 +499,7 @@ function renderCard(p) {
           ? `<button type="button" class="link-btn" data-open-contractor="${esc(p.contractor_name)}"
                 >${esc(p.contractor_name)}</button>`
           : `<span>${esc(p.contractor_name)}</span>`)
-      : '',
+      : (p.contractor_withheld ? '<span title="Looks like an individual; name and contact withheld">Individual (withheld)</span>' : ''),
     contact,
     p.permit_number ? `<span>#${esc(p.permit_number)}</span>` : '',
   ].filter(Boolean).join('<span class="sep" aria-hidden="true"></span>');
@@ -1166,9 +1166,10 @@ async function openDetail(id, cardEl) {
       ${row('Jurisdiction', p.jurisdiction)}
     </dl>
 
-    ${(p.contractor_name || p.contractor_phone) ? `
+    ${(p.contractor_name || p.contractor_phone || p.contractor_withheld) ? `
       <div class="sect">Contractor</div>
       <dl class="kv">
+        ${p.contractor_withheld ? '<dt>Company</dt><dd>Individual (name and contact withheld)</dd>' : ''}
         ${p.contractor_name ? `<dt>Company</dt><dd>${
           isRealContractor(p.contractor_name)
             ? `<button type="button" class="link-btn" data-open-contractor="${esc(p.contractor_name)}"

@@ -6,6 +6,7 @@
 
 const { query } = require('./index.js');
 const { DEFAULT_STAGES, isValidStage } = require('../src/status.js');
+const { redactContractor, isShownContractor } = require('../src/privacy.js');
 
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_PAGE_SIZE = 25;
@@ -162,7 +163,7 @@ async function searchPermits(filters = {}) {
   ]);
 
   return {
-    results: rows.rows,
+    results: rows.rows.map(redactContractor),
     total: counted.rows[0].total,
     page,
     pageSize,
@@ -258,8 +259,9 @@ async function searchContractors(q, limit = 20) {
      GROUP BY contractor_name
      ORDER BY permits DESC
      LIMIT $2`,
-    term ? [NON_CONTRACTORS, limit, `%${term}%`] : [NON_CONTRACTORS, limit]);
-  return rows;
+    // Over-fetch, then drop names that look like people (rule 5).
+    term ? [NON_CONTRACTORS, limit * 3, `%${term}%`] : [NON_CONTRACTORS, limit * 3]);
+  return rows.filter((r) => isShownContractor(r.name)).slice(0, limit);
 }
 
 /**
@@ -273,7 +275,7 @@ async function searchContractors(q, limit = 20) {
  */
 async function getContractorHistory(name) {
   const key = String(name || '').trim();
-  if (!key) return null;
+  if (!key || !isShownContractor(key)) return null; // people are not profiled (rule 5)
 
   // Portals record the same firm under several spellings — "Radiant Plumbing
   // and Air Conditioning" and "Radiant Plumbing & AC" are one company with 106
@@ -328,14 +330,14 @@ async function getContractorHistory(name) {
     areas: areas.rows,
     permitTypes: types.rows,
     recent: recent.rows,
-    similar: similar.rows,
+    similar: similar.rows.filter((r) => isShownContractor(r.name)),
   };
 }
 
 /** One permit, with everything we hold — backs the in-app detail view. */
 async function getPermit(id) {
   const { rows } = await query(`SELECT ${RESULT_COLUMNS} FROM permits WHERE id = $1`, [Number(id)]);
-  return rows[0] ?? null;
+  return rows[0] ? redactContractor(rows[0]) : null;
 }
 
 /** Freshness: when each source last ingested successfully. */
