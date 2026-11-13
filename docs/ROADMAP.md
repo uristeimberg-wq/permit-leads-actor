@@ -46,6 +46,15 @@ design partners must confirm when they are hired. The next measurement is
 building-permit review time (`applieddate` to `issue_date`), because subs that
 bid during plan review are gone before the permit is issued.
 
+**Follow-up, 2026-11-13 (`docs/DATA_SOURCES.md`, plan-review timing): caution.**
+Median residential BP review is 63 days (p90 300), and trade-permit application
+dates are copied from the BP, so they cannot date the hire. The stronger finding
+is stickiness: when a GC has an earlier job in a trade, 94% of trade permits go
+to a sub it already used (98% for GCs with 20+ BPs, which file half of all
+residential BPs). At most about a quarter of trade jobs look open to a new sub.
+The pitch should move from "reach the job first" to GC and sub relationship
+intelligence, and design-partner interviews should test that.
+
 Still open from M1: the 14-day snapshot for real publication lag (the
 `:created_at` field is a bulk reload) and Miami-Dade municipal coverage.
 

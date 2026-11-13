@@ -81,6 +81,72 @@ The permit-number base (`2026-104544 BP` and `2026-104544 EP`) is the stricter
 link. The parcel link adds about 10 points but can pick up an unrelated job on
 the same lot.
 
+**Austin: plan-review timing and sub hiring (2026-11-13)**
+
+From `recon/plan_review.js`, run in GitHub Actions against the live API (run
+43427470550). 108,147 BP, EP, MP and PP rows issued 2024-11-13 to 2026-11-13.
+
+*1. Building-permit review time* (`applieddate` to `issue_date`), residential
+BP new, addition or remodel, issued in the last 18 months (n = 6,796; 100% have
+`applieddate`; no negative durations):
+
+| Group | n | p10 | p25 | Median | p75 | p90 |
+| --- | --- | --- | --- | --- | --- | --- |
+| All | 6,796 | 18 | 31 | **63** | 133 | 300 |
+| New | 4,865 | 18 | 29 | 61 | 130 | 296 |
+| Addition / remodel | 1,931 | 19 | 35 | 69 | 139 | 311 |
+
+Under 8 days: 1.8%. Over 90 days: 35.7%. Median by issue quarter: 2025-Q2 61,
+Q3 72, Q4 80, 2026-Q1 70, Q2 51, Q3 54, Q4 (partial) 59. The city's targets
+from 2026-07-01 are 10 business days for new construction and 5 for remodels
+(austintexas.gov/development-services/residential-plan-review); the measured
+elapsed time includes applicant correction cycles, so it is not a test of
+those targets. No current open dataset of applications still in review was
+found (`7aas-g4y3` stops in 2019; `n8ck-xkda` was last modified 2022).
+
+*2. Trade-permit application dates carry no hiring signal.* For 6,928
+residential BPs issued 6 to 24 months ago, linked to their trade permits by
+permit-number base, the trade permit's `applieddate` equals the BP's
+`applieddate` on 100% of electrical and HVAC and 99.7% of plumbing permits.
+Austin creates the trade sub-permits with the building permit, so their
+application date says nothing about when a sub was chosen. The dataset
+contains issued permits only, so a trade permit (and its contractor name)
+first becomes visible when it is issued: the lead already has a sub by then.
+The trade **issue** date (median 25-63 days after the BP, above) stays the
+only timing signal, and it is an upper bound on when the sub was hired.
+
+*3. GC-to-sub stickiness is very high.* Of 13,868 BP-to-trade pairs where both
+companies are named and differ, a pair is "eligible" when the same GC had an
+earlier job in that trade inside the window, and a "repeat" when it went to a
+sub that GC had already used for that trade.
+
+| Slice | Pairs | Eligible | Repeat rate |
+| --- | --- | --- | --- |
+| All | 13,868 | 11,002 | **93.9%** |
+| Electrical / HVAC / plumbing | 5,341 / 3,805 / 4,722 | | 92.7% / 95.2% / 94.1% |
+| GCs with 20+ residential BPs in 24 months | 7,858 | 7,688 | 97.8% |
+| GCs with 5-19 | 3,008 | 2,398 | 86.8% |
+| GCs with 1-4 | 3,002 | 916 | 79.5% |
+
+For the 438 GC-trade combinations with 5+ named jobs, the median share going
+to the GC's single top sub is 92% (83% pooled). GCs with 20+ BPs pull 49.8% of
+residential BPs; GCs with 1-4 pull 26.5%. Upper bound on jobs that were open
+to a new sub: first-in-window pairs plus non-repeats, 3,541 of 13,868
+(**25.5%**), and that overstates it, because a GC's earlier jobs before the
+window are not seen. Caveat not yet checked: if a GC routes trade permits
+through one permit expediter whose name is on the permit, that inflates the
+repeat rate; a hand check of the top 30 trade company names would settle it.
+
+*Conclusion: caution, close to no-go for the pitch "reach the sub before the
+job is awarded".* Review time is not the main risk; relationships are. Three
+quarters or more of residential trade work in Austin goes to a sub the GC
+already uses, and half of all residential BPs come from volume builders who
+reuse the same sub 98% of the time. What the data supports instead is
+relationship intelligence: who builds what with which subs, which GCs are new
+or small (the 1-4 BP tier, where up to 76% of pairs were not a known repeat),
+and when a GC switches subs. Design partners should be asked about that
+product, not only about timing.
+
 **Miami-Dade**
 
 | Measure | Value |

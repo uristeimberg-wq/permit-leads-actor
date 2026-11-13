@@ -2,7 +2,8 @@ name: feasibility
 
 # Manual only: runs the M1 data-feasibility measurements against the live
 # Austin and Miami-Dade sources (read-only, rate-limited) and publishes the
-# report as the job summary and an artifact. See recon/feasibility.js.
+# report as the job summary and an artifact. See recon/feasibility.js and
+# recon/plan_review.js (building-permit review time and sub-hiring signals).
 on:
   workflow_dispatch:
     inputs:
@@ -22,8 +23,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      # Plan-review timing and GC-sub stickiness (recon/plan_review.js); skipped
+      # when only specific feasibility sections are requested.
+      - if: inputs.only == ''
+        run: node recon/plan_review.js --out=feasibility-report/plan-review --months=24
       # Inputs go through env, not inline, so they can't inject shell.
-      - run: node recon/feasibility.js --out=feasibility-report --months="$MONTHS" ${ONLY:+--only="$ONLY"}
+      - if: always()
+        run: node recon/feasibility.js --out=feasibility-report --months="$MONTHS" ${ONLY:+--only="$ONLY"}
         env:
           MONTHS: ${{ inputs.months }}
           ONLY: ${{ inputs.only }}
