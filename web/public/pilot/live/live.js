@@ -49,7 +49,7 @@
     return `<div class="fresh mono">
       <span class="${stale ? 'err' : ''}">Last sync ${esc(dateTime(meta.lastSyncAt))}${meta.lastSyncStatus === 'failed' ? ' · latest attempt failed' : ''}${stale ? ' · stale' : ''}</span>
       <span>${esc(meta.publicationLag)}</span>
-      <span>Permits in our data: issued ${esc(date(meta.historyFrom))} to ${esc(date(meta.historyTo))}</span>
+      <span>Permits in our data: issued from about ${esc(date(meta.historyFrom))} to ${esc(date(meta.historyTo))}</span>
     </div>`;
   }
 

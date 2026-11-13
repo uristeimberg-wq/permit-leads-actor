@@ -232,7 +232,11 @@ async function sourceMeta(source) {
            (SELECT max(finished_at) FROM sync_runs r WHERE r.source_id = s.id AND r.status = 'succeeded') AS last_sync_at,
            (SELECT status FROM sync_runs r WHERE r.source_id = s.id ORDER BY started_at DESC LIMIT 1) AS last_sync_status,
            (SELECT max(finished_at) FROM resolver_runs WHERE status = 'succeeded') AS last_resolve_at,
-           (SELECT min(pp.issued_on) FROM permit_parties pp JOIN permits p ON p.id = pp.permit_id WHERE p.source_area = s.slug) AS history_from,
+           -- The status-date window also brings in old permits whose status just
+           -- changed (one Austin permit dates from 1985), so the earliest date
+           -- misstates coverage. The 1st percentile is where history really starts.
+           (SELECT percentile_disc(0.01) WITHIN GROUP (ORDER BY pp.issued_on) FROM permit_parties pp JOIN permits p ON p.id = pp.permit_id
+             WHERE p.source_area = s.slug AND pp.issued_on IS NOT NULL) AS history_from,
            (SELECT max(pp.issued_on) FROM permit_parties pp JOIN permits p ON p.id = pp.permit_id WHERE p.source_area = s.slug) AS history_to
       FROM sources s WHERE s.slug = $1`, [source]);
   if (!m) return null;
