@@ -108,6 +108,14 @@ jobs:
         env:
           DATABASE_URL: ${{ env.DB_URL }}
         run: set -o pipefail; node ingest/enrich_parcels.js | tee -a "$GITHUB_STEP_SUMMARY"
+      # State licence registries (ADR-15 item 1): verifies contractors after
+      # Resolve has rebuilt them. Each provider records its own sync run.
+      - name: Verify licences
+        if: always() && steps.secret.outputs.ready == 'true'
+        env:
+          DATABASE_URL: ${{ env.DB_URL }}
+          SOCRATA_APP_TOKEN: ${{ secrets.SOCRATA_APP_TOKEN }}
+        run: set -o pipefail; node ingest/enrich_licences.js | tee -a "$GITHUB_STEP_SUMMARY"
       # Superseded raw payloads past the retention window (ADR-14).
       - name: Raw retention
         if: steps.secret.outputs.ready == 'true' && !inputs.ephemeral

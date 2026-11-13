@@ -267,6 +267,39 @@ async function provenanceFor(rawRecordId) {
 }
 
 /**
+ * State licence registry records linked to contractors (ADR-15 item 1), with
+ * how each was matched and the credit and date of the file it came from.
+ * Codes are as published; the holder name is never returned (rule 5).
+ * Only for businesses: callers pass business contractor ids.
+ * @returns {Map<string, object[]>} by contractor id
+ */
+async function registryFor(ids) {
+  const out = new Map();
+  if (!ids.length) return out;
+  const { rows } = await query(`
+    SELECT cl.contractor_id, cl.match_rule, cl.match_confidence, l.provider, l.licence_number, l.licence_type, l.class_code,
+           l.primary_status, l.secondary_status, l.expires_on, l.phone, l.file_date, l.fetched_at, s.attribution_text
+      FROM contractor_registry_licences cl JOIN registry_licences l ON l.id = cl.licence_id
+      JOIN sources s ON s.slug = l.provider
+     WHERE cl.contractor_id = ANY($1::bigint[])
+     ORDER BY cl.match_confidence DESC, l.licence_number`, [ids]);
+  for (const r of rows) {
+    const k = String(r.contractor_id);
+    if (!out.has(k)) out.set(k, []);
+    out.get(k).push({
+      provider: r.provider, number: r.licence_number, type: r.licence_type, classCode: r.class_code,
+      // DBPR codes are not decoded here: their meaning is DBPR's to state.
+      status: r.primary_status || r.secondary_status ? { primary: r.primary_status, secondary: r.secondary_status } : null,
+      expiresOn: r.expires_on, expired: r.expires_on ? new Date(r.expires_on) < new Date(new Date().toISOString().slice(0, 10)) : null,
+      businessPhone: r.phone,
+      matchedBy: r.match_rule, confidence: Number(r.match_confidence),
+      provenance: { source: r.provider, attribution: r.attribution_text, fileDate: r.file_date, fetchedAt: r.fetched_at },
+    });
+  }
+  return out;
+}
+
+/**
  * Facts about the parcel the permit is on, from an official appraiser, with
  * where and when each came from (rule 6). Null when the permit's source has no
  * parcel id or the appraiser has no such parcel. Owner fields are never stored.
@@ -346,6 +379,7 @@ async function getJob(permitId, f) {
     match: bp.match_rule ? { rule: bp.match_rule, confidence: bp.match_confidence == null ? null : Number(bp.match_confidence) } : null,
     provenance: await provenanceFor(bp.raw_record_id),
     gc: publicContractor(gc),
+    gcRegistry: gc && gc.party_kind === 'business' ? ((await registryFor([gc.id])).get(String(gc.id)) || []) : [],
     gcHiring: hiring,
     tradePermitIssued: tradeFiled.length > 0,
     related: related.map((r) => ({
@@ -395,6 +429,7 @@ async function getContractor(id) {
       sharedWithOtherContractors: p.shared_with_other_contractors, lastSeenOn: p.last_seen_on, source: p.source, sourceRef: p.source_ref })),
     aliases: publicAliases(aliases.rows.map((a) => ({ name: a.raw_name, seen: a.seen_count }))),
     licences: licences.rows.map((l) => ({ state: l.licence_state, number: l.licence_number, source: l.source })),
+    registry: (await registryFor([id])).get(String(id)) || [],
     subsHired: asGc.rows.map(rel),
     gcsWorkedFor: asSub.rows.map(rel),
     recentPermits: recent.rows.map((r) => ({ ...stripInternal(r), trade: r.trade, isBuilding: r.is_building, issuedOn: r.issued_on })),
