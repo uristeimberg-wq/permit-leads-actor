@@ -18,6 +18,10 @@ const PORT = Number(process.env.PORT || 3000);
 // Liveness for the host's health check. Before the gate, and touches no data.
 app.get('/healthz', (_req, res) => res.type('text').send('ok'));
 
+// Railway (and most hosts) put one proxy in front: trust it for req.ip (the
+// sign-in rate limit) and req.secure (the Secure cookie flag).
+app.set('trust proxy', 1);
+
 // A hosted demo sets DEMO_PASSWORD; see web/access.js.
 app.use(demoGate());
 app.disable('x-powered-by');

@@ -451,8 +451,9 @@ Measured, not claimed:
 - **Production (as built, ADR-13):** the daily sync and resolver run in
   GitHub Actions (`sync.yml`) against Neon Postgres (ADR-7). The web app runs
   on Railway from `main` (`railway.json`, `node web/server.js`), reading the
-  same Neon database. `DEMO_PASSWORD` puts the whole site behind HTTP Basic
-  auth; `/healthz` stays open for the health check and touches no data.
+  same Neon database. `DEMO_PASSWORD` puts the whole site behind a sign-in
+  page with a signed session cookie (HTTP Basic also accepted, for scripts);
+  `/healthz` stays open for the health check and touches no data.
   The app never writes to the database, so the web tier holds no ingest state.
 - **CI:** GitHub Actions runs unit tests and, with a Postgres service,
   integration tests on every PR. Deploys go from `main` only.

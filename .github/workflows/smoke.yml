@@ -1,7 +1,8 @@
 name: smoke
 
 # Post-deploy check of the hosted demo (ADR-13): it is up, the password gate
-# holds, and with the DEMO_PASSWORD secret it serves real pilot data.
+# holds (sign-in page for browsers, 401 for the API), and with the
+# DEMO_PASSWORD secret it signs in and serves real pilot data.
 # Prints counts only, never names or phones.
 on:
   workflow_dispatch:
@@ -26,14 +27,24 @@ jobs:
           code() { curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$@"; }
           fail=0
           h=$(code "$BASE/healthz"); echo "healthz: $h"; [ "$h" = 200 ] || fail=1
-          for p in / /pilot/live/gcs.html /api/pilot/meta; do
-            c=$(code "$BASE$p"); echo "no password $p: $c (want 401)"; [ "$c" = 401 ] || fail=1
+          for p in / /pilot/live/ /pilot/live/gcs.html; do
+            c=$(code -H 'accept: text/html' "$BASE$p"); echo "no session $p: $c (want 302 to /login)"; [ "$c" = 302 ] || fail=1
           done
+          c=$(code "$BASE/login"); echo "sign-in page: $c (want 200)"; [ "$c" = 200 ] || fail=1
+          c=$(code "$BASE/api/pilot/meta"); echo "no session API: $c (want 401)"; [ "$c" = 401 ] || fail=1
           c=$(code -u "x:wrong-password" "$BASE/api/pilot/meta"); echo "wrong password: $c (want 401)"; [ "$c" = 401 ] || fail=1
+          c=$(code -X POST --data-urlencode "password=wrong-password" "$BASE/login"); echo "wrong sign-in: $c (want 401)"; [ "$c" = 401 ] || fail=1
           if [ -n "$DEMO_PASSWORD" ]; then
-            for p in "/pilot/live/gcs.html" "/pilot/live/digest.html"; do
-              c=$(code -u "x:$DEMO_PASSWORD" "$BASE$p"); echo "page $p: $c"; [ "$c" = 200 ] || fail=1
+            jar=$(mktemp)
+            c=$(code -c "$jar" -X POST --data-urlencode "password=$DEMO_PASSWORD" --data-urlencode "next=/pilot/live/" "$BASE/login")
+            echo "sign-in: $c (want 303)"; [ "$c" = 303 ] || fail=1
+            for p in "/pilot/live/" "/pilot/live/gcs.html" "/pilot/live/digest.html" "/search.html"; do
+              c=$(code -b "$jar" "$BASE$p"); echo "page $p: $c"; [ "$c" = 200 ] || fail=1
             done
+            curl -s --max-time 90 -b "$jar" "$BASE/api/pilot/overview?source=austin-tx" \
+              | jq -c '{buildingRecent: .totals.buildingRecent, activeGcs: .totals.activeGcs, weeks: (.weekly|length),
+                        topGcs: (.topGcs|length), recent: (.recent|length), pins: (.map.pins|length), unplaced: .map.unplaced}' || fail=1
+            rm -f "$jar"
             curl -s --max-time 60 -u "x:$DEMO_PASSWORD" "$BASE/api/pilot/meta" \
               | jq -c '{lastSyncAt, lastSyncStatus, historyFrom, historyTo}' || fail=1
             curl -s --max-time 60 -u "x:$DEMO_PASSWORD" "$BASE/api/pilot/gcs?source=austin-tx&trade=electrical&months=12" \

@@ -218,6 +218,12 @@ what would make us revisit it. Never delete an entry; supersede it.
 - **Decision:** Railway runs `node web/server.js` from `main`, with
   `DATABASE_URL` (Neon) and `DEMO_PASSWORD` set in Railway's variables. The
   whole site needs HTTP Basic auth while `DEMO_PASSWORD` is set.
+  *Amended 2026-11-13:* the browser's Basic-auth popup was the first thing a
+  prospect saw, so browsers now get a branded sign-in page (`/login`) that
+  sets a signed, HttpOnly, SameSite=Lax, Secure session cookie for 7 days,
+  with failed sign-ins rate limited per IP. Basic auth is still accepted (never
+  requested) for scripts such as `smoke.yml`. Same `DEMO_PASSWORD`; changing
+  it signs everyone out. See `web/access.js`.
 - **Consequences:** about $5/month after the trial. A shared password is a
   demo control, not customer auth: per-subscriber signed links (PILOT_UX) are
   still to build before a paying pilot. The live screens show only

@@ -66,7 +66,9 @@ a:hover { color: var(--color-accent); }
 .nav a { display: flex; align-items: center; padding: 0 var(--space-sm); color: var(--color-chart-3); text-decoration: none; font-size: var(--text-sm); border-bottom: var(--rule-bar) solid transparent; border-top: var(--rule-bar) solid transparent; transition: color var(--dur-micro) var(--ease-out); }
 .nav a:hover { color: var(--color-plate); }
 .nav a[aria-current="page"] { color: var(--color-plate); border-bottom-color: var(--color-accent); }
-.top-meta { margin-left: auto; display: flex; align-items: center; font-size: var(--text-xs); color: var(--color-chart-3); }
+.top-meta { margin-left: auto; display: flex; align-items: center; gap: var(--space-md); font-size: var(--text-xs); color: var(--color-chart-3); }
+.top-meta .signout { color: var(--color-chart-3); }
+.top-meta .signout:hover { color: var(--color-plate); }
 
 main { max-width: var(--container); margin: 0 auto; padding: var(--space-xl) var(--space-md) var(--space-2xl); display: flex; flex-direction: column; gap: var(--space-xl); }
 main.narrow { max-width: 820px; }
