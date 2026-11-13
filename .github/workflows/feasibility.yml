@@ -11,7 +11,7 @@ on:
         description: Months of history to analyse
         default: '18'
       only:
-        description: Comma-separated sections (austin, austinUpdatedAt, austinWindows, miamiWindow, miami); empty runs all
+        description: Comma-separated sections (austin, austinUpdatedAt, austinWindows, miamiWindow, miami); empty runs all; 'enrichment' runs recon/enrichment_sources.js only
         default: ''
       markets:
         description: "Market scan (recon/market_scan.js) instead of the measurements: 'all' for discovery plus probes, or a comma-separated --only list"
@@ -50,11 +50,15 @@ jobs:
       - if: inputs.only == '' && inputs.markets == '' && inputs.market_links == ''
         run: node recon/plan_review.js --out=feasibility-report/plan-review --months=24
       # Inputs go through env, not inline, so they can't inject shell.
-      - if: always() && inputs.markets == '' && inputs.market_links == ''
+      - if: always() && inputs.only != 'enrichment' && inputs.markets == '' && inputs.market_links == ''
         run: node recon/feasibility.js --out=feasibility-report --months="$MONTHS" ${ONLY:+--only="$ONLY"}
         env:
           MONTHS: ${{ inputs.months }}
           ONLY: ${{ inputs.only }}
+      # Enrichment-source recon (licences, appraisal, geocoding); prints to the log.
+      - if: inputs.only == 'enrichment'
+        timeout-minutes: 15
+        run: node recon/enrichment_sources.js
       - uses: actions/upload-artifact@v4
         if: always()
         with:

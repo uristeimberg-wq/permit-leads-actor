@@ -247,9 +247,15 @@ confirmed merge is recorded in `contractor_merges` and can be undone.
 
 Licence enrichment joins on licence number where a state file exists:
 
-- Texas TDLR "All Licenses" has a business phone; it does not cover general
-  contractors.
-- Florida DBPR construction and electrical CSVs have no phone.
+- Texas TDLR "All Licenses" has a business phone for electrical contractors
+  only (A/C contractors have none); it does not cover general contractors.
+  Austin permits carry no licence number, so Texas joins use phone or name
+  (rules 2 and 3), not rule 1.
+- Texas TSBPE (plumbing) lists one person per row with the company name.
+- Florida DBPR construction and electrical CSVs have no phone. Miami-Dade
+  `ContractorNumber` matches the DBPR alternate licence number for 95.9% of
+  permits once leading zeros are normalized.
+- Measured 2026-11-13; see `docs/DATA_SOURCES.md`, "Enrichment sources".
 
 ## 9. Projects and the "trade gap" signal
 

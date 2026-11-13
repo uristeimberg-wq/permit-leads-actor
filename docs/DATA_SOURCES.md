@@ -28,6 +28,8 @@ source is re-checked. Never add a source here without fetching it.
 | Integration status | Working in the prototype (`austin-tx`) |
 | `:created_at` | **Useless for lag.** All 9,863 rows issued in the last 60 days carry `:created_at` 2026-11-12: the dataset is bulk-reloaded (measured 2026-11-13) |
 | Measured 2026-11-13 | See "M1 measurements" below |
+| Coordinates | `latitude`, `longitude`, `location`: 84.4% of all rows, only 60.6% of permits issued in the last 90 days (2026-11-13). See "Enrichment sources" |
+| Parcel join | `tcad_id` (99.5% filled) equals TCAD `geo_id` for 90.8% of distinct values (2026-11-13) |
 
 ### Miami-Dade County, FL: permit data layer
 
@@ -49,6 +51,7 @@ source is re-checked. Never add a source here without fetching it.
 | Unknowns | Does it include municipal permits (Miami, Hialeah, Miami Beach, ...) or only county-processed ones? **Still unknown**: `City` is `MIAMI` on 98% of rows, so it is a mailing city, not the municipality. Needs a geographic check (addresses or folios against municipal boundaries) |
 | Master permit | `0000000000` is the "no master" sentinel, not a value. 11,290 distinct real masters in the last 18 months |
 | Sync mode | `snapshot`: when `dataLastEditDate` changes, page through the whole layer and diff by hash |
+| Coordinates | None: the layer is a table with no geometry. Use the Property Appraiser layer via `FolioNumber` (99% match, 2026-11-13) |
 | Integration status | Working in the prototype (`miami-dade-fl`) |
 
 ## M1 measurements (2026-11-13)
@@ -261,13 +264,181 @@ Miami to county phone match rate; Raleigh's measured link rate; and the
 expediter caveat from Austin (if one company pulls trade permits for many
 GCs, "sub differs" overstates real subs).
 
-## Licence sources
+## Enrichment sources (verified 2026-11-13)
 
-| Source | Endpoint | Fields | Notes |
-| --- | --- | --- | --- |
-| Texas TDLR, All Licenses | `https://data.texas.gov/api/views/7358-krk7.json` | `license_type`, `license_number`, `business_name`, business address, `business_telephone`, `owner_name`, `owner_telephone`, expiry | About 967k rows, updated 2026-10-19. Covers electricians, A/C and others; **no general contractors** (Texas has no state GC licence). Plumbers are licensed by TSBPE (not checked) |
-| Florida DBPR, construction | `https://www2.myfloridalicense.com/construction-industry/public-records/` | `CONSTRUCTIONLICENSE_1.csv`: name, DBA, address, licence number, status | **No phone.** Update frequency not stated |
-| Florida DBPR, electrical | `https://www2.myfloridalicense.com/sto/file_download/extracts/lic08el.csv` | Same layout | **No phone** |
+From `recon/enrichment_sources.js`, run in GitHub Actions against the live
+sources (runs 43446556469, 43447503570, 43448074851; re-run with the
+`feasibility` workflow and `only=enrichment`). The script prints field names,
+counts, fill rates, code values and ID shapes only (`A` = letter, `9` =
+digit). Terms were read from the source's own pages on 2026-11-13 unless
+marked **not reviewed**. Nothing here is integrated yet.
+
+Summary:
+
+| Source | Join key | Verdict |
+| --- | --- | --- |
+| TX TDLR All Licenses | No licence number on Austin permits, so phone or name | **Use** for electrical contractor phones. Useless for HVAC phones |
+| TX TSBPE plumbing lists | No licence number on Austin permits, so company name or phone | **Use** for company names; phones only after the rule 5 review |
+| FL DBPR construction and electrical | Miami-Dade `ContractorNumber` = DBPR licence number (95.9% of permits) | **Use**: licence status, class, business address. No phone |
+| TCAD appraisal export | Austin `tcad_id` = TCAD `geo_id` (90.8%) | **Use**, internally only; needs a legal check before any derived value is shown |
+| Miami-Dade PA Property Point View | `FolioNumber` = `FOLIO` (99%) | **Use**: property type, size, year built, value and coordinates |
+| US Census batch geocoder | Address | **Use** to fill Austin's missing coordinates |
+
+### Texas TDLR, All Licenses (`data.texas.gov` `7358-krk7`)
+
+| Field | Value |
+| --- | --- |
+| Endpoint | `https://data.texas.gov/resource/7358-krk7.json` (SODA). Bulk: SODA pages of 50,000 (verified). The standard Socrata CSV export was not fetched |
+| Reachable | From Actions, yes. Not from the dev container (proxy 403) |
+| Columns | `license_type`, `license_subtype`, `license_number`, `license_expiration_date_mmddccyy` (`MM/DD/YYYY` text), `business_name`, `business_county`, `business_address_line1/2`, `business_city_state_zip`, `business_telephone`, `owner_name`, `owner_telephone`, `mailing_address_line1/2`, `mailing_address_city_state_zip`, `mailing_address_county`, `continuing_education_flag`, `business_mailing`, plus 8 Socrata computed-region columns |
+| Volume | 966,778 rows, 92 `license_type` values |
+| Freshness | `rowsUpdatedAt` 2026-10-19 (25 days old on 2026-11-13). No schedule stated. The attribution link is `tdlr.texas.gov/LicenseSearch/licfile.asp` |
+| Junk rows | 6 rows whose `license_type` is report boilerplate from a Salesforce export ("Generated By: Public Information Act (PIA) 9/18/2026", a confidentiality notice, copyright lines). Filter on a known list of licence types |
+| Licence number | Digits only (`99999` for electrical contractors), no prefix. Key on `(license_type, license_number)`, not the number alone |
+| Terms | No licence field in the metadata. The data.texas.gov terms page was not found: **not reviewed** |
+
+Trade-relevant types:
+
+| `license_type` | Rows | `business_telephone` | Business address | Business vs individual |
+| --- | --- | --- | --- | --- |
+| Electrical Contractor (`EC`) | 14,031 | **100%** | 99.9% | `business_name` = `owner_name` on every row, and 94.9% look like a business (legal suffix or trade word). `owner_telephone` = `business_telephone` on 14,025. So the "owner" fields repeat the business; there is no individual on these rows |
+| Electrical Sign Contractor | 652 | 100% | 100% | Same pattern (69% business-like) |
+| A/C Contractor (subtypes `BE`, `AC`, `AE`, `BC`, `AR`, `BR`, ...) | 20,462 | **0%** | **0%** | `business_name` 98% filled, 81% business-like. `owner_name` is the individual licensee (0% business-like). No phone or address at all |
+| Master / Journeyman / Apprentice Electrician, A/C Technician | 19,920 / 45,391 / 283,425 / 61,248 | 0% | 0% | Individuals. `business_name` holds the person's name. Not useful for leads; rule 5 applies |
+
+Join test against Austin trade permits issued in the last 90 days (Austin has
+no licence-number column, so the join is by phone or normalized name):
+
+| Austin permits | Phone found among TDLR electrical and A/C business phones | Distinct companies whose normalized name is a TDLR `business_name` |
+| --- | --- | --- |
+| EP (electrical) | 59.8% of 4,404 | 85.4% of 642 |
+| MP (mechanical) | 10.2% of 2,896 | 73.6% of 417 |
+
+**Recommendation: use** for electrical: a licensed-business check and a
+second phone. For HVAC it confirms the business name only. The permit's own
+phone stays the primary contact. `owner_name` on A/C rows is an individual:
+store, never display (rule 5).
+
+### Texas plumbing licences (TSBPE "Free Licensee List")
+
+| Field | Value |
+| --- | --- |
+| Page | `https://tsbpe.texas.gov/free-licensee-list/` |
+| Files | CSV with a header row. Responsible Master Plumber `https://tsbpe.texas.gov/download-csv/RMP/`, Master Plumber `.../download-csv/MP/`, Tradesman `.../TP/`, Inspectors `.../PI/`. Journeyman and Apprentice are static `.csv.zip` files under `wp-content/uploads/2015/03/` |
+| Reachable | From Actions, yes |
+| Freshness | "Tables are updated daily", current as of the previous work day. Files fetched 2026-11-13 had `Last-Modified` 2026-11-13 |
+| RMP columns | `RANK`, `LICENSE_NBR`, `LIC_STATUS` (`Current` 8,702 / `Expired` 723), `LICENSE_DATE`, `EXPIRATION_DTE`, `LAST_NAME`, `FIRST_NAME`, `MIDDLE_NAME`, `SUFFIX`, `ADDR1-3`, `CITY`, `STATE`, `ZIP`, `PHONE`, `COUNTY`, `MEDGAS_ENDR`, `MRF_ENDR`, `WS_ENDR`, `INS_EXPIRY_DTE`, `PLUMB_COMPANY`, `INSURANCE_COMPANY` |
+| RMP volume and fill | 9,425 rows. `PLUMB_COMPANY` 99.9% (8,557 distinct companies), `PHONE` 50.3% (10 digits), address 51.2%, `COUNTY` 99.8% (Travis 281) |
+| MP columns | Same minus address, phone and company: names, `ZIP`, `COUNTY`, endorsements. 4,368 rows. Not useful |
+| Business vs individual | Each row is a **person** (the responsible master plumber) with the "last known company" in `PLUMB_COMPANY`. Whether `PHONE` is the business or the person is not stated |
+| Licence number | `LICENSE_NBR`. Austin permits carry no licence number |
+| Terms | Page read: the Board "makes no guarantees" on timeliness or accuracy and corrects reported errors. No restriction on use or solicitation is stated |
+
+Join test, Austin PP (plumbing) permits issued in the last 90 days: phone found
+in RMP `PHONE` for 31.8% of 3,016 permits; normalized company name found in
+`PLUMB_COMPANY` for 76.2% of 520 distinct companies.
+
+**Recommendation: use** for company-to-licensed-plumber confirmation and
+licence status. Treat `PHONE` as an individual's contact (rule 5) until the
+compliance review says otherwise. Do not display licensee names.
+
+### Florida DBPR, construction and electrical licence extracts
+
+| Field | Value |
+| --- | --- |
+| Files | `https://www2.myfloridalicense.com/sto/file_download/extracts//CONSTRUCTIONLICENSE_1.csv` (47.1 MB; the double slash is in DBPR's own link) and `https://www2.myfloridalicense.com/sto/file_download/extracts/lic08el.csv` (4.0 MB) |
+| Reachable | From Actions, yes |
+| Format | Quote/comma ASCII, **no header row**, 22 fields per row (the published layout lists 21; the 22nd is always empty). Layout: board, occupation code, licensee name, DBA, class code, address 1-3, city, state, ZIP, county code, licence number, primary status, secondary status, original licensure date, effective date, expiration date, blank, renewal period, alternate licence number |
+| Volume | Construction 263,512 rows (board `06`); electrical 19,886 (board `08`) |
+| Freshness | ReadMe: "data is refreshed weekly". Both files had `Last-Modified` 2026-11-13 |
+| Phone | **None** (confirmed). DBA filled 49% (construction) and 86% (electrical) |
+| Occupation codes | Construction: `QB` 128,951, `CGC` 36,236, `FRO` 19,587, `CBC` 18,124, `CAC` 11,714, `CCC` 10,520, `CFC` 8,950, `CRC` 7,645, ... (29 codes). Electrical: `EC` 12,532, `ES`, `ER`, `EF`, `CRS3`, `EG`, ... (14). Codes are listed as found; their meanings are to be taken from DBPR, not guessed |
+| Status | Primary status `C` (construction 263,091; electrical 19,730), `P`, `S`. Secondary status `A` / `I` (46% filled in construction, 92% in electrical). Codes to decode from DBPR. The ReadMe says null-and-void, delinquent and involuntarily inactive records are excluded |
+| Licence number | Field 13 is digits only (51% filled in construction, mostly 7 digits). Field 21, the alternate licence number, carries the prefixed form (`AAA9999999`, `AA99999999`, ...) that permits use |
+| Terms | ReadMe/Disclaimer and Disclaimer pages read: free download, no technical support, no liability. No restriction on commercial use or solicitation is stated. Florida says e-mail addresses are public records; these files carry none |
+
+Join test: 10,000 Miami-Dade permits issued in the last 180 days, 8,307 with a
+`ContractorNumber` (3,221 distinct). Exact match against fields 13 or 21: 91.6%
+of permits. After normalizing (prefix plus number without leading zeros, so
+`CGC061097` meets `CGC61097`): **95.9% of permits, 95.3% of distinct
+numbers**. By shape: `AAA9+` 97.5% of 6,020, `AA9+` 98.7% of 1,748, `99A9+` and
+`99AA9+` 100%, digits-only 0% of 141. Matched permits by occupation: `CGC`
+2,572, `CCC` 1,597, `EC` 1,495, `CFC` 644, `CAC` 506, `CMC` 230, `CPC` 222.
+
+**Recommendation: use** for licence status, class and the registered business
+address, keyed on the normalized alternate licence number. It gives no phone.
+
+### Travis Central Appraisal District (TCAD) appraisal export
+
+| Field | Value |
+| --- | --- |
+| Page | `https://traviscad.org/publicinformation`, "Publicly Available Data" |
+| Files | 2026 Supplemental Appraisal Roll Export (legacy fixed-width, 510.5 MB zip, 17.8 GB unzipped, `Last-Modified` 2026-11-10); 2026 Certified Appraisal Export (557.2 MB, 2026-07-22); JSON "Special" exports (3.5-3.6 GB each, not opened); Export Layout zip (PDF and XLSX, "Legacy 8.0.33", 2026-06-02) |
+| Reachable | From Actions, yes (510 MB in 3-6 s) |
+| Freshness | Certified roll yearly (July); supplemental files re-posted as the roll changes (the current one is "SUPP 336"). No schedule stated |
+| Main file | `PROP.TXT`: 493,463 rows, record length 9,922, all `prop_val_yr` 2026. `prop_type_cd`: `R` 442,089, `P` 39,630, `MH` 11,739, `MN` 5 |
+| Key | `geo_id` (positions 547-596, 92.7% filled, mostly 10 digits) **is Austin's `tcad_id`**: 90.8% of the 7,974 distinct `tcad_id` values on Austin permits from the last 90 days match. 265 Austin values are letter plus digits; 65 of them match `prop_id` once the letter is dropped. 91.6% match in total. Austin's `tcad_id` is 99.5% filled. `prop_id` (positions 1-12, zero-padded) is TCAD's internal id |
+| Property type | `imprv_state_cd` (2732-2741) and `land_state_cd` (2742-2751), Texas state property codes. Top: `A1` 289,851, blank 92,156, `A4` 54,564, `F1` 12,127, `M1` 11,677, `B2` 9,684, `A2` 5,810 |
+| Value | `market_value` (4214-4227) and `appraised_val` (1916-1930), both 100% filled |
+| Year built, area | `IMP_DET.TXT` (3,310,108 rows, record length 622; 400,973 properties): `yr_built` (86-89) 98% filled (sample p5/p50/p95 1954/2000/2023), `imprv_det_area` (94-108) 99.6%, typed by `imprv_det_type_cd` (`1ST` 1st Floor, `2ND` 2nd Floor, `011` open porch, `041` attached garage, `251` bathroom, `252` bedrooms, `095` residential HVAC, `604` pool, ...). Living area is therefore the sum of the floor-type rows: a derivation to validate, not a field |
+| Owner | `py_owner_name` 100% filled. Stored only if needed, never displayed (rule 5). `py_confidential_flag` (position 990) is `T` on 0 rows: confidential owners appear to be withheld from the public file (not verified) |
+| Other | Situs address (99.6%), legal description, deed book and date, exemptions in `PROP_ENT.TXT` (9.8 GB) |
+| Terms | No terms of use, licence or redistribution clause on the public-information page, the open-government page or the privacy policy (all read 2026-11-13). Other records by Public Information Act request. **Needs a legal check** before showing derived values: appraisal data is public, but no reuse terms are stated |
+
+**Recommendation: use** for property type, size, year built and value on
+Austin leads, joined on `geo_id`. Load the supplemental export on a schedule
+(weekly `Last-Modified` check), parse only the needed columns, and never
+display owner names.
+
+### Miami-Dade Property Appraiser, Property Point View
+
+| Field | Value |
+| --- | --- |
+| Endpoint | `https://services.arcgis.com/8Pc9XBTAsYuxx9Ny/arcgis/rest/services/PaGISView_gdb/FeatureServer/0` (ArcGIS item `bf92e51f90a8426cae904ebc15018067`, owner `MDPublisher`) |
+| Reachable | From Actions, yes |
+| Type | Point feature layer, `maxRecordCount` 2000 |
+| Volume | 944,398 rows |
+| Freshness | Item description: "updated weekly on Saturdays". `lastEditDate` 2026-11-12 |
+| Key | `FOLIO` (13 digits, 99.4% filled). **99% (396 of 400) of distinct permit `FolioNumber` values from the last 90 days match** |
+| Fields | `FOLIO`, `X_COORD`, `Y_COORD`, `TRUE_SITE_ADDR_NO_UNIT`, `TRUE_SITE_UNIT`, `TRUE_SITE_CITY`, `TRUE_SITE_ZIP_CODE`, mailing address, `TRUE_OWNER1-3`, `CONDO_FLAG`, `DOR_CODE_CUR`, `DOR_DESC`, `SUBDIVISION`, `BEDROOM_COUNT`, `BATHROOM_COUNT`, `HALF_BATHROOM_COUNT`, `FLOOR_COUNT`, `UNIT_COUNT`, `BUILDING_ACTUAL_AREA`, `BUILDING_HEATED_AREA`, `LOT_SIZE`, `YEAR_BUILT`, `ASSESSMENT_YEAR_CUR`, `ASSESSED_VAL_CUR`, `DOS_1`, `PRICE_1`, `DATEOFSALE_UTC` |
+| Fill | `DOR_CODE_CUR` 99.4%, `BUILDING_HEATED_AREA` 91.9%, `YEAR_BUILT` 92%, `ASSESSED_VAL_CUR` 98%, `BEDROOM_COUNT` 84.4%, `UNIT_COUNT` 80.4%, `FLOOR_COUNT` 55.2%, `LOT_SIZE` 61%, `TRUE_SITE_ZIP_CODE` 99.3%, `TRUE_OWNER1` 99.3% |
+| Land use | `DOR_CODE_CUR` top: `0407` 323,474, `0101` 319,505, `0410` 66,006, `0105` 42,920, `0802` 23,720. Decode with `DOR_DESC` |
+| Value | Assessed value only; no market value field |
+| Bonus | It gives the permit layer a ZIP (missing there) and coordinates via the folio. The spatial reference of `X_COORD` and `Y_COORD` is not yet recorded |
+| Owner | `TRUE_OWNER1-3`: never fetched for display (rule 5); leave them out of `outFields` |
+| Terms | Item `licenseInfo` read: provided "as is", approximate, "for illustration only", not for site-specific decisions; no redistribution restriction stated. The open-data hub terms page was **not reviewed** (the hub page rendered no terms). The Property Appraiser's paid bulk files (`bbs.miamidadepa.gov`, $50 per file, weekly CSV, account required) were not used |
+
+**Recommendation: use**, joined on folio, through the public layer (no paid
+files).
+
+### US Census Geocoder, batch
+
+| Field | Value |
+| --- | --- |
+| Endpoint | `https://geocoding.geo.census.gov/geocoder/locations/addressbatch` (also `geographies/addressbatch`, which adds state, county, tract and block). Multipart form: `addressFile`, `benchmark` (and `vintage` for geographies) |
+| Input | CSV `Unique ID, Street address, City, State, ZIP`, no header |
+| Limit | "Upper limit of 10,000 records per batch file" (API PDF). No rate limit stated |
+| Benchmarks (live) | `4` Public_AR_Current, `8` Public_AR_ACS2026, `11` Public_AR_LUCA, `2020` Public_AR_Census2020 |
+| Live test | 50 Austin permit addresses from the last 90 days: 36 exact, 5 non-exact, 9 no match (82% matched), answered in about 1 s |
+| Reachable | From Actions, yes |
+| Terms | No terms of service on the documentation page or in the API PDF (both read). A US federal service. **Not reviewed** beyond that |
+
+**Recommendation: use**, as a batch step at ingest (never at request time),
+only where the source has no coordinates, and record the match type as
+provenance.
+
+### Coordinates already in the permit sources
+
+- **Austin `3syk-w9eu`:** has `latitude`, `longitude` (number) and `location`
+  (point). Filled on 84.4% of all 2,385,260 rows but only **60.6% of the
+  14,816 permits issued in the last 90 days** (EP 61.8%, PP 58%, BP 63.5%,
+  MP 61.5%, DS 39.4%). Range 30.11 to 30.51 N, -97.999 to -97.551 W, which is
+  Austin. Recent permits seem to get coordinates later (to confirm with the M2
+  snapshots). There is also a text `permit_location`. Fill the gap from the
+  Census geocoder.
+- **Miami-Dade permit layer:** a `Table` with no geometry and no coordinate
+  fields. Coordinates come from the Property Appraiser layer through
+  `FolioNumber`.
 
 ## Explicitly excluded
 
