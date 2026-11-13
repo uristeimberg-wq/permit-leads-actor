@@ -35,6 +35,20 @@ The purpose is to answer, with numbers, whether a lead worth calling exists.
 - **Otherwise:** the "trade gap" pitch is dropped, and leads are ranked on
   recency, value and trade fit only.
 
+**Result, 2026-11-13 (`docs/DATA_SOURCES.md`, M1 measurements): conditional go.**
+The data passes both thresholds: 50-78% of primaries get a trade permit linked by
+permit number, the medians are 25-63 days, and only 2-5% of trade permits are
+pulled by the building permit's own company. What the data cannot show is
+whether the sub is still unhired at that point. A trade permit is usually
+pulled after the sub is hired, so the gap is an upper bound on the sales
+window. Before the pitch is sold as "reach the sub before anyone else", 3 to 5
+design partners must confirm when they are hired. The next measurement is
+building-permit review time (`applieddate` to `issue_date`), because subs that
+bid during plan review are gone before the permit is issued.
+
+Still open from M1: the 14-day snapshot for real publication lag (the
+`:created_at` field is a bulk reload) and Miami-Dade municipal coverage.
+
 ## M2: Reliable pipeline (about 2 weeks)
 
 | Item | Priority | Complexity | Exit check |

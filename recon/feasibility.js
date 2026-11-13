@@ -164,33 +164,65 @@ async function austin(report) {
     };
   }
 
+  // 2b. Freshness proxy that doesn't depend on :created_at: permits per issue
+  // day for the last 21 days against the median weekday count of days 22-90.
+  // A low ratio for recent days means records arrive late.
+  {
+    const perDay = new Map(countBy(rows.filter((r) => r.issue_date), (r) => r.issue_date.slice(0, 10)));
+    const weekday = (d) => { const w = new Date(`${d}T12:00:00Z`).getUTCDay(); return w > 0 && w < 6; };
+    const ref = [];
+    for (let i = 22; i <= 90; i += 1) { const d = isoDay(new Date(today - i * DAY)); if (weekday(d)) ref.push(perDay.get(d) || 0); }
+    const baseline = quantile(ref, 0.5);
+    const recentDays = [];
+    for (let i = 0; i <= 21; i += 1) {
+      const d = isoDay(new Date(today - i * DAY));
+      if (weekday(d)) recentDays.push({ day: d, ageDays: i, permits: perDay.get(d) || 0, pctOfBaseline: pct(perDay.get(d) || 0, baseline) });
+    }
+    report.austin.arrivalByIssueAge = { baselineWeekdayPermits: baseline, recentDays };
+  }
+
   // 3. trade gap
   const base = (pn) => String(pn || '').trim().replace(/\s+[A-Z]{2,3}$/, '');
   report.austin.permitNumberSamples = rows.slice(0, 8).map((r) => r.permit_number);
   report.austin.workClasses = countBy(rows.filter((r) => r.permittype === 'BP'), (r) => `${r.permit_class_mapped || '?'} | ${r.work_class || '?'}`).slice(0, 20);
 
-  const byBase = new Map(); const byParcel = new Map();
+  const byBase = new Map(); const byParcel = new Map(); const byMaster = new Map();
+  const masterCol = cols.includes('masterpermitnum') ? 'masterpermitnum' : null;
+  const push = (m, k, r) => { if (!m.has(k)) m.set(k, []); m.get(k).push(r); };
   for (const r of rows) {
     if (!r.issue_date) continue;
     const b = base(r.permit_number);
-    if (b) { if (!byBase.has(b)) byBase.set(b, []); byBase.get(b).push(r); }
-    if (r.tcad_id) { if (!byParcel.has(r.tcad_id)) byParcel.set(r.tcad_id, []); byParcel.get(r.tcad_id).push(r); }
+    if (b) push(byBase, b, r);
+    if (r.tcad_id) push(byParcel, r.tcad_id, r);
+    if (masterCol && r[masterCol]) push(byMaster, String(r[masterCol]).trim(), r);
   }
+  report.austin.masterPermitColumn = masterCol;
+  report.austin.pctRowsWithMasterPermit = masterCol ? pct(rows.filter((r) => r[masterCol]).length, rows.length) : null;
+  const company = (r) => (r.contractor_company_name || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
   const cutoff = isoDay(new Date(today - 180 * DAY)); // primaries need 180 days of follow-up
   const isPrimary = (r) => r.permittype === 'BP' && /resid/i.test(r.permit_class_mapped || '')
     && /new|addition|remodel|alteration/i.test(r.work_class || '') && r.issue_date && r.issue_date.slice(0, 10) <= cutoff;
   const primaries = rows.filter(isPrimary);
   const trades = { EP: 'electrical', MP: 'mechanical (HVAC)', PP: 'plumbing' };
   const gap = { primaries: primaries.length, byWorkClass: countBy(primaries, 'work_class').slice(0, 8), link: {} };
-  for (const [mode, index, keyOf] of [['permit-number base', byBase, (r) => base(r.permit_number)], ['parcel (tcad_id) within -30..+180 days', byParcel, (r) => r.tcad_id]]) {
+  const modes = [['permit-number base', byBase, (r) => base(r.permit_number)], ['parcel (tcad_id) within -30..+180 days', byParcel, (r) => r.tcad_id]];
+  // A trade permit can hang off the building permit's own number or share its master.
+  if (masterCol) modes.push(['master permit (masterpermitnum)', byMaster, (r) => (r[masterCol] ? String(r[masterCol]).trim() : String(r.permit_number || '').trim())]);
+  for (const [mode, index, keyOf] of modes) {
     const out = {};
     for (const [code, name] of Object.entries(trades)) {
-      const deltas = []; let linked = 0;
+      const deltas = []; let linked = 0; let sameCompany = 0; let bothNamed = 0;
       for (const p of primaries) {
         const k = keyOf(p); if (!k) continue;
-        const sibs = (index.get(k) || []).filter((s) => s.permittype === code);
-        const ds = sibs.map((s) => daysBetween(p.issue_date, s.issue_date)).filter((d) => d >= -30 && d <= 180);
-        if (ds.length) { linked += 1; deltas.push(Math.min(...ds)); }
+        const sibs = (index.get(k) || []).filter((s) => s.permittype === code && s !== p)
+          .map((s) => [s, daysBetween(p.issue_date, s.issue_date)]).filter(([, d]) => d >= -30 && d <= 180)
+          .sort((a, b) => a[1] - b[1]);
+        if (!sibs.length) continue;
+        linked += 1; deltas.push(sibs[0][1]);
+        // If the building permit's company also pulls the trade permit, the trade
+        // work was never open to an outside sub: no lead.
+        const a = company(p); const b = company(sibs[0][0]);
+        if (a && b) { bothNamed += 1; if (a === b) sameCompany += 1; }
       }
       out[name] = {
         primariesWithThisTrade: linked,
@@ -199,6 +231,7 @@ async function austin(report) {
         p25: quantile(deltas, 0.25), p75: quantile(deltas, 0.75),
         timing: buckets(deltas),
         pctIssuedAtLeast7DaysLater: pct(deltas.filter((d) => d >= 7).length, deltas.length),
+        pctSameCompanyAsBuildingPermit: pct(sameCompany, bothNamed),
       };
     }
     gap.link[mode] = out;
@@ -215,14 +248,29 @@ async function miami(report) {
   };
   const fields = ['PermitNumber', 'MasterPermitNumber', 'PermitType', 'ApplicationTypeDescription', 'ResidentialCommercial',
     'PermitIssuedDate', 'FolioNumber', 'City', 'ContractorName', 'ContractorPhone'].filter((f) => report.miami.fields.includes(f));
+  // Whole-layer facts from the server, not from a sample.
+  const total = await getJson(`${MIAMI}/query?where=1%3D1&returnCountOnly=true&f=json`);
+  report.miami.totalRows = total.count;
+  const stats = await getJson(`${MIAMI}/query?where=1%3D1&outStatistics=${encodeURIComponent(JSON.stringify([
+    { statisticType: 'max', onStatisticField: 'PermitIssuedDate', outStatisticFieldName: 'maxIssued' },
+    { statisticType: 'min', onStatisticField: 'PermitIssuedDate', outStatisticFieldName: 'minIssued' }]))}&f=json`);
+  const st = stats.features?.[0]?.attributes || {};
+  const asIso = (v) => (v == null ? null : typeof v === 'number' ? new Date(v).toISOString().slice(0, 10) : String(v).slice(0, 10));
+  report.miami.layerIssuedRange = { min: asIso(st.minIssued), max: asIso(st.maxIssued) };
+  // Then pull only the analysis window.
+  const since = new Date(today); since.setUTCMonth(since.getUTCMonth() - MONTHS);
+  const where = encodeURIComponent(`PermitIssuedDate >= TIMESTAMP '${isoDay(since)} 00:00:00'`);
+  const windowCount = await getJson(`${MIAMI}/query?where=${where}&returnCountOnly=true&f=json`);
+  report.miami.windowRows = windowCount.count;
   let rows = [];
   for (let off = 0; ; off += 1000) {
-    const q = `${MIAMI}/query?where=1%3D1&outFields=${fields.join(',')}&orderByFields=ObjectId&resultOffset=${off}&resultRecordCount=1000&f=json`;
+    const q = `${MIAMI}/query?where=${where}&outFields=${fields.join(',')}&orderByFields=ObjectId&resultOffset=${off}&resultRecordCount=1000&f=json`;
     const page = await getJson(q);
     rows = rows.concat((page.features || []).map((f) => f.attributes));
     if (!page.exceededTransferLimit && (page.features || []).length < 1000) break;
-    if (off > 400000) break; // hard stop
+    if (off > 1000000) throw new Error('Miami-Dade window larger than 1M rows; narrow --months');
   }
+  if (windowCount.count != null && rows.length !== windowCount.count) report.miami.pullMismatch = { expected: windowCount.count, got: rows.length };
   const toIso = (v) => (typeof v === 'number' ? new Date(v).toISOString().slice(0, 10) : String(v || '').slice(0, 10));
   for (const r of rows) r.issued = toIso(r.PermitIssuedDate);
   const issued = rows.map((r) => r.issued).filter(Boolean).sort();
@@ -235,7 +283,8 @@ async function miami(report) {
   report.miami.applicationTypes = countBy(rows, 'ApplicationTypeDescription').slice(0, 20);
   const withMaster = rows.filter((r) => r.MasterPermitNumber && String(r.MasterPermitNumber).trim() && r.MasterPermitNumber !== r.PermitNumber);
   report.miami.pctWithMasterPermitDifferentFromOwn = pct(withMaster.length, rows.length);
-  report.miami.masterSamples = withMaster.slice(0, 5).map((r) => [r.PermitNumber, r.MasterPermitNumber, r.PermitType]);
+  report.miami.masterSamples = withMaster.slice(0, 8).map((r) => [r.PermitNumber, r.MasterPermitNumber, r.PermitType, r.City]);
+  report.miami.distinctMasters = new Set(withMaster.map((r) => String(r.MasterPermitNumber).trim())).size;
   // Trade gap by master permit: a building-type master and its trade children.
   const byMaster = new Map();
   for (const r of rows) {
@@ -278,16 +327,24 @@ function markdown(r) {
     } else {
       L.push('### Publication lag', '', `Not measurable from system fields: ${a.systemFieldsError}`, '');
     }
+    if (a.arrivalByIssueAge) {
+      const f = a.arrivalByIssueAge;
+      L.push('### Arrival by issue-date age (freshness proxy)', '', `Baseline: median ${f.baselineWeekdayPermits} permits per weekday (days 22-90). Recent weekdays, as % of baseline:`, '',
+        f.recentDays.map((d) => `${d.day} (age ${d.ageDays}): ${d.permits} = ${d.pctOfBaseline}%`).join(' · '), '');
+    }
+    if (a.masterPermitColumn) L.push(`Rows with \`${a.masterPermitColumn}\`: ${a.pctRowsWithMasterPermit}%.`, '');
     L.push('### Trade gap', '', `Primary permits: residential building permits (BP) for new / addition / remodel work issued at least 180 days ago: **${a.tradeGap.primaries}**.`, '');
     for (const [mode, trades] of Object.entries(a.tradeGap.link)) {
-      L.push(`Linked by ${mode}:`, '', '| Trade | Share of primaries with this trade permit | Median days after building permit | Issued 7+ days later |', '| --- | --- | --- | --- |');
-      for (const [t, v] of Object.entries(trades)) L.push(`| ${t} | ${v.pctOfPrimaries}% (${v.primariesWithThisTrade}) | ${v.medianDaysAfterBuildingPermit} | ${v.pctIssuedAtLeast7DaysLater}% |`);
+      L.push(`Linked by ${mode}:`, '', '| Trade | Share of primaries with this trade permit | Median days after building permit | Issued 7+ days later | Same company as building permit |', '| --- | --- | --- | --- | --- |');
+      for (const [t, v] of Object.entries(trades)) L.push(`| ${t} | ${v.pctOfPrimaries}% (${v.primariesWithThisTrade}) | ${v.medianDaysAfterBuildingPermit} | ${v.pctIssuedAtLeast7DaysLater}% | ${v.pctSameCompanyAsBuildingPermit}% |`);
       L.push('');
     }
   }
   if (r.miami) {
     const m = r.miami;
-    L.push('## Miami-Dade', '', `Rows pulled: ${m.rowsPulled} (issued ${m.issuedRange.min} to ${m.issuedRange.max}). Layer last edited: ${m.dataLastEditDate}. Distinct permit numbers: ${m.distinctPermitNumbers}.`, '',
+    L.push('## Miami-Dade', '', `Whole layer: ${m.totalRows} rows, issued ${m.layerIssuedRange.min} to ${m.layerIssuedRange.max}. Layer last edited: ${m.dataLastEditDate}.`, '',
+      `Window (last ${MONTHS} months): ${m.windowRows} rows on the server, ${m.rowsPulled} pulled (issued ${m.issuedRange.min} to ${m.issuedRange.max})${m.pullMismatch ? ' **MISMATCH**' : ''}. Distinct permit numbers: ${m.distinctPermitNumbers}. Distinct masters: ${m.distinctMasters}.`, '',
+      'Master samples (permit, master, type, city): ' + m.masterSamples.map((x) => x.join(' / ')).join(' · '), '',
       `With contractor phone: **${m.withContractorPhonePct}%**. Rows whose master permit differs from their own number: ${m.pctWithMasterPermitDifferentFromOwn}%.`, '',
       'Top cities: ' + m.cities.slice(0, 15).map(([c, n]) => `${c} ${n}`).join(' · '), '',
       'Child timing under a master permit: ' + Object.entries(m.childTimingByType).map(([t, v]) => `${t}: n=${v.n}, median ${v.medianDays} d`).join(' · '), '');
