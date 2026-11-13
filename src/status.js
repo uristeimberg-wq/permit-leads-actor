@@ -56,6 +56,9 @@ const STAGE_BY_STATUS = {
   'payment due': STAGES.PENDING,
   // Raleigh, first sync 2026-11-13: approved but not yet issued.
   'ready for issuance': STAGES.PENDING,
+  // Raleigh pre-issue rows (2026-11-13, ADR-16 E2): none of these is issued.
+  'submitted - online': STAGES.PENDING,
+  'delayed issuance': STAGES.PENDING,
   // Austin plan review (n8ck-xkda), read 2026-11-13. None of these is an
   // issued permit: 'approved' there means the plans are approved, so it stays
   // pending here (src/lifecycle.js keeps the finer stage).
@@ -63,6 +66,12 @@ const STAGE_BY_STATUS = {
   'application incomplete': STAGES.PENDING,
   'awaiting update': STAGES.PENDING,
   'prerequisite review approved': STAGES.PENDING,
+  // First production sync of plan review (2026-11-13).
+  'in e-review': STAGES.PENDING,
+  'e-prerequisite review pending': STAGES.PENDING,
+  'awaiting update - fee paid': STAGES.PENDING,
+  'awaiting update - fees due': STAGES.PENDING,
+  'revision submitted': STAGES.PENDING,
 
   // --- approved: issued, work can start ------------------------------------
   issued: STAGES.APPROVED,

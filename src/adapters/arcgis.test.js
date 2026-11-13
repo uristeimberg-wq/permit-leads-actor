@@ -125,7 +125,28 @@ check('onRaw receives the unmapped attributes and the request count', async () =
   const fetchImpl = async () => ({ ok: true, json: async () => ({ features: [{ attributes: attrs }], exceededTransferLimit: false }) });
   await fetchArcgisSource(SOURCE, { log: fakeLog(), fetchImpl, onRaw: (rows, meta) => { got = { rows, meta }; } });
   assert.deepStrictEqual(got.rows, [attrs]);
-  assert.deepStrictEqual(got.meta, { requests: 1 });
+  assert.deepStrictEqual(got.meta, { requests: 1, truncated: false });
+});
+
+check('windows: per-layer fields, each ordered by its own field, a row found twice kept once', async () => {
+  const urls = [];
+  const src = { ...SOURCE, layerUrl: undefined, dateField: 'issued', orderByFields: 'issued DESC, OBJECTID',
+    layerUrls: ['https://x.test/A/FeatureServer/0', 'https://x.test/B/FeatureServer/0'], fieldMap: { ...SOURCE.fieldMap, permitNumber: 'num' } };
+  const rows = { A: [{ num: '1' }, { num: '2' }], B: [{ num: '3' }] };
+  const fetchImpl = async (url) => {
+    urls.push(decodeURIComponent(url).replace(/\+/g, ' '));
+    const layer = url.includes('/A/') ? 'A' : 'B';
+    return { ok: true, json: async () => ({ features: rows[layer].map((attributes) => ({ attributes })), exceededTransferLimit: false }) };
+  };
+  let meta;
+  await fetchArcgisSource(src, {
+    log: fakeLog(), fetchImpl, onRaw: (r, m) => { meta = { n: r.map((x) => x.num), ...m }; },
+    windows: [{ field: 'applied', days: 30, layer: 0 }, { field: 'created', days: 30, layer: 1 }, { field: 'updated', days: 14 }],
+  });
+  assert.deepStrictEqual(meta, { n: ['1', '2', '3'], requests: 4, truncated: false });
+  assert.ok(/A\/.*where=applied >= timestamp/.test(urls[0]) && /orderByFields=applied DESC, OBJECTID/.test(urls[0]), urls[0]);
+  assert.ok(/A\/.*where=updated >= /.test(urls[1]));
+  assert.ok(/B\/.*where=created >= /.test(urls[2]) && /B\/.*where=updated >= /.test(urls[3]));
 });
 
 check('maxRecords caps how much is pulled', async () => {

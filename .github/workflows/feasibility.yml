@@ -11,7 +11,7 @@ on:
         description: Months of history to analyse
         default: '18'
       only:
-        description: Comma-separated sections (austin, austinUpdatedAt, austinWindows, miamiWindow, miami); empty runs all; 'enrichment' runs recon/enrichment_sources.js only ('enrichment:tcadLayout' for named sections)
+        description: Comma-separated sections (austin, austinUpdatedAt, austinWindows, miamiWindow, miami, raleighWindows); empty runs all; 'enrichment' runs recon/enrichment_sources.js only ('enrichment:tcadLayout' for named sections)
         default: ''
       markets:
         description: "Market scan (recon/market_scan.js) instead of the measurements: 'all' for discovery plus probes, or a comma-separated --only list"

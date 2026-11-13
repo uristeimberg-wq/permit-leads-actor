@@ -52,20 +52,28 @@ async function fetchArcgisSource(source, options) {
   // A market split across layers (Raleigh: building permits and "permits other
   // than buildings") reads each layer with the same fieldMap, then hands the
   // rows over as one run. Permit numbers must not collide across the layers.
+  // A window may name one layer (`layer`: its index), for a date field only
+  // that layer has (Raleigh: applieddate vs CreationDate).
   if (Array.isArray(source.layerUrls)) {
     let raw = [];
     let requests = 0;
+    let truncated = false;
     const permits = [];
-    for (const layerUrl of source.layerUrls) {
+    for (const [i, layerUrl] of source.layerUrls.entries()) {
+      const windows = options.windows && options.windows.filter((w) => w.layer == null || w.layer === i);
       permits.push(...await fetchArcgisSource({ ...source, layerUrls: undefined, layerUrl }, {
-        ...options, onRaw: async (rows, meta) => { raw = raw.concat(rows); requests += meta.requests; },
+        ...options, windows, onRaw: async (rows, meta) => { raw = raw.concat(rows); requests += meta.requests; truncated = truncated || meta.truncated; },
       }));
     }
-    if (options.onRaw) await options.onRaw(raw, { requests });
+    if (options.onRaw) await options.onRaw(raw, { requests, truncated });
     return permits;
   }
   const { daysBack = 30, maxRecords = 2000, includeIssued = true, log, fetchImpl = fetch, onRaw, retry } = options;
+  // Several date windows (ADR-11), each newest first by its own field; a row
+  // more than one window finds is kept once. maxRecords is the total.
+  const windows = options.windows && options.windows.length ? options.windows : [{ field: source.dateField, days: daysBack }];
   let requests = 0;
+  let truncated = false;
 
   if (!source.fieldMap) {
     throw new Error(
@@ -75,9 +83,18 @@ async function fetchArcgisSource(source, options) {
   }
 
   const features = [];
-  for (let offset = 0; features.length < maxRecords; offset += PAGE_SIZE) {
+  const seen = new Set();
+  const keyField = source.fieldMap.permitNumber;
+  for (const w of windows) {
+  const windowSource = w.field === source.dateField ? source : {
+    ...source, dateField: w.field,
+    orderByFields: source.orderByFields && source.orderByFields.replace(source.dateField, w.field),
+  };
+  const thisWindow = new Set();
+  for (let offset = 0; ; offset += PAGE_SIZE) {
+    if (features.length >= maxRecords) { truncated = true; break; }
     const pageSize = Math.min(PAGE_SIZE, maxRecords - features.length);
-    const url = buildQueryUrl(source, { daysBack, offset, pageSize });
+    const url = buildQueryUrl(windowSource, { daysBack: w.days, offset, pageSize });
     log.info(`Querying ${url.slice(0, 140)}`);
 
     requests += 1;
@@ -91,14 +108,23 @@ async function fetchArcgisSource(source, options) {
     }
 
     const page = body.features ?? [];
-    features.push(...page);
+    for (const f of page) {
+      const key = (f.attributes ?? f)[keyField];
+      if (key != null && key !== '') {
+        if (seen.has(key)) continue;
+        thisWindow.add(key);
+      }
+      features.push(f);
+    }
     log.info(`  -> ${page.length} features (${features.length} total)`);
 
     if (page.length < pageSize || !body.exceededTransferLimit) break;
   }
+  for (const k of thisWindow) seen.add(k);
+  }
 
   // Hand the unmapped attributes to the caller for raw_records before mapping.
-  if (onRaw) await onRaw(features.map((f) => f.attributes ?? f), { requests });
+  if (onRaw) await onRaw(features.map((f) => f.attributes ?? f), { requests, truncated });
   return mapFeatures(features, source, { includeIssued, log });
 }
 

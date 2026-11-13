@@ -301,6 +301,46 @@ async function austinWindows(report) {
   };
 }
 
+// ---------- Raleigh: which date fields can window pre-issue rows (ADR-16 E2) ----------
+// Counts only (returnCountOnly), per layer and candidate field. An edit field
+// that moves on most rows within a day is a bulk reload, not a change signal.
+async function raleighWindows(report) {
+  const { SOURCES } = require('../src/sources.js');
+  const ts = (days) => `timestamp '${new Date(Date.now() - days * DAY).toISOString().slice(0, 19).replace('T', ' ')}'`;
+  const out = {};
+  for (const url of SOURCES['raleigh-nc'].layerUrls) {
+    const name = /Building_Permits/.test(url) ? 'building' : 'trade';
+    const meta = await getJson(`${url}?f=json`);
+    const fields = (meta.fields || []).map((f) => f.name);
+    const has = (f) => fields.includes(f);
+    const count = async (where) => (await getJson(`${url}/query?f=json&returnCountOnly=true&where=${encodeURIComponent(where)}`)).count;
+    const r = { total: await count('1=1'), editingInfo: meta.editingInfo || null, counts: {} };
+    for (const f of ['applieddate', 'CreationDate', 'insertion_date', 'issueddate', 'recordupdatedate', 'EditDate', 'perm_review_date']) {
+      if (!has(f)) continue;
+      r.counts[f] = { '1d': await count(`${f} >= ${ts(1)}`), '14d': await count(`${f} >= ${ts(14)}`), '30d': await count(`${f} >= ${ts(30)}`), null: await count(`${f} IS NULL`) };
+    }
+    const created = has('applieddate') ? 'applieddate' : (has('CreationDate') ? 'CreationDate' : null);
+    if (created) {
+      r.created = created;
+      r.notIssued30d = await count(`${created} >= ${ts(30)} AND issueddate IS NULL`);
+      r.notIssuedNoNumber30d = await count(`${created} >= ${ts(30)} AND issueddate IS NULL AND permitnum IS NULL`);
+      const st = await getJson(`${url}/query?f=json&where=${encodeURIComponent(`${created} >= ${ts(30)} AND issueddate IS NULL`)}&outFields=statuscurrent&returnGeometry=false&groupByFieldsForStatistics=statuscurrent&outStatistics=${encodeURIComponent(JSON.stringify([{ statisticType: 'count', onStatisticField: 'OBJECTID', outStatisticFieldName: 'n' }]))}`);
+      r.notIssuedStatuses = (st.features || []).map((x) => [x.attributes.statuscurrent, x.attributes.n]).sort((a, b) => b[1] - a[1]);
+    }
+    out[name] = r;
+  }
+  // The same windows through the real adapter, as the sync runs them.
+  const { fetchArcgisSource } = require('../src/adapters/arcgis.js');
+  const src = SOURCES['raleigh-nc'];
+  let meta = null;
+  const permits = await fetchArcgisSource(src, { windows: src.syncWindows, maxRecords: src.maxPerRun, log: { info() {}, warning() {}, error() {} },
+    onRaw: (rows, m) => { meta = { rows: rows.length, ...m }; } });
+  const by = (f) => Object.entries(permits.reduce((a, p) => ({ ...a, [f(p)]: (a[f(p)] || 0) + 1 }), {})).sort((a, b) => b[1] - a[1]);
+  out.adapter = { ...meta, permits: permits.length, withFiled: permits.filter((p) => p.filedDate).length,
+    withSubmitted: permits.filter((p) => p.submittedOn).length, stages: by((p) => p.lifecycleStage) };
+  report.raleighWindows = out;
+}
+
 // ---------- Miami-Dade window through the real adapter ----------
 async function miamiWindow(report) {
   const { SOURCES } = require('../src/sources.js');
@@ -449,13 +489,22 @@ function markdown(r) {
       `statusdate: max ${u.statusDateMax}; changed in last 7 days ${u.statusChangedWithin7d}, of which issued 30+ days ago ${u.statusChangedWithin7dIssuedOver30dAgo}; NULL ${u.statusDateNull}. Issued in last 7 days: ${u.issuedWithin7d}.${u.statusDateError ? ` Error: ${u.statusDateError}` : ''}`, '',
       `**Verdict:** ${u.verdict}`, '');
   }
+  if (r.raleighWindows) {
+    L.push('## Raleigh window fields (counts)', '');
+    const a = r.raleighWindows.adapter;
+    if (a) L.push(`**Adapter** (sync windows): ${a.rows} raw rows, ${a.permits} permits, ${a.requests} requests, truncated ${a.truncated}; filed date on ${a.withFiled}, submitted on ${a.withSubmitted}. Stages: ${a.stages.map(([k, n]) => `${k} ${n}`).join(', ')}`, '');
+    for (const [name, x] of Object.entries(r.raleighWindows).filter(([k]) => k !== 'adapter')) {
+      L.push(`**${name}**: ${x.total} rows. ` + Object.entries(x.counts).map(([f, c]) => `${f}: 1d ${c['1d']}, 14d ${c['14d']}, 30d ${c['30d']}, null ${c.null}`).join(' · '), '',
+        `Created by ${x.created} in 30 days and not issued: ${x.notIssued30d} (no permit number: ${x.notIssuedNoNumber30d}). Statuses: ${(x.notIssuedStatuses || []).map(([s, n]) => `${s} ${n}`).join(', ')}`, '');
+    }
+  }
   if (r.errors.length) L.push('## Errors', '', ...r.errors.map((e) => `- ${e}`), '');
   return L.join('\n');
 }
 
 async function main() {
   const report = { generatedAt: new Date().toISOString(), errors: [] };
-  const ALL = [['austin', austin], ['austinUpdatedAt', austinUpdatedAt], ['austinWindows', austinWindows], ['miamiWindow', miamiWindow], ['miami', miami]];
+  const ALL = [['austin', austin], ['austinUpdatedAt', austinUpdatedAt], ['austinWindows', austinWindows], ['miamiWindow', miamiWindow], ['miami', miami], ['raleighWindows', raleighWindows]];
   const only = args.only ? String(args.only).split(',') : null;
   const jobs = only ? ALL.filter(([n]) => only.includes(n)) : ALL;
   for (const [name, fn] of jobs) {

@@ -267,10 +267,12 @@ const SOURCES = {
       pending: 'applied', 'intake pending': 'applied', 'application incomplete': 'applied', 'in review': 'applied',
       'prerequisite review approved': 'applied', 'awaiting update': 'applied', approved: 'applied',
       void: 'applied', aborted: 'applied', expired: 'applied', withdrawn: 'applied', denied: 'applied',
+      'approved and released': 'applied', 'in e-review': 'applied', 'e-prerequisite review pending': 'applied',
+      'awaiting update - fee paid': 'applied', 'awaiting update - fees due': 'applied', 'revision submitted': 'applied',
     },
     // "Approved" here means the plans are approved; the permit is not issued,
     // so status_stage (src/status.js) keeps it pending.
-    statusStages: { approved: 'pending' },
+    statusStages: { approved: 'pending', 'approved and released': 'pending' },
     lifecycle: {
       statuses: {
         pending: 'submitted', 'intake pending': 'submitted',
@@ -278,6 +280,11 @@ const SOURCES = {
         'in review': 'in_review', 'prerequisite review approved': 'in_review',
         approved: 'approved', void: 'cancelled', aborted: 'withdrawn',
         expired: 'expired', withdrawn: 'withdrawn', denied: 'denied',
+        // Seen in the first production sync (2026-11-13). 'New Application
+        // Required', 'Awaiting Upload', 'Queue' and 'Intake Rejected' stay
+        // unmapped: none says the stage plainly.
+        'approved and released': 'approved', 'in e-review': 'in_review', 'e-prerequisite review pending': 'in_review',
+        'revision submitted': 'in_review', 'awaiting update - fee paid': 'corrections', 'awaiting update - fees due': 'corrections',
       },
     },
   },
@@ -433,9 +440,24 @@ const SOURCES = {
       'https://services.arcgis.com/v400IkDOw1ad7Yad/arcgis/rest/services/Building_Permits/FeatureServer/0',
       'https://services.arcgis.com/v400IkDOw1ad7Yad/arcgis/rest/services/Permits_Other_Than_Buildings/FeatureServer/0',
     ],
-    // ~2,500 per 30 days across both layers (7,528 in 90 days). The limit is
-    // per layer, so a layer at the limit also trips the run's truncation alarm.
-    maxPerRun: 6000,
+    // Windows (ADR-16 E2): new filings by their own date, issues, and changes.
+    // Not issueddate alone, which hid the 73% of new building filings still in
+    // review. Counts read 2026-11-13 (recon/feasibility.js raleighWindows):
+    //   building: applieddate 30d 459 (335 not issued), recordupdatedate 14d 1,843
+    //   trade: CreationDate 30d 2,406 (1,028 not issued), issueddate 30d 1,810,
+    //          recordupdatedate 14d 3,460. EditDate moves ~1,000 rows a day, so
+    //          recordupdatedate is the change signal on both layers.
+    // The trade layer has no applieddate; CreationDate is when its row was
+    // created, used only to find new rows, never stored as a filing date.
+    syncWindows: [
+      { field: 'applieddate', days: 30, layer: 0 },
+      { field: 'CreationDate', days: 30, layer: 1 },
+      { field: 'issueddate', days: 30 },
+      { field: 'recordupdatedate', days: 14 },
+    ],
+    // The limit is per layer; the trade layer's windows overlap to well under
+    // 8,000 rows. A layer at the limit trips the run's truncation alarm.
+    maxPerRun: 10000,
     backfillMaxPerRun: 40000,
     maxDataAgeDays: 4,
     registry: {
@@ -466,7 +488,9 @@ const SOURCES = {
       workDescription: 'proposedworkdescription',
       valuation: 'estprojectcost',
       status: 'statuscurrent',
-      filedDate: 'issueddate',
+      // The filing date where the layer has one (building), else the issue
+      // date (trade has no applieddate). An unissued trade filing has neither.
+      filedDate: ['applieddate', 'issueddate'],
       submittedDate: 'applieddate',
       address: 'originaladdress1',
       city: 'originalcity',
@@ -481,7 +505,10 @@ const SOURCES = {
       contractorCity: 'contractorcity',
     },
     // Seen in the first 30-day pull (2026-11-13).
-    statusMap: { issued: 'issued', complete: 'issued', withdrawn: 'applied', 'ready for issuance': 'applied' },
+    statusMap: {
+      issued: 'issued', complete: 'issued', withdrawn: 'applied', 'ready for issuance': 'applied',
+      'submitted - online': 'applied', submitted: 'applied', 'in review': 'applied', 'delayed issuance': 'applied',
+    },
     // 'delayed issuance' and 'on hold' stay unmapped: neither says the stage.
     lifecycle: {
       statuses: {

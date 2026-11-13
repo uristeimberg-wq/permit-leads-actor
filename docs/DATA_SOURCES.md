@@ -564,6 +564,9 @@ passes the health check.
 | Owner | `parcelownername` (stored, never shown: rule 5) |
 | Coordinates | `latitude_perm`, `longitude_perm` on the building layer only |
 | Terms | Open Raleigh Data Policy: the City may require us to stop. Switch-off and purge steps in `docs/CONNECTORS.md` |
+| Sync windows (E2, read 2026-11-13) | Building: `applieddate` 30d. Trade: `CreationDate` 30d, because the trade layer has no `applieddate`. Both layers: `issueddate` 30d and `recordupdatedate` 14d. `EditDate` moves about 1,000 trade rows a day, so it is not used. One live adapter run returned 6,855 rows in 22 requests, not truncated |
+| Pre-issue share | Building filings applied in the last 30 days: 335 of 459 not issued. Trade filings created in the last 30 days: 1,028 of 2,406 not issued, most of them `Ready for Issuance`. Each has a `permitnum` |
+| Filing date | `filedDate` is `applieddate` on the building layer and `issueddate` on the trade layer. An unissued trade filing has no published date, so it stays NULL (1,101 of 6,855 in the live run) |
 
 ## Explicitly excluded
 
