@@ -487,3 +487,258 @@ CREATE TABLE audit_log (
 | `trade_scores` JSONB | `project_trades` and `leads` |
 | `ingest_runs` | `sync_runs` (kept read-only for history) |
 | `fees`, `inspections` (Accela only) | Kept as JSONB on `permits` until Accela returns |
+
+## Lifecycle model (ADR-16, accepted 2026-11-13)
+
+The model above is permit-centric: one `permits` row with a current status,
+plus `permit_versions` and `permit_status_history` kept by trigger (migration
+004). ADR-16 makes the unit of record the **filing** (anything a government
+records about intended construction, from a zoning case to a final
+inspection) and the unit of the product the **project** (one piece of
+real-world work that may produce many filings). Nothing here replaces the
+existing tables in one step; the migration order is at the end of this
+section.
+
+### What already covers part of this
+
+| Need | Covered today by | Gap |
+| --- | --- | --- |
+| Status history with timestamps | `permit_status_history` (trigger, 004) | No `source_status_date`; no canonical lifecycle stage; `status_stage` has 5 values |
+| Detect value, scope, participant changes | `permit_versions.mapped` (trigger, 004) | Changes are snapshots, not typed events, so "a contractor was added" needs a diff at read time |
+| First observed date | `permits.first_seen_at` | Only per permit; nothing records when it became searchable or alerted |
+| Official submission date | `permits.filed_date` (Austin `applieddate`) | Present only where the source publishes it; Austin trade permits copy it from the building permit (`docs/DATA_SOURCES.md`, plan-review timing) |
+| Linking filings | `permit_parties.job_key` (005), Miami-Dade master permit | No planning cases; no link table with basis and confidence |
+| Participants | `permit_parties` with role `contractor` only | Applicant, architect, engineer, expediter and owner-business roles are not stored as parties |
+
+### Canonical lifecycle stage
+
+Every source maps its own status words to one canonical stage through a
+reviewed vocabulary table. An unmapped status becomes `unknown` and is
+reported (rule 3); it is never guessed.
+
+| Stage | Meaning | Examples of source words (to verify per source) |
+| --- | --- | --- |
+| `pre_application` | A planning, zoning, site-plan, subdivision or variance case, or an agenda item, before any building filing | Zoning case filed, site plan submitted, pre-application meeting |
+| `submitted` | Building application received, not yet in review | Application accepted, intake, filed, pending |
+| `in_review` | Plan review under way | Under review, in plan review, reviews in process |
+| `corrections` | Returned to the applicant | Corrections required, revisions requested, on hold - applicant |
+| `approved` | Approved, not yet issued (fees, conditions) | Approved, ready to issue |
+| `issued` | Permit issued | Issued, active |
+| `inspections` | Work under inspection | Inspection scheduled, partial approval |
+| `completed` | Final or certificate of occupancy | Final, finaled, CO issued, closed |
+| `expired`, `withdrawn`, `cancelled`, `denied` | Ended without completion | Expired, void, withdrawn |
+| `unknown` | Not mapped yet | Anything new |
+
+```sql
+CREATE TABLE status_vocabulary (
+  source_id     BIGINT NOT NULL REFERENCES sources(id),
+  status_raw    TEXT NOT NULL,
+  stage         TEXT NOT NULL,              -- one of the stages above
+  mapped_by     TEXT NOT NULL,              -- reviewer, or 'seed:<fixture>'
+  mapped_on     DATE NOT NULL,
+  PRIMARY KEY (source_id, status_raw)
+);
+```
+
+### Filings and their timestamps
+
+`permits` stays the filing table for building, trade and site-development
+filings (renaming it costs a migration of every query and buys nothing). New
+columns carry the lifecycle and the timing:
+
+```sql
+ALTER TABLE permits ADD COLUMN filing_kind TEXT;          -- 'building' | 'trade' | 'site' | 'demolition' | ...
+ALTER TABLE permits ADD COLUMN lifecycle_stage TEXT NOT NULL DEFAULT 'unknown';
+ALTER TABLE permits ADD COLUMN stage_since DATE;          -- source status date when published, else NULL
+ALTER TABLE permits ADD COLUMN submitted_on DATE;         -- official, from the source; NULL if not published
+ALTER TABLE permits ADD COLUMN first_public_at TIMESTAMPTZ; -- only when the source states it (rare); never inferred
+-- first_seen_at (exists) = first observed by us
+ALTER TABLE permits ADD COLUMN searchable_at TIMESTAMPTZ; -- when normalize committed it (stage 2 done)
+ALTER TABLE permits ADD COLUMN first_alerted_at TIMESTAMPTZ;
+ALTER TABLE permits ADD COLUMN observed_stage_at_first_seen TEXT; -- the stage when we first saw it: the key early-discovery metric
+```
+
+**The two dates the product promises to keep apart:**
+
+- `submitted_on`: what the government recorded. Shown as "Submitted".
+- `first_seen_at`: when we observed it. Shown as "Found by us".
+- `first_seen_at - submitted_on` is **discovery latency**, measured per source.
+  It includes the source's own publication delay, which we cannot see
+  separately unless the source publishes a creation time (`first_public_at`).
+
+### Planning cases (pre-application signals)
+
+Zoning, site-plan, subdivision, variance and historic-review cases, and agenda
+items, have a different shape from permits (hearings, votes, conditions), so
+they get their own table. They are joined to projects, never merged into
+permits.
+
+```sql
+CREATE TABLE planning_cases (
+  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  source_id         BIGINT NOT NULL REFERENCES sources(id),
+  case_number       TEXT NOT NULL,
+  case_type_raw     TEXT,                     -- 'Site Plan', 'Zoning', 'Rezoning', 'Variance', 'Subdivision'
+  case_kind         TEXT,                     -- canonical: site_plan | zoning | subdivision | variance | other
+  status_raw        TEXT,
+  lifecycle_stage   TEXT NOT NULL DEFAULT 'pre_application',
+  filed_on          DATE,
+  next_hearing_on   DATE,
+  decided_on        DATE,
+  decision_raw      TEXT,
+  address_raw       TEXT,
+  parcel_id         TEXT,
+  description       TEXT,
+  units_proposed    INTEGER,                  -- only when the source states it
+  floor_area_sqft   INTEGER,                  -- only when the source states it
+  first_seen_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_seen_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  content_hash      TEXT NOT NULL,
+  latest_raw_record_id BIGINT REFERENCES raw_records(id),
+  UNIQUE (source_id, case_number)
+);
+-- planning_case_versions and planning_case_parties mirror permit_versions and permit_parties.
+
+CREATE TABLE agenda_items (                   -- from Legistar or published agendas
+  id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  source_id         BIGINT NOT NULL REFERENCES sources(id),
+  body_name         TEXT NOT NULL,            -- 'Planning Commission'
+  meeting_on        DATE NOT NULL,
+  item_key          TEXT NOT NULL,            -- the source's matter or item id
+  title             TEXT,
+  case_number_cited TEXT,                     -- extracted only by an exact pattern per source
+  document_url      TEXT,
+  first_seen_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (source_id, item_key)
+);
+```
+
+### Lifecycle events
+
+Versions say *what the record looked like*; events say *what happened*. A
+diff of consecutive versions writes typed events, which drive alerts and the
+timeline. Re-running the diff is idempotent on `(subject, event_type,
+content_hash)`.
+
+```sql
+CREATE TABLE lifecycle_events (
+  id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  subject_kind    TEXT NOT NULL CHECK (subject_kind IN ('permit','planning_case')),
+  subject_id      BIGINT NOT NULL,
+  event_type      TEXT NOT NULL CHECK (event_type IN (
+                    'first_observed','stage_changed','participant_added','participant_removed',
+                    'value_changed','scope_changed','linked','hearing_scheduled','decided')),
+  from_value      JSONB,
+  to_value        JSONB,
+  official_date   DATE,                       -- the source's date for this event, if any
+  observed_at     TIMESTAMPTZ NOT NULL,       -- when our sync saw it
+  raw_record_id   BIGINT REFERENCES raw_records(id),
+  content_hash    TEXT NOT NULL,
+  UNIQUE (subject_kind, subject_id, event_type, content_hash)
+);
+CREATE INDEX ON lifecycle_events (observed_at DESC);
+```
+
+"Meaningful" for alerts is a per-subscription filter over `event_type`
+(default: `first_observed`, `stage_changed` into `approved` or `issued`,
+`participant_added`, `value_changed` by 25% or more).
+
+### Projects as the lifecycle umbrella
+
+A project is discovered once and keeps its id while its filings move through
+stages, so a status change never creates a second lead (requirement 2). The
+current `projects` / `project_permits` design is widened to any member:
+
+```sql
+CREATE TABLE project_members (
+  project_id    BIGINT NOT NULL REFERENCES projects(id),
+  member_kind   TEXT NOT NULL CHECK (member_kind IN ('permit','planning_case','agenda_item')),
+  member_id     BIGINT NOT NULL,
+  link_basis    TEXT NOT NULL CHECK (link_basis IN (
+                  'same_record',          -- application and permit are one record (Raleigh, Seattle, NYC)
+                  'official_reference',   -- Austin masterpermitnum = folderrsn, master permit, case number cited
+                  'parcel_window',        -- same parcel within the window: inferred
+                  'address_window')),     -- candidate only, never auto-joined (requirement 6.3)
+  confidence    NUMERIC(3,2) NOT NULL,
+  linked_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  grouper_version TEXT NOT NULL,
+  PRIMARY KEY (member_kind, member_id)      -- a member is in one project
+);
+ALTER TABLE projects ADD COLUMN first_seen_at TIMESTAMPTZ;   -- min over members
+ALTER TABLE projects ADD COLUMN first_seen_stage TEXT;       -- stage of the earliest member when found
+ALTER TABLE projects ADD COLUMN current_stage TEXT;          -- most advanced active member
+```
+
+**Key fact for linking (verified 2026-11-13):** in Raleigh, Seattle, Orlando,
+New Orleans and NYC DOB NOW the application and the permit are the same
+record, so "application to permit" is `same_record` and costs nothing.
+**Austin is different:** the plan-review case (`2026-085921 PR` in
+`n8ck-xkda`) and the building permit (`2026-127960 BP` in `3syk-w9eu`) have
+different numbers; the BP's `masterpermitnum` equals the case's `folderrsn`
+(an `official_reference` link, checked on 4 samples, rate unmeasured). The
+other hard links are planning case to building filing (usually
+parcel and time only) and building filing to trade filings (permit-number base
+in Austin, master permit in Miami-Dade, application number in the City of
+Miami, `pin` in Raleigh).
+
+### Businesses, roles and relationships
+
+`contractors` becomes the table for every business that appears in any role.
+It keeps its name in the database for now (a view `businesses` is added), so
+existing queries keep working.
+
+```sql
+ALTER TABLE permit_parties DROP CONSTRAINT permit_parties_role_check;
+ALTER TABLE permit_parties ADD CONSTRAINT permit_parties_role_check CHECK (role IN (
+  'contractor','sub_contractor','applicant','architect','engineer','expediter',
+  'developer','owner_business','owner_individual'));
+-- owner_individual rows hold no contractor_id and are never displayed (rule 5).
+
+CREATE TABLE business_identifiers (          -- strong keys for entity resolution
+  contractor_id   BIGINT NOT NULL REFERENCES contractors(id),
+  id_kind         TEXT NOT NULL,             -- 'tdlr','tbae','tbpels','fl_dbpr','nc_lbgc','nyc_dob_license','sos_filing','cslb'
+  id_value        TEXT NOT NULL,
+  source          TEXT NOT NULL,
+  retrieved_at    TIMESTAMPTZ NOT NULL,
+  UNIQUE (id_kind, id_value)
+);
+
+CREATE TABLE business_relationships (        -- derived, rebuilt by the resolver; generalizes contractor_relationships
+  from_id         BIGINT NOT NULL REFERENCES contractors(id),
+  to_id           BIGINT NOT NULL REFERENCES contractors(id),
+  from_role       TEXT NOT NULL,             -- 'architect'
+  to_role         TEXT NOT NULL,             -- 'contractor'
+  shared_projects INTEGER NOT NULL,
+  first_on        DATE,
+  last_on         DATE,
+  link_bases      TEXT[] NOT NULL,           -- which project link bases produced the evidence
+  min_confidence  NUMERIC(3,2) NOT NULL,
+  resolver_version TEXT NOT NULL,
+  PRIMARY KEY (from_id, to_id, from_role, to_role, resolver_version)
+);
+```
+
+**Four participant labels, never mixed** (requirement 4). They are computed at
+read time from the tables above and shown with different words:
+
+| Label | Source | Allowed wording |
+| --- | --- | --- |
+| Confirmed participant | A `permit_parties` / `planning_case_parties` row on a member of this project | "Named on the application" |
+| Historically associated | `business_relationships` with a confirmed participant | "Worked with <architect> on 12 earlier projects" |
+| Potentially relevant | A ranked suggestion from the above plus trade and area | "May be relevant: often follows this architect" |
+| Unverified inferred | Any link built on `parcel_window` or a name-only match | "Possible link, not confirmed" |
+
+A suggestion is never written into `permit_parties`, never shown as "the GC",
+and never alerted as a participant.
+
+### Migration order
+
+1. `status_vocabulary`, `lifecycle_stage`, `submitted_on`, `searchable_at`
+   (additive; backfill `submitted_on` from `filed_date`).
+2. `lifecycle_events` written by a diff job over existing `permit_versions`.
+3. Wider `permit_parties` roles for sources that publish them (Raleigh,
+   NYC, San Francisco), with `owner_individual` hidden.
+4. `planning_cases` and `agenda_items` with the first pre-application source.
+5. `project_members` replaces `project_permits` once a second member kind
+   exists; `business_relationships` replaces `contractor_relationships` once a
+   second role pair exists.

@@ -31,6 +31,12 @@ on:
       tcad:
         description: "Travis CAD terms, export layout and Texas statutes (recon/tcad_terms.js): 'yes' runs only this"
         default: ''
+      preapproval:
+        description: "Pre-approval scan (recon/preapproval_scan.js): 'all', or a comma list of seeds,discover,legistar,portals; runs only this"
+        default: ''
+      preapproval_specs:
+        description: "Pre-approval scan with preapproval=specs: comma list of socrata:domain/id#groupCol|groupCol2 or arcgis:<layer url>#col"
+        default: ''
       descriptions:
         description: "Names in Austin descriptions (recon/description_names.js): months of history; runs only this"
         default: ''
@@ -66,6 +72,16 @@ jobs:
               esac
             done | grep -iE 'owner|confiden|addr|mail|exempt|deed|sale|homestead' | sort -u | head -120
           fi
+      - if: inputs.preapproval != ''
+        # preapproval_specs: "<specs>" or "<specs>;;<arcgis query>;<arcgis query>"
+        run: |
+          SP="${SPECS%%;;*}"; [ -n "$SOQL" ] && SP=""; AQ=""; case "$SPECS" in *';;'*) AQ="${SPECS#*;;}";; esac
+          node recon/preapproval_scan.js --out=feasibility-report/preapproval ${ONLY:+--only="$ONLY"} ${SP:+--cols --specs="$SP"} ${AQ:+--arcsearch="$AQ"} ${SOQL:+--soql="$SOQL"} ${LINK:+--austinlink}
+        env:
+          SPECS: ${{ inputs.preapproval_specs }}
+          SOQL: ${{ startsWith(inputs.preapproval, 'soql:') && inputs.preapproval_specs || '' }}
+          LINK: ${{ inputs.preapproval == 'soql:link' && 'yes' || '' }}
+          ONLY: ${{ inputs.preapproval != 'all' && inputs.preapproval != 'specs' && !startsWith(inputs.preapproval, 'soql:') && inputs.preapproval || ((inputs.preapproval == 'specs' || startsWith(inputs.preapproval, 'soql:')) && 'none' || '') }}
       - if: inputs.descriptions != ''
         run: node recon/description_names.js --out=feasibility-report/description-names --months="$MONTHS"
         env:
@@ -78,10 +94,10 @@ jobs:
         run: node recon/market_terms.js --only="$TERMS"
         env:
           TERMS: ${{ inputs.market_terms }}
-      - if: inputs.only == '' && inputs.markets == '' && inputs.market_links == '' && inputs.market_terms == '' && inputs.descriptions == '' && inputs.tcad == ''
+      - if: inputs.only == '' && inputs.markets == '' && inputs.market_links == '' && inputs.market_terms == '' && inputs.descriptions == '' && inputs.tcad == '' && inputs.preapproval == ''
         run: node recon/plan_review.js --out=feasibility-report/plan-review --months=24
       # Inputs go through env, not inline, so they can't inject shell.
-      - if: always() && !startsWith(inputs.only, 'enrichment') && inputs.markets == '' && inputs.market_links == '' && inputs.market_terms == '' && inputs.descriptions == '' && inputs.tcad == ''
+      - if: always() && !startsWith(inputs.only, 'enrichment') && inputs.markets == '' && inputs.market_links == '' && inputs.market_terms == '' && inputs.descriptions == '' && inputs.tcad == '' && inputs.preapproval == ''
         run: node recon/feasibility.js --out=feasibility-report --months="$MONTHS" ${ONLY:+--only="$ONLY"}
         env:
           MONTHS: ${{ inputs.months }}

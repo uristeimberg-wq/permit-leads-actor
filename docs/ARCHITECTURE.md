@@ -480,3 +480,140 @@ Measured, not claimed:
 The first real variable cost would be paid contact enrichment for markets with
 no phone in the record (Chicago, the City of Miami's own feed). That is
 deliberately out of v1.
+
+## 19. Early discovery, lifecycle and freshness (ADR-16, accepted 2026-11-13)
+
+This section revises sections 1, 5, 6, 9 and 14 for the owner's
+pre-approval strategy (`docs/PRD.md` v2). Where it conflicts with them, this
+section wins (ADR-16 accepted 2026-11-13). The data model is in
+`docs/DATA_MODEL.md`, "Lifecycle model".
+
+### 19.1 Three levels of intelligence
+
+| Level | What it is | Typical lead time before the building permit is issued | Example sources (verification status in `docs/DATA_SOURCES.md`, "Pre-approval scan") |
+| --- | --- | --- | --- |
+| 1. Pre-application signals | Zoning, site-plan, subdivision, variance cases; planning agendas; indirect filings (TABS registrations, TABC applications, ROW, tree permits, Florida Notices of Commencement) | Months to years; mostly commercial and multifamily | Austin site plan, subdivision and zoning cases; Austin Legistar; TDLR TABS; TABC `mxm5-tdpj` |
+| 2. Submitted applications | Building filings visible before approval, with a lifecycle status | The plan-review time: Austin residential median 63 days (p90 300) | Austin Plan Review Cases (`n8ck-xkda`, same-day), Raleigh building and trade layers (pre-issue rows we currently drop), NYC DOB NOW filings, Orlando, New Orleans, Seattle |
+| 3. Issued permits and trade permits | What we ingest today | 0 | All four live markets |
+
+Historical relationships connect all three: the architect on a site plan is
+also on earlier building permits, whose GCs pulled permits with known subs.
+
+### 19.2 Ingestion cadence: measured, not wished
+
+The polling interval for each source is the **shorter of** its measured
+publication cadence and what its terms and rate limits allow, never shorter.
+Polling a daily-reloaded dataset every 5 minutes buys nothing and costs
+goodwill.
+
+| Cadence tier | When a source qualifies | Mechanism |
+| --- | --- | --- |
+| 5-15 min | The source changes intra-day (measured: two metadata probes in one day show different `rowsUpdatedAt` / `lastEditDate`, or row counts move) **and** its terms allow it | Cheap metadata probe every 5-15 min; full incremental fetch only when the probe changes |
+| Hourly | Intra-day changes a few times a day | Same probe-then-fetch |
+| 3-6 h | Daily publish at an unknown hour | Probe every 3-6 h so the daily drop is caught within hours, not a day |
+| Daily | Daily or slower publish, or terms that ask for restraint | Current `sync.yml` |
+| Weekly | Weekly refresh (Miami-Dade county layer) | Snapshot diff |
+
+Each source's registry entry gets `publishCadence` (measured), `pollInterval`
+(chosen) and `probe` (the metadata call). A 14-day snapshot job records
+`rowsUpdatedAt` / `lastEditDate` every 15 minutes for every enabled source;
+its output decides the tier. Until that runs, every source stays daily.
+
+**Infrastructure consequence.** GitHub Actions cron is fine for daily and
+6-hourly jobs, but its schedule is best-effort (runs start minutes to an hour
+late under load) and the minimum interval is 5 minutes, so it cannot honestly
+promise 15-minute discovery. Sub-hourly tiers need the always-on worker
+(ADR-3) with pg-boss, on Railway beside the web process. That is a cost
+decision for the owner, taken only after the snapshot job shows a source that
+actually changes intra-day.
+
+### 19.3 Event-driven pipeline with progressive enrichment
+
+The stage chain in section 6 is kept; what changes is that **search
+visibility no longer waits for enrichment**.
+
+```
+probe (cheap) --changed--> fetch --> raw_records --> normalize --> SEARCHABLE (searchable_at)
+                                                         |
+                                                         +--> lifecycle diff --> lifecycle_events --> alert match --> alert queue
+                                                         |
+                                                         +--> enrich (async, each provider its own job, may fail alone):
+                                                                parcel / property, geocode, licence, entity resolution,
+                                                                history lookup, relationship rollup, early-opportunity score
+                                                                     |
+                                                                     +--> re-score --> second alert only if the score crosses the subscriber's threshold
+```
+
+- **Immediately (stage 2):** filing number, stage, address, description,
+  submitted date, named participants as written.
+- **After enrichment (minutes):** resolved businesses, property facts,
+  location, historical portfolios, relationships, score.
+- **After verification (hours to days):** licence corroboration, confirmed
+  entity merges, admin review.
+
+Each enrichment job writes its own `*_at` timestamp and failure; a slow or
+failing provider leaves the filing searchable with that section marked
+"pending" or "unavailable", never blank-as-missing (rule 1).
+
+Alerts carry what is known at send time and say what is still pending. One
+alert per project per meaningful event; a later enrichment does not resend
+unless the score crosses the threshold.
+
+### 19.4 Freshness and latency metrics
+
+All timestamps are UTC `TIMESTAMPTZ`, recorded by the stage that completes.
+
+| Metric | Formula | Notes |
+| --- | --- | --- |
+| Discovery latency | `first_seen_at - submitted_on` | Includes the source's own publication delay. Only for sources that publish a submission date |
+| Source publication delay | `first_seen_at - first_public_at` | Only where the source states a creation time; otherwise "unknown" and never estimated as zero |
+| Processing latency | `searchable_at - first_seen_at` | Target p95 under 5 min once the worker exists |
+| Enrichment latency | `enriched_at - searchable_at`, per provider | |
+| Alert latency | `alert_deliveries.sent_at - lifecycle_events.observed_at` | |
+| Source staleness | `now() - last successful sync` and `now() - newest record date` | Already in `source_health` |
+| Early-capture rate | Share of eventually issued permits first seen at `submitted` / `in_review` / earlier | The headline metric for the strategy. Requires `observed_stage_at_first_seen` |
+| On-target rate | Share of filings found within the source's target window (for example 24 h after first availability) | |
+
+**No competitor comparisons** are shown or claimed until a recorded
+side-by-side (the same filings, timestamps from both systems) exists.
+
+### 19.5 Source health additions
+
+`source_health` (ADR-14) gains: zero-record runs on a source that normally
+returns rows; volume outside 50-200% of the same weekday's trailing 28-day
+median; a probe that says "unchanged" for longer than 2x the measured publish
+cadence (a successful call on stale data); and polls that fall behind their
+tier. Each raises a `source_events` row and the `data-health` issue.
+
+### 19.6 Early Opportunity Score
+
+A separate score, never blended with relevance or data quality (section 10).
+
+```
+early_opportunity (0-100) =
+    stage_window(trade, stage)      x 35   -- per-trade prior: how open this stage usually is for this trade
+  + recency(first_seen_at)          x 15
+  + participant_gap                 x 15   -- the role this subscriber sells to is not yet named
+  + project_size(value or units)    x 10
+  + area_fit                        x 10
+  + history_signal                  x 10   -- the named participants' past projects in this trade and area
+  + contact_available               x  5
+```
+
+- `stage_window` is a table per trade, not a constant. For a sub selling to
+  GCs, a residential remodel is most open between GC naming and the trade
+  permit; for a GC selling to owners and architects, the planning stage is the
+  window. The starting values are hypotheses and are labelled so until
+  design-partner outcomes calibrate them.
+- Each project is labelled **Early opportunity** (pre-application or
+  submitted), **Active opportunity** (in review, corrections, approved),
+  **Issued**, or **Historical**. The label is the stage, not the score: an
+  early project can score low for a trade that is hired late.
+- Data confidence is shown beside the score, never inside it.
+
+### 19.7 What does not change
+
+Rules 1 to 10 in `CLAUDE.md`: no guessed field maps, no scraping behind logins
+or CAPTCHAs (ADR-5 stands; a portal-only source needs its terms read and a
+written decision before any automated access), owner individuals hidden
+(ADR-10), provenance on every value.

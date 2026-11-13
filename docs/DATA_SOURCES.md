@@ -539,3 +539,144 @@ passes the health check.
 - **Portland, OR CSV:** columns never verified; disabled.
 - **Clackamas County and Oregon statewide (Accela):** working, but out of the
   pilot (ADR-5).
+
+## Pre-approval scan (2026-11-13)
+
+Goal (ADR-16): find where construction is publicly visible **before** a
+permit is issued, at what stage, how fast, with which participants, and
+whether it links to the eventual permit.
+
+**Method.** Live calls from GitHub Actions on 2026-11-13 with
+`recon/preapproval_scan.js` (`feasibility` workflow, input `preapproval`;
+runs 43482027220 discovery and probes, 43482672491 indirect signals,
+43484084787 and 43485134480 explicit probes, 43485700776, 43485934262,
+43486065480 and 43486183299 SoQL checks and the Austin link). Discovery swept the Socrata
+catalog (337 candidate datasets) and ArcGIS Online (115 + 251 services); 117 +
+55 + 22 datasets were probed. Each probe reads the status column, the
+application and issue dates, and the participant columns of the 500 newest
+rows.
+
+- **Pre-issue share** = of filings applied in the last 30 days, the share with
+  no issue date yet. A dataset that only holds issued permits scores 0%.
+- **Rows by application day** for the last 21 days is a publication-lag
+  proxy: if yesterday's and today's rows are already near a normal day's
+  volume, the lag is about a day or less. It is **not** a measured lag; that
+  needs the 14-day snapshot (ARCHITECTURE section 19.2).
+- **Verified** = read from the live API as described. **Unverified** = not
+  measured, or read only from a web page.
+
+### What our four live markets expose before approval
+
+| Market | Pre-approval source | Verified | Stage first visible | Speed | Participants at that stage | Updates | Links to the issued permit | History | Terms |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **Austin, TX** | **Plan Review Cases** `datahub.austintexas.gov` `n8ck-xkda` (162,827 rows) | Yes | Intake: statuses `Pending`, `Application Incomplete`, `Intake Pending`, `In Review`, `Awaiting Update`, `Prerequisite Review Approved`, `Approved` | 8 cases applied 2026-11-13 were already published that afternoon; `status_date` values from 10:04 the same morning; `update_date` max 12:18 the same day. **Intra-day publication**, lag not yet measured | `applicant_full_name` 93%, `applicant_organization_name` 62%, `owner_*` 0-11%; **no contractor** at this stage. Applicant orgs mix builders (Meritage, KB Home, Brookfield) and **permit expediters** (Austin Permit Service, Austin Express Permits, Permit Solutions, KS Permitting) | `status_current` + `status_date` | **Official key:** the issued BP's `masterpermitnum` equals the plan-review `folderrsn` (3 of 3 checked, plus 1 found in reverse), same `appraisal_id` = `tcad_id`, same applied date. 97.6% of BPs issued since 2026-08-01 carry `masterpermitnum`. Link rate not measured at scale | 2014- | Public Domain (dataset metadata) |
+| Austin, TX | Issued Construction Permits `3syk-w9eu` (what we ingest) | Yes | Issued only: 0% pre-issue (0 of 2,089) | 2-3 days after issue (M1) | Contractor company 91% | Status after issue | n/a | 1921- | Public Domain |
+| Austin, TX | Site Plan Cases `mavg-96ck`, Subdivision Cases `s7gx-9m54`, Zoning Cases `edir-dcnf`, Board of Adjustment `ykxk-t5y9` | Yes (first three probed) | Pre-application: `Intake Pending`, `In Review`, `Awaiting Update`, `Scheduled for Hearing` | Rows applied the previous day present; updated daily | Site plans: applicant org 88%, owner org 48%; zoning: applicant org 58%; proposed units, building sq ft, `tcad_id` | Status + status date | Parcel (`tcad_id`) and `related_cases`, not a permit key | 1971-/1981- | Public Domain |
+| Austin, TX | Legistar `austintexas` | Yes | Council and committee agendas; matter types "Zoning and Neighborhood Plan Amendments" | 23 events in 45 days, 18 with agendas | Case numbers in titles (not parsed yet) | n/a | Case number | n/a | No API terms published (Granicus docs) |
+| **Raleigh, NC** | Building Permits layer we already ingest (`services.arcgis.com/v400IkDOw1ad7Yad/.../Building_Permits/FeatureServer/0`) | Yes | **Submitted**: 72.5% of last-30-day applications not issued; statuses `Submitted - Online`, `Submitted`, `In Review`, `Ready for Issuance`, `Delayed Issuance`, `On Hold` | Rows applied 2 days earlier at near-normal volume | **Contractor company 74%** at application; parcel owner 67% (hidden, rule 5) | `statuscurrent` | Same record (`permitnum`) | 2000- | Open Raleigh Data Policy (may order us to stop) |
+| Raleigh, NC | Permits Other Than Buildings (trade layer we ingest) | Yes | 42.7% of last-30-day trade filings not issued; `Ready for Issuance` 1,711 in 90 days | Same day (28 rows created 2026-11-13) | Contractor company 96%, phone and email in the layer | `statuscurrent` | `pin` and same record | 2018- | Same |
+| Raleigh, NC | ROW occupancy permits | Yes | 30.5% pre-issue | Daily | `company_name` 86% | Status | `pin_number` | 2017- | Same |
+| Raleigh, NC | Planning agendas | Yes (negative) | Not on Legistar (client returns "not set up"); the city moved to eScribe on 2025-07-01 (raleighnc.gov notice) | | | | | | |
+| **City of Miami, FL** | `Building_Permits_Since_2014` (what we ingest) | Yes | Issued only: 0% pre-issue (0 of 856); statuses `Active`, `Final`, `Revoked`, `Hold` | Daily | Company 99% | Status | n/a | 2012- | CC BY 4.0 |
+| City of Miami, FL | Tree Permits layer | Yes | Review stage: `Intended decision`, `Corrections Required`, `Approved` | Daily | Plan number and address only, **no names** | Review status date | Plan number | 2017- | Unread |
+| City of Miami, FL | Legistar `miamifl` | Yes | API answers, but **0 events in 45 days**: not used for current agendas | | | | | | |
+| **Miami-Dade, FL** | County permit layer (what we ingest) | Yes | Issued only: 0% pre-issue (0 of 2,761) | Weekly | Contractor 100%, **architect 100%**, owner 99.6% | n/a | Master permit | 2008- | Disclaimer only |
+| Miami-Dade, FL | Certificate of Occupancy daily layer `certif_of_occupancy_daily_data` | Yes | After construction (CO) | Daily-ish (latest 2026-11-06) | Owner 89% (hidden), permit-holder number | n/a | `PERMIT_NUMBER`, `FOLIO` | 2002- | Unread |
+| Miami-Dade, FL | Land Management Hearing view, Permits Requiring Allocation | Found, **not probed** | Hearings (zoning) | | | | | | |
+| Miami-Dade, FL | Legistar `miamidade` | Yes (negative) | API answers, latest matter 2018: not used | | | | | | |
+
+**Answer for the pilot markets:** Austin and Raleigh **do** publish
+applications before approval through official APIs; City of Miami and the
+Miami-Dade county layer do **not** (issued permits only). Raleigh's
+pre-approval rows are in layers we already pull, but our connector windows on
+`issueddate`, so we drop them (and maps `filedDate` to `issueddate`). Austin's
+are in a separate dataset we have never read.
+
+### Strong candidates outside the pilot
+
+| Market | Dataset | Pre-issue share (30 d) | Stage vocabulary seen (90 d) | Participants | Speed proxy | Terms |
+| --- | --- | --- | --- | --- | --- | --- |
+| New York City | DOB NOW: Build Job Application Filings `w9ak-ipjd` (38,990 filings in 90 d) | Lifecycle in one row (no issue column) | `Pending Plan Examiner Assignment`, `Plan Examiner Review`, `Objections`, `Approved`, `Permit Entire`, `Incomplete` | Applicant professional with licence 100%, applicant business 100%, owner business 95%, filing representative business 78% | Filings dated 2026-11-12 present | Unread (NYC.gov "all rights reserved"; portal terms page did not load in the earlier scan) |
+| New York City | DOB NOW electrical `dm9a-ab7w`, elevator `kfp4-dz4h`, LPC applications `dpm2-m9mq` | 18.6% (electrical) | `Pending Payment Verification`, `Approved` | Firm name and number 100% | Daily | Unread |
+| Orlando, FL | Permit Applications `ryhf-m453` | 56% | `Open`, `Hold`, `Finaled` (coarse) | Contractor 85%; owner (hidden) | 11 rows on the day of the scan | Unread |
+| Orlando, FL | Planning Applications `bhxy-4rji`; ROW use permits `6sbc-v4b9` | n/a; 81% | `Open`, `Approved` | Applicant 99.7%; ROW contractor 87% | Daily | Unread |
+| New Orleans, LA | Permits - BLDS `72f9-bi28`; `aib5-en5t` | 47-53% | `Application Submitted`, `Application Review`, `Zoning Review`, `Plan Review`, `Information Needed`, `Permit Approved` | Contractor company 70%, licence 46% | Daily | **CC0** |
+| Seattle, WA | Building Permits `76t5-zqzr`; Permit Review Time `crg2-ssqd`; Land Use Permits `ht3q-kdvx` | 72% | `Application Completed`, `Reviews In Process`, `Corrections Required`, `Ready for Issuance` | **Contractor 0.8%**: no participants | 1-2 days | Public Domain |
+| Norfolk, VA | Permits `fahm-yuh4` | 37% | `Portal Submitted`, `Reviews in progress`, `Additional Information Required` | none in probed columns | Daily | Unread |
+| Nashville, TN | Building Permit Applications layer (6,033 rows); Development Tracker cases | Unverified (the application date is a text field the probe could not read) | | `Contact` free text | Updated 2026-11-13 | Unread |
+| San Francisco, CA | DBI Building Permits `i98e-djp9` | **Unverified**: the API answered HTTP 428 (likely needs an app token now) | | | | |
+| Los Angeles, Chicago, Montgomery County MD, Cambridge MA, Baton Rouge | | 0% (issued only) | | | | |
+
+### Pre-Approval Data Availability Score (PADAS)
+
+A 0-100 score per market, from the measurements above. It is a planning tool,
+not a fact: each part says what it rests on.
+
+| Part | Points | Full marks when |
+| --- | --- | --- |
+| Earliest visible stage | 30 | Submitted applications (25) plus a pre-application feed (planning, site plan, zoning) (+5) |
+| Publication speed | 20 | Same-day or next-day rows observed (a measured lag later replaces the proxy) |
+| Participants at that stage | 20 | A business that subs sell to (GC or builder) is named at application stage; applicant-only 12; none 0 |
+| Lifecycle tracking and link | 10 | Status + status date, and an official key to the issued permit |
+| Access | 10 | Official API or bulk file (10); portal only (2) |
+| Reuse terms | 10 | Open licence (10); unread (4); restrictive (0) |
+
+| Market | Stage | Speed | Participants | Lifecycle | Access | Terms | **PADAS** | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Austin | 30 | 18 | 12 | 9 | 10 | 10 | **89** | Applicant, not contractor; expediters inflate "applicant"; link via `masterpermitnum` |
+| New Orleans | 25 | 18 | 16 | 10 | 10 | 10 | **89** | Contractor 70% at application; CC0; no phone |
+| Orlando | 30 | 18 | 18 | 7 | 10 | 4 | **87** | Coarse status; terms unread |
+| New York City | 25 | 18 | 20 | 10 | 10 | 4 | **87** | Best participants (licensed professionals, owner businesses); crowded; terms unread |
+| Raleigh | 25 | 17 | 18 | 9 | 10 | 6 | **85** | Contractor at application; city may order us to stop; no planning feed |
+| Seattle | 30 | 17 | 2 | 10 | 10 | 10 | **79** | Great lifecycle, no names |
+| Norfolk | 25 | 18 | 0 | 8 | 10 | 4 | 65 | |
+| City of Miami | 0 | 18 | 0 | 3 | 10 | 10 | **41** | Issued only |
+| Miami-Dade | 0 | 8 | 0 | 3 | 10 | 4 | **25** | Issued only, weekly; NOC route below |
+
+### Indirect and hard-to-find signals
+
+Ranked by early-signal value x uniqueness x feasibility (each 1-3; product
+shown). "Uniqueness" is whether the big platforms are known to aggregate it;
+"unknown" scores 2, not 3, because we have not verified that they lack it.
+
+| # | Signal | Lead time vs. building permit | Fields (company names) | Access | Terms | Known users | Value x Unique x Feasible | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | **Austin Plan Review Cases** (`n8ck-xkda`) | The plan-review period itself (residential median 63 d, p90 300) | Applicant org, valuation, units, floors, sq ft | Open API | Public Domain | Unknown | 3 x 2 x 3 = **18** | Verified (above) |
+| 2 | **Raleigh pre-issue rows** in the layers we ingest | Review period | Contractor company 74-96%, phone, email | Open API, already connected | Open Raleigh policy | Unknown | 3 x 2 x 3 = **18** | Verified; connector change needed |
+| 3 | **Austin site plan / subdivision / zoning cases** | Months before building filings | Applicant org 58-88%, owner org, proposed units, sq ft | Open API | Public Domain | Dodge/ConstructConnect cover planning stage for commercial (their pages) | 3 x 1 x 3 = 9 | Verified |
+| 4 | **TDLR TABS project registrations** (TX, $50k+ commercial and public) | Before construction; often before the permit | Owner, design firm, RAS, estimated cost, start date, sq ft (project page) | Public search and per-project pages; **no open dataset found**; robots.txt disallows only `/ithelp/` and `*.csv` | No automation clause found on the pages read | Zabalist republishes TABS monthly (its methodology page) | 3 x 2 x 2 = **12** | Fields verified on one project page by web fetch; access method needs a terms decision before any automated read |
+| 5 | **TABC pending original applications** `mxm5-tdpj` | Before a bar or restaurant opens; build-out timing unverified | Trade name, owner (business or person), address, licence type | Open API, current to the prior midnight | Unread | Unknown | 2 x 3 x 3 = **18** | Verified: 817 pending statewide, ~30 per weekday, Travis 49, Austin 40 |
+| 6 | **Florida Notices of Commencement** (F.S. 713.13) | Recorded before the first inspection; void if work doesn't start in 90 days | Owner, contractor, surety, **lender**, folio | Miami-Dade Clerk bulk Official Records: $110 per folder per month, API $0.20 per request (clerk page); registration agreement unread | Unread | Unknown | 2 x 3 x 2 = **12** | Pricing verified by web fetch; NOC document-type code in the bulk layout unverified |
+| 7 | Orlando / Raleigh ROW and use permits | Weeks before or alongside site work | Contractor 86-87% | Open API | Unread / Open Raleigh | Unknown | 2 x 2 x 3 = 12 | Verified |
+| 8 | Legistar agendas (Austin) | Weeks to months | Case numbers, applicants in attachments (PDF) | Open API, no token for `austintexas` | No API terms published | Shovels is moving into planning-commission signals (Sacra summary) | 2 x 1 x 3 = 6 | Verified |
+| 9 | Austin Water engineered tap plans | Before the building permit (no permit until tap fees are paid) | PE firm | AB+C portal only; a PIA request otherwise | n/a | Unknown | 2 x 3 x 1 = 6 | Process verified by web fetch; no dataset |
+| 10 | TCEQ construction stormwater NOIs (TXR150000) | Before grading | Operator (often the GC) | **Not in the open dataset**: `6pm5-am5m` holds industrial (`TXR05...`, program `SWD`) and other general permits, no `TXR15` rows; construction NOIs are only in TCEQ's search tools | Unread | Unknown | 3 x 2 x 1 = 6 | Verified negative for the dataset |
+| 11 | Miami-Dade certificates of occupancy | After construction | Permit holder number | Open API | Unread | Unknown | 1 x 2 x 3 = 6 | Verified (history value, not early) |
+| 12 | Public procurement (SAM.gov API, Austin Finance Online, Miami-Dade solicitations) | Weeks before award | Agency, scope; awardees after award | SAM.gov API needs a key; city pages have no export found; Texas ESBD robots.txt refused our fetcher | Varies | ConstructConnect and Dodge cover public bids | 2 x 1 x 2 = 4 | Partly verified by web fetch |
+| 13 | Tree permits (Austin, City of Miami) | Before or with site work | City of Miami: no names; Austin's layer is issued-only | Open API | Unread | Unknown | 1 x 2 x 3 = 6 | Verified |
+| 14 | Public Information Act / Ch. 119 bulk requests for application data | Whatever the portal hides | As released | Lawful requests; Texas cannot ask why; costs estimated over $40 | Statutes don't bar reuse (unverified) | n/a | 2 x 3 x 1 = 6 | Process verified by web fetch |
+
+Not available as open data: Austin Energy service applications and FPL
+(no public data found); the Austin AMANDA ROW layer requires a token (HTTP
+499), so it is off.
+
+### Competitor coverage (read 2026-11-13, their own pages; not measured)
+
+| Platform | Pre-approval / planning stage | Freshness claims | History and relationships | Contacts | Source |
+| --- | --- | --- | --- | --- | --- |
+| **Dodge** | Yes: "Pre-Design" stage ("has not yet advanced to design"), Design, Bidding. Pre-design records "updated every 8 months"; bidding weekly. Building-permit-derived projects get the stage "Permit" | Stage-based update cycles | Company profiles | Not stated | construction.com help center, "Dodge project action stages" |
+| **ConstructConnect** | Yes: "conceptual, design, final planning, bidding, and post-bid"; lists "Permit Filing" 3-9 months before bid; sources include "permit filings, planning commission records, developer announcements" | "Project Intelligence is updated daily"; "400+ researchers"; "one million verification calls annually" | 575,000 company records | Owner contact information on early records; alerts by trade and geography | constructconnect.com blog (2026-08-13) and "about project intelligence" |
+| **Shovels** | Moving into "earlier signals than building permits": rezoning applications, planning-commission votes (Sacra summary, paywalled) | First-party collection for "direct control over refresh timing"; no cadence figure | 178M permits, 2,770+ jurisdictions | Not stated | Sacra summaries; Shovels API docs did not load |
+| **BuildZoom** | Not stated | "70k new permits and 500k status updates daily" | "Review an individual contractor's work history"; 6M+ contractors | "contact information" | buildzoomdata.com |
+| **Building Radar** | Yes: "planning or design phases"; triggers "Permit filings and planning applications" | Not stated | "network mapping" of GCs and architects | Buying centers | buildingradar.com blog |
+| **Construction Monitor** | Not stated; issued permits | "leads added hourly" | Top/New Company reports | Not stated | constructionmonitor.com |
+| Small players | Permit Pipeline (NYC, SF, Miami "before your competition" articles), many Apify scrapers | | | | getpermitpipeline.pages.dev; apify.com |
+
+**What this means.** Early-stage commercial projects are not a gap: Dodge and
+ConstructConnect have sold planning-stage leads for years, researched by
+hundreds of people, and Shovels is adding planning signals. None of the pages
+read claims **residential and light-commercial plan-review filings, linked to
+the issued permit and the trade permits, with the GC-sub history** for a
+specific metro. That combination is the defensible slice, and it is
+unverified that they lack it: a side-by-side on the same Austin filings is the
+only proof (ROADMAP E1).

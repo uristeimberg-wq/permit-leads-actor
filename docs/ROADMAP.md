@@ -84,6 +84,43 @@ enrichment moves here from M5.
 | Connector template for new markets | A new source is a config entry plus fixture plus test, no core change |
 | Database plan | Storage and backup window fit the next 6 months; owner decides on a paid tier |
 
+## E: Early discovery (ADR-16, accepted 2026-11-13; runs before M3)
+
+The owner's strategy addition moves pre-approval discovery to the front.
+M2b reliability work stays; M3's digest is rebuilt around stages. The first
+milestone proves the foundation on **one** lawful pre-approval source before
+any new UI.
+
+| # | Item | Exit check (yes or no) |
+| --- | --- | --- |
+| E0 | 14-day metadata snapshot: every enabled source plus Austin `n8ck-xkda`, probed every 15 min (Actions, read-only) | Measured publish cadence per source; tier chosen per ARCHITECTURE 19.2 |
+| E1 | Austin plan-review connector (`n8ck-xkda`, window on `applied_date` and `status_date`), fixture, `DATA_SOURCES` entry | Re-runs add 0 rows; new applications appear the same day |
+| E2 | Raleigh connector windows on application and update dates, not `issueddate`; `filedDate` mapped to `applieddate` | Raleigh pre-issue rows (72% of new building filings) appear in search |
+| E3 | Lifecycle: `status_vocabulary`, `lifecycle_stage`, `submitted_on`, `searchable_at`, `observed_stage_at_first_seen`; `lifecycle_events` from `permit_versions` | Every Austin and Raleigh status is mapped or reported as `unknown`; stage changes produce one event each |
+| E4 | Application-to-permit link: Austin `masterpermitnum` = `folderrsn`; Raleigh same record | Link rate measured on 6 months of issued BPs; 90% or more, or the gap explained |
+| E5 | Applicant vs. contractor and expediter detection on Austin applications | Share of applicant orgs that become the BP contractor reported; expediters flagged |
+| E6 | Business portfolios for applicant, contractor, sub roles from existing history (storage: Neon Launch, approved 2026-11-13) | A named business's profile lists its past projects with co-participants and labels (confirmed / historical) |
+| E7 | Early-capture and latency metrics on the admin page | Discovery latency p50/p90 and early-capture rate shown per source |
+| E8 | Design-partner test: 3-5 Austin **GCs, builders or suppliers** (owner's choice) get a daily list of application-stage projects for 4 weeks | 3 of 5 say "new and early enough" at least once a week; otherwise stop and rethink E |
+
+**Go or no-go at the end of E:** go if early-capture is 80% or more, the link
+rate is 90% or more, and E8 passes. If partners say application-stage
+projects are no more winnable (stickiness), the product leans to GCs and
+suppliers, not subs.
+
+### E-later (only after E passes)
+
+| Item | Depends on |
+| --- | --- |
+| Austin site plan, subdivision, zoning cases as `planning_cases` | E3 |
+| Legistar agendas (Austin) | planning_cases |
+| TABC pending applications (statewide, restaurant build-outs) | Terms read |
+| TDLR TABS registrations | Written decision on automated access; terms |
+| Miami-Dade Notices of Commencement via the clerk's paid bulk feed | **On hold (owner, 2026-11-13)** until E passes in Austin; then spend approval and the registration agreement |
+| Sub-hourly polling (always-on worker) | E0 shows intra-day change; owner's cost approval |
+| Orlando or New Orleans as the third market (both PADAS 87-89) | Terms read (Orlando) |
+| NYC DOB NOW filings | Terms read; a reason to enter a crowded market |
+
 ## M3: Pilot delivery (about 2 weeks)
 
 | Item | Priority | Complexity | Exit check |

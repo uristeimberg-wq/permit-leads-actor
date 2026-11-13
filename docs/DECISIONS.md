@@ -106,7 +106,9 @@ what would make us revisit it. Never delete an entry; supersede it.
 
 ## ADR-9: Pilot markets: Austin, then Miami-Dade
 
-- **Date:** 2026-11-13. **Status:** proposed.
+- **Date:** 2026-11-13. **Status:** proposed; superseded for the
+  early-discovery track by ADR-16 item 3 (Austin, then Raleigh), accepted
+  2026-11-13.
 - **Context:** Both already work in the prototype. Austin publishes daily, with
   the contractor's company and phone on the permit. Miami-Dade's county layer
   has phone (82% coverage per the prototype), owner and master permit number,
@@ -304,3 +306,58 @@ what would make us revisit it. Never delete an entry; supersede it.
 - **Consequences:** City of Miami permits have no phones; they can be filled
   only by matching the same business in the county layer or a licence file
   (step 4).
+
+## ADR-16: Early discovery and the full lifecycle become the core of the product
+
+- **Date:** 2026-11-13. **Status:** accepted 2026-11-13 (owner: "Do what you
+  recommend"). Supersedes the "weekly digest of issued permits" framing of the
+  v1 PRD and, for the early-discovery track, ADR-9's market order.
+- **Context:** The owner wants the platform to find construction before a
+  permit is approved, track every filing through its lifecycle, build
+  historical portfolios and relationships for every business role, and
+  measure its own speed. Facts that bear on it: Austin's open dataset holds
+  issued permits; Austin plan review takes a median of 63 days; 94% of trade
+  permits go to a sub the GC already used; Dodge and ConstructConnect already
+  sell planning-stage commercial projects researched by hundreds of staff
+  (`docs/DATA_SOURCES.md`, "Competitor coverage").
+- **Decision:**
+  1. The unit of record is the filing, the unit of product is the project,
+     and a project keeps one id from its first signal to completion
+     (`docs/DATA_MODEL.md`, "Lifecycle model"). A status change is an event,
+     never a new lead.
+  2. Every filing stores the official submission date and our first-observed
+     time separately, plus the stage it was in when first seen.
+  3. Market selection weights the Pre-Approval Data Availability Score
+     (`docs/DATA_SOURCES.md`) heavily, alongside volume, contacts, terms and
+     demand. Measured 2026-11-13: Austin 89, Raleigh 85, City of Miami 41,
+     Miami-Dade 25. Early-discovery pilot order: **Austin, then Raleigh**.
+     Miami stays live for issued permits and the GC-sub view; its early track
+     is the Notice of Commencement experiment (paid clerk feed, owner's call).
+  4. Polling cadence per source is measured first (14-day metadata probe),
+     then set; no source is polled faster than it changes or than its terms
+     allow. Sub-hourly tiers require the always-on worker and the owner's cost
+     approval.
+  5. Search visibility does not wait for enrichment.
+  6. Historical associations are never presented as participants in a new
+     project; four labels are kept apart (confirmed, historical, potentially
+     relevant, unverified).
+  7. Early discovery adds sources and stages; it does not relax rules 1 to 10.
+     Portal-only application data (Accela, AMANDA, EnerGov, Tyler) stays off
+     until its terms are read and a written decision allows automated access;
+     public-records requests are the lawful route where a portal is the only
+     window.
+  8. **Owner's choices, 2026-11-13:** (a) early track in Austin, then
+     Raleigh; Miami stays live for issued permits and the GC-sub view;
+     (b) the first customers for application-stage leads are **GCs, builders
+     and suppliers**, not subcontractors (the 94% stickiness finding); subs
+     keep the issued-permit and GC-relationship product; (c) the database
+     moves from Neon Free to **Neon Launch** (usage-based, roughly $3-15 a
+     month at current size; the owner upgrades it in the Neon console),
+     replacing the earlier same-day choice to stay on Free (ADR-7 hosting,
+     ROADMAP M2b "Database plan"); (d) the Miami-Dade
+     Notice of Commencement feed waits until Austin proves the model
+     (ROADMAP E go/no-go).
+- **Revisit when:** the early-capture rate in the first pre-approval source is
+  under 50% (most permits are first seen only when issued), or design
+  partners report that projects found at application stage were no more
+  winnable than issued ones.
