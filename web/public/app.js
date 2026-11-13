@@ -488,9 +488,7 @@ function renderCard(p) {
   if (areaKey) el.dataset.area = areaKey;
 
   const val = money(p.valuation);
-  const contact = p.contractor_phone
-    ? `<a href="tel:${esc(p.contractor_phone)}" data-tel>${esc(phone(p.contractor_phone))}</a>`
-    : '';
+  const contact = phoneLink(p.contractor_phone, ' data-tel');
 
   const foot = [
     stageBadge(p),
@@ -503,7 +501,6 @@ function renderCard(p) {
           : `<span>${esc(p.contractor_name)}</span>`)
       : '',
     contact,
-    (!p.contractor_name && p.owner) ? `<span>Owner: ${esc(p.owner)}</span>` : '',
     p.permit_number ? `<span>#${esc(p.permit_number)}</span>` : '',
   ].filter(Boolean).join('<span class="sep" aria-hidden="true"></span>');
 
@@ -730,7 +727,7 @@ async function openContractor(name, { from = null } = {}) {
       ${daysQuiet !== null ? row('Last permit', relativeDays(daysQuiet)) : ''}
       ${row('Declared value', money(c.total_valuation) || '—')}
       ${row('', valuationNote)}
-      ${c.phone ? `<dt>Phone</dt><dd><a href="tel:${esc(c.phone)}">${esc(phone(c.phone))}</a></dd>` : ''}
+      ${c.phone ? `<dt>Phone</dt><dd>${phoneLink(c.phone)}</dd>` : ''}
       ${row('Licence', c.licence)}
       ${row('Based in', c.city)}
     </dl>
@@ -1094,6 +1091,17 @@ function useMyLocation() {
   );
 }
 
+// A phone as a tel: link when it normalizes to a dialable number (links.js),
+// else as plain text. Owner and applicant phones are never rendered
+// (CLAUDE.md hard rule 5); only the contractor's business contact is.
+const phoneLink = (v, attrs = '') => {
+  if (!v) return '';
+  const href = telHref(v);
+  return href
+    ? `<a href="${esc(href)}"${attrs}>${esc(phone(v))}</a>`
+    : `<span>${esc(phone(v))}</span>`;
+};
+
 /* ------------------------------------------------------------------ drawer */
 
 const row = (label, value, cls = '') =>
@@ -1158,7 +1166,7 @@ async function openDetail(id, cardEl) {
       ${row('Jurisdiction', p.jurisdiction)}
     </dl>
 
-    ${(p.contractor_name || p.contractor_phone || p.applicant_name) ? `
+    ${(p.contractor_name || p.contractor_phone) ? `
       <div class="sect">Contractor</div>
       <dl class="kv">
         ${p.contractor_name ? `<dt>Company</dt><dd>${
@@ -1166,20 +1174,15 @@ async function openDetail(id, cardEl) {
             ? `<button type="button" class="link-btn" data-open-contractor="${esc(p.contractor_name)}"
                   >${esc(p.contractor_name)}</button>`
             : esc(p.contractor_name)}</dd>` : ''}
-        ${p.contractor_phone
-          ? `<dt>Phone</dt><dd><a href="tel:${esc(p.contractor_phone)}">${esc(phone(p.contractor_phone))}</a></dd>` : ''}
+        ${p.contractor_phone ? `<dt>Phone</dt><dd>${phoneLink(p.contractor_phone)}</dd>` : ''}
         ${row('Trade', p.contractor_trade)}
         ${row('Licence', p.contractor_licence)}
         ${row('City', p.contractor_city)}
-        ${row('Applicant', p.applicant_name)}
-        ${p.applicant_phone && p.applicant_phone !== p.contractor_phone
-          ? `<dt>Applicant phone</dt><dd><a href="tel:${esc(p.applicant_phone)}">${esc(phone(p.applicant_phone))}</a></dd>` : ''}
       </dl>` : ''}
 
-    ${[p.owner, p.parcel_number, p.parcel_lot, p.construction_type].some(Boolean) ? `
+    ${[p.parcel_number, p.parcel_lot, p.construction_type].some(Boolean) ? `
       <div class="sect">Property</div>
       <dl class="kv">
-        ${row('Owner', p.owner)}
         ${row('Parcel no.', p.parcel_number, 'num')}
         ${row('Block', p.parcel_block)}
         ${row('Lot', p.parcel_lot)}
@@ -1229,9 +1232,10 @@ async function openDetail(id, cardEl) {
          <span>Show area on map</span>
        </button>` : '';
 
-  $('dFoot').innerHTML = `${mapAction}${p.permit_url
+  const sourceUrl = safeHttpUrl(p.permit_url);
+  $('dFoot').innerHTML = `${mapAction}${sourceUrl
     ? `<span>Source record, for verification:</span>
-       <a href="${esc(p.permit_url)}" target="_blank" rel="noopener">open the county portal →</a>`
+       <a href="${esc(sourceUrl)}" target="_blank" rel="noopener">open the county portal →</a>`
     : '<span>No source link recorded for this permit.</span>'}`;
 
   if (mapAction) {
