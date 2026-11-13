@@ -251,6 +251,31 @@ async function getSourceId(slug) {
   return rows[0].id;
 }
 
+/**
+ * Stores the field list a source returned and records any drift as
+ * source_events (ADR-14). `drift` comes from ingest/drift.js detectDrift.
+ */
+async function recordFieldList(sourceId, syncRunId, drift) {
+  const list = JSON.stringify(drift.fields);
+  await query('UPDATE sources SET field_list = $2::jsonb, field_list_hash = md5($3) WHERE id = $1', [sourceId, list, list]);
+  if (drift.added.length) {
+    await recordSourceEvent(sourceId, syncRunId, 'schema_change', 'info', { added: drift.added });
+  }
+  for (const m of drift.missing) {
+    await recordSourceEvent(sourceId, syncRunId, 'schema_change', m.severity, { missingMappedField: m.field, mappedAs: m.key });
+  }
+}
+
+async function getFieldList(sourceId) {
+  const { rows } = await query('SELECT field_list FROM sources WHERE id = $1', [sourceId]);
+  return rows[0] ? rows[0].field_list : null;
+}
+
+async function recordSourceEvent(sourceId, syncRunId, kind, severity, detail) {
+  await query('INSERT INTO source_events (source_id, sync_run_id, kind, severity, detail) VALUES ($1, $2, $3, $4, $5)',
+    [sourceId, syncRunId, kind, severity, JSON.stringify(detail)]);
+}
+
 async function startSyncRun(sourceId, kind) {
   const { rows } = await query(
     `INSERT INTO sync_runs (source_id, kind, status) VALUES ($1, $2, 'running') RETURNING id`,
@@ -315,4 +340,5 @@ module.exports = {
   upsertPermits, existingPermitNumbers,
   startIngestRun, finishIngestRun,
   getSourceId, startSyncRun, finishSyncRun, insertRawRecords,
+  recordFieldList, getFieldList, recordSourceEvent,
 };

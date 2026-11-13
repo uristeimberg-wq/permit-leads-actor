@@ -223,3 +223,38 @@ what would make us revisit it. Never delete an entry; supersede it.
   still to build before a paying pilot. The live screens show only
   `display_policy = 'show'` phones and withhold names that look like people
   (rule 5).
+
+## ADR-14: Production data pipeline: keep the Actions scheduler, add an independent alarm, then enrich by official keys
+
+- **Status:** accepted, 2026-11-13 (owner asked for production-grade daily
+  sync plus enrichment; approved the six-step plan)
+- **Context:** volume is small (Austin about 160 permits a day; the daily sync
+  takes about a minute), so scale is not the risk. The risk is silent failure:
+  a sync that never starts records nothing, a renamed column quietly empties a
+  field, and storage runs out. The owner also wants permits cross-referenced
+  with addresses, property details and contractor phones.
+- **Decision:**
+  1. Keep GitHub Actions as the scheduler (ADR-7). Add a retry (one re-run
+     after 10 minutes), a `source_health` view, `source_events` (schema drift,
+     truncation), and `health.yml`: an independent check every 6 hours that
+     fails, and opens or updates one `data-health` issue, when a source is
+     stale, its newest permit is older than `maxDataAgeDays`, a mapped field
+     vanished, the resolver failed, or storage passes 80%. Schema drift is
+     recorded and alarmed, not auto-paused: pausing a source on a cosmetic
+     column change costs a day of data.
+  2. Superseded raw payloads are deleted after `raw_retention_days`
+     (default 90); the latest payload per permit is kept forever.
+  3. Enrichment joins only on official keys, never on fuzzy matches: licence
+     number (TDLR, Florida DBPR), parcel ID (`tcad_id` to Travis CAD,
+     `FolioNumber` to the Miami-Dade Property Appraiser), and geocoding from
+     the US Census geocoder. Every enriched value keeps its source, fetch time
+     and key (rule 6). Owner names in appraisal data are stored only if needed
+     for the join and are never displayed (rule 5, ADR-10).
+  4. New markets plug in through one connector contract (ARCHITECTURE §4) with
+     a verified field map, a recorded fixture, health thresholds and terms.
+- **When to revisit:** move scheduling to a dedicated worker (Railway cron or
+  pg-boss) when a source needs syncing more than daily, a run approaches the
+  Actions time limit, or there are more than about five markets.
+- **Known gaps:** Texas has no state general-contractor licence, so GC phones
+  can be corroborated only across permits, never against a registry. Florida's
+  licence files carry no phone.

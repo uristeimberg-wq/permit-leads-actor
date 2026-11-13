@@ -14,6 +14,7 @@ const { scorePermit } = require('../src/scoring.js');
 const { toScorable } = require('../src/normalize.js');
 const db = require('../db/index.js');
 const { toRawRecords, classifyError } = require('./raw.js');
+const { detectDrift } = require('./drift.js');
 
 // Adapters that hand back unmapped rows for raw_records (migration 002).
 const RAW_CAPTURE_TYPES = new Set(['socrata', 'arcgis']);
@@ -102,6 +103,18 @@ async function ingestArea(area, { days, daysExplicit = false, max: requestedMax,
         Object.assign(stats, { requests: meta.requests, fetched: rows.length, newCount, changed, failed });
         truncated = Boolean(meta.truncated);
         log.info(`[${area}] raw: ${rows.length} fetched, ${newCount} new, ${changed} changed, ${failed} without a key`);
+        // Schema drift (ADR-14): a renamed or dropped column is recorded today,
+        // not discovered weeks later as falling coverage.
+        // Monitoring must never stop the data: a failure here is logged loudly,
+        // and the health check notices the missing field list.
+        try {
+          const drift = detectDrift(await db.getFieldList(sourceId), rows, source.fieldMap);
+          await db.recordFieldList(sourceId, syncRunId, drift);
+          for (const m of drift.missing) log.warning(`[${area}] mapped field "${m.field}" (${m.key}) is missing from all ${rows.length} rows`);
+          if (drift.added.length) log.info(`[${area}] new fields from the source: ${drift.added.join(', ')}`);
+        } catch (err) {
+          log.error(`[${area}] schema-drift check failed (sync continues): ${err.message}`);
+        }
       } : undefined,
     });
     if (!captureRaw) stats.fetched = permits.length;
@@ -110,6 +123,7 @@ async function ingestArea(area, { days, daysExplicit = false, max: requestedMax,
     // in the window were not fetched. Say so rather than look complete.
     if (truncated || permits.length >= max) {
       log.warning(`[${area}] hit the ${max}-record cap (${windowText}); older permits in the window were not fetched. Use a shorter --days or run more often.`);
+      await db.recordSourceEvent(sourceId, syncRunId, 'truncated', 'warning', { max, window: windowText });
     }
 
     const withScores = permits.map((p) => ({ ...p, tradeScores: tradeScoresFor(p) }));

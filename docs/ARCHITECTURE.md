@@ -381,7 +381,16 @@ The `source_health` view per source shows:
 - contractor match rate
 - phone coverage
 
-Alerts go to email (Slack later). The admin page also shows them:
+**Built (ADR-14, 2026-11-13):** `source_health` (last success, last attempt,
+failures since, new rows in 7 days, warnings), `source_events` (schema drift,
+truncation), and `health.yml`, an independent 6-hourly check that fails and
+opens one `data-health` GitHub issue (emailed to watchers) when a source is
+stale (no success in 1.5x its interval), its newest permit is older than
+`maxDataAgeDays`, a mapped field vanished, the resolver failed, or storage
+passes 80%. Volume anomaly, digest and enrichment alerts below are still to
+build. Schema drift alarms but does not pause the source.
+
+Target alerts (email first, Slack later; the admin page also shows them):
 
 | Alert | Condition |
 | --- | --- |

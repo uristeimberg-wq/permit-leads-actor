@@ -66,12 +66,20 @@ jobs:
         if: steps.secret.outputs.ready == 'true'
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
-      # Applies pending migrations, then syncs the pilot areas.
-      - run: node ingest/run.js --strict --kind=scheduled
+      # Applies pending migrations, then syncs the pilot areas. A failed run is
+      # retried once after 10 minutes (every write is an upsert, so a re-run is
+      # safe); both attempts are recorded in sync_runs (ADR-14).
+      - name: Sync
         if: steps.secret.outputs.ready == 'true' && !inputs.backfill_days
         env:
           DATABASE_URL: ${{ env.DB_URL }}
           SOCRATA_APP_TOKEN: ${{ secrets.SOCRATA_APP_TOKEN }}
+        run: |
+          for attempt in 1 2; do
+            node ingest/run.js --strict --kind=scheduled && exit 0
+            if [ "$attempt" = 1 ]; then echo "::warning::Sync attempt 1 failed; retrying in 10 minutes"; sleep 600; fi
+          done
+          exit 1
       # One-off history pull for the GC relationships view. Inputs go through
       # env and are validated, never interpolated into the shell.
       - name: Backfill
@@ -92,6 +100,12 @@ jobs:
         env:
           DATABASE_URL: ${{ env.DB_URL }}
         run: node ingest/resolve.js
+      # Superseded raw payloads past the retention window (ADR-14).
+      - name: Raw retention
+        if: steps.secret.outputs.ready == 'true' && !inputs.ephemeral
+        env:
+          DATABASE_URL: ${{ env.DB_URL }}
+        run: node ingest/prune.js
       - name: Summary from sync_runs
         if: always() && steps.secret.outputs.ready == 'true'
         env:

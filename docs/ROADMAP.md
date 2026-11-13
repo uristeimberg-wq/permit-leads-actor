@@ -69,6 +69,21 @@ Still open from M1: the 14-day snapshot for real publication lag (the
 | `source_health` view and alerts (stale, failing, volume, schema drift) | Must | M | Each alert fires in a test with a simulated failure |
 | Production deploy (ADR-7) with a daily schedule | Must | S | 7 consecutive days of on-time syncs |
 
+## M2b: Production data pipeline and enrichment (ADR-14, started 2026-11-13)
+
+Pulled forward at the owner's request; runs alongside M3 and M4. TDLR licence
+enrichment moves here from M5.
+
+| Item | Exit check |
+| --- | --- |
+| Reliability: retry, `source_health`, schema drift, independent `health.yml` alarm, raw retention | Each alarm fires in a test (integration `health.test.js`); a deliberately broken source opens a `data-health` issue |
+| Source recon: TDLR, TSBPE, Florida DBPR, Travis CAD, Miami-Dade PA, Census geocoder (fields, keys, volume, terms) | `docs/DATA_SOURCES.md` entries dated, terms read or marked unread |
+| Contractor licence enrichment (TDLR first) | Match rate and phone corroboration rate reported per run; no merge on name alone |
+| Parcel join to appraisal data (Austin first) | Share of permits with a parcel match reported; property fields carry source and date |
+| Geocoding (permits without coordinates) | Share geocoded, by match quality; radius search works |
+| Connector template for new markets | A new source is a config entry plus fixture plus test, no core change |
+| Database plan | Storage and backup window fit the next 6 months; owner decides on a paid tier |
+
 ## M3: Pilot delivery (about 2 weeks)
 
 | Item | Priority | Complexity | Exit check |

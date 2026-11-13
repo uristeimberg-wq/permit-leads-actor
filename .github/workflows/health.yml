@@ -1,0 +1,60 @@
+name: health
+
+# Data health alarm (ADR-14). Runs on its own schedule, separately from the
+# sync: a sync that never starts records no failure, so only an independent
+# check can notice it. On a problem it fails and opens (or comments on) one
+# GitHub issue labelled "data-health", which emails the repository's watchers.
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: health
+  cancel-in-progress: false
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      - name: Check
+        id: check
+        run: |
+          if [ -z "$DATABASE_URL" ]; then echo "::error::DATABASE_URL secret is not set"; exit 1; fi
+          set -o pipefail
+          node ingest/health.js | tee report.md | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Open or update the alert issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          [ -s report.md ] || echo "The health check could not run. See $RUN_URL" > report.md
+          printf '\n\nRun: %s\n' "$RUN_URL" >> report.md
+          gh label create data-health --color B60205 --description "Automated data health alarm" 2>/dev/null || true
+          n=$(gh issue list --label data-health --state open --json number --jq '.[0].number')
+          if [ -n "$n" ]; then gh issue comment "$n" --body-file report.md
+          else gh issue create --title "Data health alarm" --label data-health --body-file report.md; fi
+      - name: Close the alert issue when healthy again
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for n in $(gh issue list --label data-health --state open --json number --jq '.[].number'); do
+            gh issue close "$n" --comment "Health check passed again: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          done

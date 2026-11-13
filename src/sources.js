@@ -129,6 +129,9 @@ const SOURCES = {
     // A backfill (--kind=backfill --days=N) may pull more; 12 months of Austin
     // is roughly 150k permits.
     backfillMaxPerRun: 200000,
+    // Health alarm (ingest/health.js): the newest issue date we hold should be
+    // at most this old. Austin publishes 2-3 days after issue, plus weekends.
+    maxDataAgeDays: 5,
     dateField: 'issue_date',
     defaultState: 'TX',
     fieldMap: {
@@ -200,6 +203,8 @@ const SOURCES = {
     // live with retries (recon/feasibility.js --only=miamiWindow).
     maxPerRun: 5000,
     backfillMaxPerRun: 40000,
+    // Weekly refresh with up to ~9 days' lag (measured 2026-11-13).
+    maxDataAgeDays: 17,
     dateField: 'PermitIssuedDate',
     // Without an order, offset paging over the layer is not stable. Newest
     // first, ObjectId as the tiebreak.
