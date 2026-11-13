@@ -10,7 +10,7 @@ on:
         description: Months of history to analyse
         default: '18'
       only:
-        description: Comma-separated sections (austin, austinUpdatedAt, austinWindows, miami); empty runs all
+        description: Comma-separated sections (austin, austinUpdatedAt, austinWindows, miamiWindow, miami); empty runs all
         default: ''
 
 jobs:

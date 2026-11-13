@@ -8,6 +8,7 @@
 // `fieldMap`. Do not guess them.
 
 const { createStatusNormalizer, normalizePermit } = require('../normalize.js');
+const { fetchWithRetry } = require('./http.js');
 
 const PAGE_SIZE = 500;
 
@@ -47,7 +48,7 @@ function buildQueryUrl(source, { daysBack, offset, pageSize }) {
  *   onRaw(rows, {requests}) receives the unmapped attributes (for raw_records).
  */
 async function fetchArcgisSource(source, options) {
-  const { daysBack = 30, maxRecords = 2000, includeIssued = true, log, fetchImpl = fetch, onRaw } = options;
+  const { daysBack = 30, maxRecords = 2000, includeIssued = true, log, fetchImpl = fetch, onRaw, retry } = options;
   let requests = 0;
 
   if (!source.fieldMap) {
@@ -64,7 +65,7 @@ async function fetchArcgisSource(source, options) {
     log.info(`Querying ${url.slice(0, 140)}`);
 
     requests += 1;
-    const response = await fetchImpl(url);
+    const response = await fetchWithRetry(fetchImpl, url, undefined, { log, ...retry });
     if (!response.ok) throw new Error(`Failed to query ${source.layerUrl}: HTTP ${response.status}`);
     const body = await response.json();
 

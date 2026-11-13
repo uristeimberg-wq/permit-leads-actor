@@ -1,0 +1,71 @@
+name: sync
+
+# Daily pilot sync (ADR-7): Austin and Miami-Dade into the hosted Postgres in
+# the DATABASE_URL secret. Every attempt is recorded in sync_runs; --strict
+# fails this job when any area fails, so GitHub notifies the repo owner.
+on:
+  schedule:
+    # Austin finishes its daily reload around 15:30 UTC (measured 2026-11-13).
+    - cron: '15 17 * * *'
+  workflow_dispatch:
+    inputs:
+      ephemeral:
+        description: Dry run against a throwaway Postgres in the job instead of DATABASE_URL
+        type: boolean
+        default: false
+
+concurrency:
+  group: sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Only used by an ephemeral dry run; cheap to start otherwise.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: permits
+          POSTGRES_PASSWORD: permits
+          POSTGRES_DB: permits
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U permits" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      DB_URL: ${{ inputs.ephemeral && 'postgres://permits:permits@localhost:5433/permits' || secrets.DATABASE_URL }}
+    steps:
+      - name: Check the database secret
+        id: secret
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "::warning::DATABASE_URL secret is not set; no sync ran. Add it under Settings > Secrets and variables > Actions."
+            echo "No sync ran: the DATABASE_URL secret is not set." >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.secret.outputs.ready == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.secret.outputs.ready == 'true'
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
+        if: steps.secret.outputs.ready == 'true'
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      # Applies pending migrations, then syncs the pilot areas.
+      - run: node ingest/run.js --strict --kind=scheduled
+        if: steps.secret.outputs.ready == 'true'
+        env:
+          DATABASE_URL: ${{ env.DB_URL }}
+          SOCRATA_APP_TOKEN: ${{ secrets.SOCRATA_APP_TOKEN }}
+      - name: Summary from sync_runs
+        if: always() && steps.secret.outputs.ready == 'true'
+        env:
+          DATABASE_URL: ${{ env.DB_URL }}
+        run: node ingest/summary.js >> "$GITHUB_STEP_SUMMARY"

@@ -5,6 +5,7 @@
 //   node ingest/run.js                        all default areas, last 14 days
 //   node ingest/run.js --area=oregon-statewide --days=30 --max=500
 //   node ingest/run.js --all-details          re-fetch details for known permits
+//   node ingest/run.js --strict --kind=scheduled   exit 1 if any area fails (CI cron)
 
 const { log } = require('apify');
 const { SOURCES, PILOT_AREAS } = require('../src/sources.js');
@@ -46,6 +47,8 @@ function parseArgs(argv) {
     else if (key === 'days') { args.days = Number(value); args.daysExplicit = true; }
     else if (key === 'max') args.max = Number(value);
     else if (key === 'all-details') args.allDetails = true;
+    else if (key === 'strict') args.strict = true;
+    else if (key === 'kind') args.kind = value;
   }
   return args;
 }
@@ -148,7 +151,9 @@ async function main() {
     for (const f of failures) log.error(`  failed: ${f.area} — ${f.message}`);
   }
   await db.close();
-  process.exitCode = failures.length === args.areas.length ? 1 : 0;
+  // --strict (the scheduled CI sync): any failed area fails the process, so the
+  // scheduler notifies someone. Without it, only a total failure does.
+  process.exitCode = (args.strict ? failures.length > 0 : failures.length === args.areas.length) ? 1 : 0;
 }
 
 if (require.main === module) {

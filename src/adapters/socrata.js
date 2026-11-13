@@ -11,6 +11,7 @@
 // read off the live dataset and declared per source in `fieldMap`.
 
 const { createStatusNormalizer, normalizePermit } = require('../normalize.js');
+const { fetchWithRetry } = require('./http.js');
 
 // Socrata's own per-request ceiling for the JSON endpoint.
 const PAGE_SIZE = 1000;
@@ -59,7 +60,7 @@ function buildQueryUrl(source, { daysBack, offset, pageSize }) {
  *   maxRecords is the total across windows.
  */
 async function fetchSocrataSource(source, options) {
-  const { daysBack = 30, maxRecords = 2000, includeIssued = true, log, fetchImpl = fetch, onRaw } = options;
+  const { daysBack = 30, maxRecords = 2000, includeIssued = true, log, fetchImpl = fetch, onRaw, retry } = options;
   const windows = options.windows && options.windows.length
     ? options.windows
     : [{ field: source.dateField, days: daysBack }];
@@ -93,7 +94,7 @@ async function fetchSocrataSource(source, options) {
     log.info(`Querying ${url.slice(0, 150)}`);
 
     requests += 1;
-    const response = await fetchImpl(url, { headers });
+    const response = await fetchWithRetry(fetchImpl, url, { headers }, { log, ...retry });
     if (!response.ok) {
       // Socrata puts the useful part of an error in the body, not the status.
       const detail = await response.text().catch(() => '');

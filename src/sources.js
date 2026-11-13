@@ -189,9 +189,15 @@ const SOURCES = {
     label: 'Miami-Dade County, FL',
     type: 'arcgis',
     layerUrl: 'https://services.arcgis.com/8Pc9XBTAsYuxx9Ny/arcgis/rest/services/miamidade_permit_data/FeatureServer/0',
-    // --max=6000 failed live; ~1,500 is the tested-safe ceiling (see README).
-    maxPerRun: 1500,
+    // ~200 permits/day (106,070 in 18 months), published weekly with up to ~9
+    // days' lag, so a 14-day window is ~2,800. The old 1,500 ceiling came from a
+    // "fetch failed" at --max=6000 before the adapter retried; 5,000 was pulled
+    // live with retries (recon/feasibility.js --only=miamiWindow).
+    maxPerRun: 5000,
     dateField: 'PermitIssuedDate',
+    // Without an order, offset paging over the layer is not stable. Newest
+    // first, ObjectId as the tiebreak.
+    orderByFields: 'PermitIssuedDate DESC, ObjectId',
     defaultState: 'FL',
     fieldMap: {
       permitNumber: 'PermitNumber',

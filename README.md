@@ -27,6 +27,13 @@ replaces them with one issue-date window, for backfills. Every attempt is also
 recorded in `sync_runs`, and every fetched row is stored verbatim in
 `raw_records` (unchanged rows are no-ops). `npm run test:integration` needs
 Postgres.
+
+**Scheduled sync (ADR-7).** `.github/workflows/sync.yml` runs
+`node ingest/run.js --strict --kind=scheduled` daily at 17:15 UTC against the
+Postgres in the `DATABASE_URL` repo secret (Neon), and writes the latest
+`sync_runs` row per source to the job summary. Run it by hand with
+`workflow_dispatch`; tick `ephemeral` for a live dry run against a throwaway
+database in the job.
 `npm run schedule` keeps the data current on an interval (see **Freshness**).
 
 ## Permit lifecycle stage

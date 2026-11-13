@@ -78,12 +78,22 @@ what would make us revisit it. Never delete an entry; supersede it.
 
 ## ADR-7: Hosting
 
-- **Date:** 2026-11-13. **Status:** open (recommendation: Railway).
-- **Options:**
-  - **Railway:** Postgres, two services and cron in one project.
+- **Date:** 2026-11-13. **Status:** accepted for the data phase (decided by
+  Yuval).
+- **Options considered:**
+  - **GitHub Actions cron plus Neon Postgres (free tier):** about $0/month.
+  - **Railway:** Postgres, two services and cron in one project. About
+    $5-20/month.
   - **Fly.io:** cheaper at idle, but more manual setup.
   - **Supabase:** Postgres only, plus auth we don't need yet.
-- **Decide by:** M2, when the first scheduled production sync is needed.
+- **Decision:** The daily sync runs as `.github/workflows/sync.yml` against
+  Neon, with the connection string in the `DATABASE_URL` repo secret. A
+  sync is about 20 requests for Austin and a few for Miami-Dade, so it uses
+  well under the private-repo Actions allowance. Vercel builds previews of
+  the repo, but serverless functions don't fit a scheduled worker, so it isn't
+  used for sync.
+- **Revisit when:** the web app has to be live for pilot users (likely Railway
+  then), or the Neon free tier's storage gets tight.
 
 ## ADR-8: Email provider
 

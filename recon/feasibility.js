@@ -301,6 +301,27 @@ async function austinWindows(report) {
   };
 }
 
+// ---------- Miami-Dade window through the real adapter ----------
+async function miamiWindow(report) {
+  const { SOURCES } = require('../src/sources.js');
+  const { fetchArcgisSource } = require('../src/adapters/arcgis.js');
+  const source = SOURCES['miami-dade-fl'];
+  const warnings = [];
+  const log = { info() {}, warning: (m) => warnings.push(m), error() {} };
+  let meta = null; let raw = [];
+  const started = Date.now();
+  const permits = await fetchArcgisSource(source, {
+    daysBack: 14, maxRecords: source.maxPerRun, log, onRaw: (rows, m) => { meta = m; raw = rows; },
+  });
+  const keys = raw.map((r) => r.PermitNumber);
+  report.miamiWindow = {
+    daysBack: 14, maxPerRun: source.maxPerRun, rawRows: raw.length, distinctKeys: new Set(keys).size, permits: permits.length,
+    requests: meta && meta.requests, seconds: Math.round((Date.now() - started) / 1000), retries: warnings.length,
+    newestIssued: permits.map((p) => p.filedDate).filter(Boolean).sort().at(-1) || null,
+    withPhonePct: pct(permits.filter((p) => digits(p.contractorPhone).length >= 10).length, permits.length),
+  };
+}
+
 // ---------- Miami-Dade ----------
 async function miami(report) {
   const layer = await getJson(`${MIAMI}?f=json`);
@@ -415,6 +436,10 @@ function markdown(r) {
     const w = r.austinWindows;
     L.push('## Austin sync windows (real adapter)', '', `${w.windows.map((x) => `${x.field} ${x.days}d`).join(' + ')}: ${w.rawRows} raw rows, ${w.permits} permits, ${w.requests} requests, ${w.seconds}s, truncated: **${w.truncated}** (cap ${w.maxPerRun}). Phone on ${w.withPhonePct}%.`, '');
   }
+  if (r.miamiWindow) {
+    const w = r.miamiWindow;
+    L.push('## Miami-Dade window (real adapter)', '', `Last ${w.daysBack} days: ${w.rawRows} raw rows (${w.distinctKeys} distinct permit numbers), ${w.permits} permits, ${w.requests} requests, ${w.retries} retries, ${w.seconds}s (cap ${w.maxPerRun}). Newest issue date ${w.newestIssued}. Phone on ${w.withPhonePct}%.`, '');
+  }
   if (r.austinUpdatedAt) {
     const u = r.austinUpdatedAt;
     L.push('## Austin `:updated_at` behaviour', '', `Rows: ${u.total}. :updated_at ${u.range.min_u} to ${u.range.max_u}; :created_at ${u.range.min_c} to ${u.range.max_c}.`, '',
@@ -430,7 +455,7 @@ function markdown(r) {
 
 async function main() {
   const report = { generatedAt: new Date().toISOString(), errors: [] };
-  const ALL = [['austin', austin], ['austinUpdatedAt', austinUpdatedAt], ['austinWindows', austinWindows], ['miami', miami]];
+  const ALL = [['austin', austin], ['austinUpdatedAt', austinUpdatedAt], ['austinWindows', austinWindows], ['miamiWindow', miamiWindow], ['miami', miami]];
   const only = args.only ? String(args.only).split(',') : null;
   const jobs = only ? ALL.filter(([n]) => only.includes(n)) : ALL;
   for (const [name, fn] of jobs) {
