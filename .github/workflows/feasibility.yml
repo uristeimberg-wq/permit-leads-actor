@@ -1,0 +1,27 @@
+name: feasibility
+
+# Manual only: runs the M1 data-feasibility measurements against the live
+# Austin and Miami-Dade sources (read-only, rate-limited) and publishes the
+# report as the job summary and an artifact. See recon/feasibility.js.
+on:
+  workflow_dispatch:
+    inputs:
+      months:
+        description: Months of history to analyse
+        default: '18'
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node recon/feasibility.js --out=feasibility-report --months=${{ inputs.months }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: feasibility-report
+          path: feasibility-report/
