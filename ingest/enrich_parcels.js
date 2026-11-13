@@ -35,8 +35,10 @@ async function permitKeys(provider) {
   return rows.map((r) => ({ permitId: r.permit_id, rawRecordId: r.raw_record_id, slug: r.slug, parcelKey: normalizeFolio(r.key) }));
 }
 
-async function getJson(url, fetchImpl) {
-  const res = await fetchWithRetry(fetchImpl, url, undefined, { log: quiet });
+async function getJson(url, fetchImpl, form) {
+  const init = form == null ? undefined
+    : { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: form };
+  const res = await fetchWithRetry(fetchImpl, url, init, { log: quiet });
   if (!res.ok) throw new Error(`HTTP ${res.status} from ${url.slice(0, 120)}`);
   const body = await res.json();
   if (body.error) throw new Error(`ArcGIS error ${body.error.code}: ${body.error.message}`);
@@ -70,7 +72,8 @@ async function enrichParcels({ providerSlug = 'miami-dade-pa', max = 20000, fetc
     let inserted = 0;
     for (let i = 0; i < todo.length; i += BATCH) {
       const batch = todo.slice(i, i + BATCH);
-      const body = await getJson(buildParcelQuery(provider, batch), fetchImpl);
+      const q = buildParcelQuery(provider, batch);
+      const body = await getJson(q.url, fetchImpl, q.body);
       requests += 1;
       const byKey = new Map();
       for (const f of body.features || []) {

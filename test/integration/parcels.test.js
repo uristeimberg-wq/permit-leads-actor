@@ -16,11 +16,13 @@ global.fetch = async () => ({ ok: true, status: 200, json: async () => ({ featur
 // The appraiser stub knows every folio but the last, and records what was asked.
 const asked = [];
 const folios = [...new Set(rows.map((r) => r.FolioNumber))];
-const paFetch = async (url) => {
+const paFetch = async (url, init) => {
   const u = new URL(url);
   if (!u.pathname.endsWith('/query')) return { ok: true, status: 200, json: async () => ({ editingInfo: { lastEditDate: Date.UTC(2026, 10, 12) } }) };
-  const keys = [...u.searchParams.get('where').matchAll(/'(\d+)'/g)].map((m) => m[1]);
-  asked.push({ keys, outFields: u.searchParams.get('outFields') });
+  assert.strictEqual(init && init.method, 'POST');
+  const form = new URLSearchParams(init.body);
+  const keys = [...form.get('where').matchAll(/'(\d+)'/g)].map((m) => m[1]);
+  asked.push({ keys, outFields: form.get('outFields') });
   const known = keys.filter((k) => k !== folios[folios.length - 1]);
   return { ok: true, status: 200, json: async () => ({ features: known.map((k) => ({
     attributes: { FOLIO: k, DOR_CODE_CUR: '0101', DOR_DESC: 'RESIDENTIAL - SINGLE FAMILY', YEAR_BUILT: 1961, BUILDING_HEATED_AREA: 1500, ASSESSED_VAL_CUR: 300000, TRUE_SITE_ZIP_CODE: '33155' },
@@ -89,4 +91,6 @@ async function main() {
   if (failures) process.exitCode = 1;
 }
 
-main().catch((err) => { console.error(err); process.exitCode = 1; });
+// exit, not exitCode: a failure before the try (a module that won't load)
+// would otherwise leave the admin client open and hang CI.
+main().catch((err) => { console.error(err); process.exit(1); });

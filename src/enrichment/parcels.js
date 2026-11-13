@@ -41,7 +41,12 @@ function normalizeFolio(value) {
   return null;
 }
 
-/** The query URL for one batch of keys. Keys are digits only, so quoting is safe. */
+/**
+ * One batch query as { url, body }: sent as a form POST, because 100 folios
+ * plus the field list make a GET URL that services.arcgis.com rejects with
+ * 404 (first production run, 2026-11-13). Keys are digits only, so quoting is
+ * safe.
+ */
 function buildParcelQuery(provider, keys) {
   if (!keys.every((k) => /^\d+$/.test(k))) throw new Error('parcel keys must be digits');
   if (provider.outFields.some((f) => OWNER_FIELD.test(f))) throw new Error('owner fields must never be requested');
@@ -52,7 +57,7 @@ function buildParcelQuery(provider, keys) {
     returnGeometry: 'true',
     outSR: '4326',
   });
-  return `${provider.layerUrl}/query?${params}`;
+  return { url: `${provider.layerUrl}/query`, body: params.toString() };
 }
 
 // The layer writes 0 for "not recorded" (a 0 sq ft house, built in year 0).

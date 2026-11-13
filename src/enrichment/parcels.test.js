@@ -14,10 +14,12 @@ check('folios: 13 digits kept, a numeric 12-digit City of Miami folio regains it
 });
 
 check('the query names its fields, never owners, and asks for WGS84 points', () => {
-  const url = new URL(buildParcelQuery(PA, ['3020030240630', '0141211320840']));
-  assert.strictEqual(url.searchParams.get('where'), "FOLIO IN ('3020030240630','0141211320840')");
-  assert.ok(!/owner|mail/i.test(url.searchParams.get('outFields')));
-  assert.strictEqual(url.searchParams.get('outSR'), '4326');
+  const q = buildParcelQuery(PA, ['3020030240630', '0141211320840']);
+  const params = new URLSearchParams(q.body);
+  assert.ok(q.url.endsWith('/FeatureServer/0/query') && !q.url.includes('?'), 'parameters go in the POST body, not the URL');
+  assert.strictEqual(params.get('where'), "FOLIO IN ('3020030240630','0141211320840')");
+  assert.ok(!/owner|mail/i.test(params.get('outFields')));
+  assert.strictEqual(params.get('outSR'), '4326');
   assert.throws(() => buildParcelQuery(PA, ["1' OR 1=1"]), /digits/);
   assert.throws(() => buildParcelQuery({ ...PA, outFields: ['FOLIO', 'TRUE_OWNER1'] }, ['1']), /owner/);
 });
