@@ -96,4 +96,4 @@ jobs:
         if: always() && steps.secret.outputs.ready == 'true'
         env:
           DATABASE_URL: ${{ env.DB_URL }}
-        run: node ingest/summary.js >> "$GITHUB_STEP_SUMMARY"
+        run: set -o pipefail; node ingest/summary.js | tee -a "$GITHUB_STEP_SUMMARY"
