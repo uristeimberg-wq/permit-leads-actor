@@ -238,8 +238,76 @@ async function finishIngestRun(id, { seen = 0, inserted = 0, error = null } = {}
   );
 }
 
+// ---------- sources, sync_runs, raw_records (migration 002) ----------
+
+async function getSourceId(slug) {
+  const { rows } = await query('SELECT id FROM sources WHERE slug = $1', [slug]);
+  if (!rows[0]) throw new Error(`Source "${slug}" is not in the sources table; add it in a migration`);
+  return rows[0].id;
+}
+
+async function startSyncRun(sourceId, kind) {
+  const { rows } = await query(
+    `INSERT INTO sync_runs (source_id, kind, status) VALUES ($1, $2, 'running') RETURNING id`,
+    [sourceId, kind],
+  );
+  return rows[0].id;
+}
+
+/**
+ * Closes a sync run. A failed run must carry an error class (the table checks
+ * it), so a failure can never be recorded silently.
+ */
+async function finishSyncRun(id, {
+  status, requests = 0, fetched = 0, newCount = 0, changed = 0, failed = 0, errorClass = null, errorDetail = null,
+}) {
+  await query(
+    `UPDATE sync_runs
+        SET finished_at = now(), status = $2, requests_made = $3, records_fetched = $4,
+            records_new = $5, records_changed = $6, records_failed = $7,
+            error_class = $8, error_detail = $9
+      WHERE id = $1`,
+    [id, status, requests, fetched, newCount, changed, failed, errorClass, errorDetail],
+  );
+}
+
+/**
+ * Appends raw records. Unchanged content is a no-op (unique on source, key,
+ * hash). Returns how many rows were new keys and how many were new versions of
+ * keys already stored.
+ */
+async function insertRawRecords(sourceId, syncRunId, records, { batchSize = 500 } = {}) {
+  let newCount = 0; let changed = 0;
+  for (let i = 0; i < records.length; i += batchSize) {
+    const batch = records.slice(i, i + batchSize);
+    const { rows } = await query(
+      `WITH input AS (
+         SELECT * FROM unnest($3::text[], $4::text[], $5::jsonb[], $6::timestamptz[])
+                  AS t(source_key, payload_hash, payload, source_updated_at)
+       ), prior AS (
+         SELECT DISTINCT source_key FROM raw_records
+          WHERE source_id = $1 AND source_key IN (SELECT source_key FROM input)
+       ), ins AS (
+         INSERT INTO raw_records (source_id, source_key, payload_hash, payload, source_updated_at, sync_run_id)
+         SELECT $1, source_key, payload_hash, payload, source_updated_at, $2 FROM input
+         ON CONFLICT (source_id, source_key, payload_hash) DO NOTHING
+         RETURNING source_key
+       )
+       SELECT count(*) FILTER (WHERE ins.source_key NOT IN (SELECT source_key FROM prior))::int AS new_count,
+              count(*) FILTER (WHERE ins.source_key IN (SELECT source_key FROM prior))::int AS changed
+         FROM ins`,
+      [sourceId, syncRunId,
+        batch.map((r) => r.sourceKey), batch.map((r) => r.payloadHash),
+        batch.map((r) => JSON.stringify(r.payload)), batch.map((r) => r.sourceUpdatedAt)],
+    );
+    newCount += rows[0].new_count; changed += rows[0].changed;
+  }
+  return { newCount, changed };
+}
+
 module.exports = {
   getPool, query, close, applySchema,
   upsertPermits, existingPermitNumbers,
   startIngestRun, finishIngestRun,
+  getSourceId, startSyncRun, finishSyncRun, insertRawRecords,
 };

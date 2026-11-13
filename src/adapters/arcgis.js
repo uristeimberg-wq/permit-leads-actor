@@ -43,10 +43,12 @@ function buildQueryUrl(source, { daysBack, offset, pageSize }) {
 /**
  * @param {object} source entry from sources.js (needs layerUrl + fieldMap)
  * @param {{daysBack?: number, maxRecords?: number, includeIssued?: boolean,
- *          log: object, fetchImpl?: Function}} options
+ *          log: object, fetchImpl?: Function, onRaw?: Function}} options
+ *   onRaw(rows, {requests}) receives the unmapped attributes (for raw_records).
  */
 async function fetchArcgisSource(source, options) {
-  const { daysBack = 30, maxRecords = 2000, includeIssued = true, log, fetchImpl = fetch } = options;
+  const { daysBack = 30, maxRecords = 2000, includeIssued = true, log, fetchImpl = fetch, onRaw } = options;
+  let requests = 0;
 
   if (!source.fieldMap) {
     throw new Error(
@@ -61,6 +63,7 @@ async function fetchArcgisSource(source, options) {
     const url = buildQueryUrl(source, { daysBack, offset, pageSize });
     log.info(`Querying ${url.slice(0, 140)}`);
 
+    requests += 1;
     const response = await fetchImpl(url);
     if (!response.ok) throw new Error(`Failed to query ${source.layerUrl}: HTTP ${response.status}`);
     const body = await response.json();
@@ -77,6 +80,8 @@ async function fetchArcgisSource(source, options) {
     if (page.length < pageSize || !body.exceededTransferLimit) break;
   }
 
+  // Hand the unmapped attributes to the caller for raw_records before mapping.
+  if (onRaw) await onRaw(features.map((f) => f.attributes ?? f), { requests });
   return mapFeatures(features, source, { includeIssued, log });
 }
 

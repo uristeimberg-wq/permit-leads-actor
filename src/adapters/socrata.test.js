@@ -130,4 +130,13 @@ check('paging stops on a short page', async () => {
   assert.strictEqual(permits.length, 1005);
 });
 
+check('onRaw receives the unmapped rows and the request count', async () => {
+  let calls = 0; let got;
+  const fetchImpl = async () => { calls += 1; return { ok: true, json: async () => Array.from({ length: calls === 1 ? 1000 : 2 }, () => REAL_ROW) }; };
+  await fetchSocrataSource(AUSTIN, { log: fakeLog(), fetchImpl, maxRecords: 5000, onRaw: (rows, meta) => { got = { rows, meta }; } });
+  assert.strictEqual(got.rows.length, 1002);
+  assert.strictEqual(got.rows[0], REAL_ROW);
+  assert.deepStrictEqual(got.meta, { requests: 2 });
+});
+
 Promise.all(pending).then(() => console.log('\nDone.'));

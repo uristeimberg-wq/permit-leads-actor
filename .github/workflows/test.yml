@@ -19,3 +19,30 @@ jobs:
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
       - run: npm test
+
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: permits
+          POSTGRES_PASSWORD: permits
+          POSTGRES_DB: permits
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U permits" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      # Each suite creates and drops its own database.
+      - run: npm run test:integration
+        env:
+          DATABASE_URL: postgres://permits:permits@localhost:5433/permits

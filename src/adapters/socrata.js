@@ -49,10 +49,12 @@ function buildQueryUrl(source, { daysBack, offset, pageSize }) {
 /**
  * @param {object} source entry from sources.js (needs domain, datasetId, fieldMap)
  * @param {{daysBack?: number, maxRecords?: number, includeIssued?: boolean,
- *          log: object, fetchImpl?: Function}} options
+ *          log: object, fetchImpl?: Function, onRaw?: Function}} options
+ *   onRaw(rows, {requests}) receives the unmapped rows (for raw_records).
  */
 async function fetchSocrataSource(source, options) {
-  const { daysBack = 30, maxRecords = 2000, includeIssued = true, log, fetchImpl = fetch } = options;
+  const { daysBack = 30, maxRecords = 2000, includeIssued = true, log, fetchImpl = fetch, onRaw } = options;
+  let requests = 0;
 
   if (!source.fieldMap) {
     throw new Error(
@@ -73,6 +75,7 @@ async function fetchSocrataSource(source, options) {
     const url = buildQueryUrl(source, { daysBack, offset, pageSize });
     log.info(`Querying ${url.slice(0, 150)}`);
 
+    requests += 1;
     const response = await fetchImpl(url, { headers });
     if (!response.ok) {
       // Socrata puts the useful part of an error in the body, not the status.
@@ -90,6 +93,8 @@ async function fetchSocrataSource(source, options) {
     if (page.length < pageSize) break; // last page
   }
 
+  // Hand the unmodified rows to the caller for raw_records before mapping.
+  if (onRaw) await onRaw(rows, { requests });
   return mapRows(rows, source, { includeIssued, log });
 }
 

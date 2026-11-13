@@ -35,7 +35,7 @@ async function runOnce() {
 
   for (const { area, max } of CONFIG.runs) {
     try {
-      await ingestArea(area, { days: CONFIG.days, max, allDetails: false });
+      await ingestArea(area, { days: CONFIG.days, max, allDetails: false, kind: 'scheduled' });
     } catch (err) {
       // ingestArea already recorded the failure against ingest_runs, so the UI
       // can show it. One portal being down must not stop the others.

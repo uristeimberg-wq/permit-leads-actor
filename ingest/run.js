@@ -12,6 +12,10 @@ const { getAdapter } = require('../src/adapters/index.js');
 const { scorePermit } = require('../src/scoring.js');
 const { toScorable } = require('../src/normalize.js');
 const db = require('../db/index.js');
+const { toRawRecords, classifyError } = require('./raw.js');
+
+// Adapters that hand back unmapped rows for raw_records (migration 002).
+const RAW_CAPTURE_TYPES = new Set(['socrata', 'arcgis']);
 
 // The pilot markets. Oregon (Accela) still works but is slow and out of the
 // pilot (ADR-5): run it explicitly with --area=clackamas-county-or.
@@ -44,12 +48,18 @@ function parseArgs(argv) {
   return args;
 }
 
-async function ingestArea(area, { days, max: requestedMax, allDetails }) {
+async function ingestArea(area, { days, max: requestedMax, allDetails, kind = 'manual' }) {
   const source = SOURCES[area];
   if (!source) throw new Error(`Unknown area "${area}". Known: ${Object.keys(SOURCES).join(', ')}`);
   const max = requestedMax === undefined ? source.maxPerRun : Math.min(requestedMax, source.maxPerRun);
 
   const runId = await db.startIngestRun(area);
+  // sync_runs is the new record of every attempt; ingest_runs stays until the
+  // UI moves over (M2).
+  const captureRaw = RAW_CAPTURE_TYPES.has(source.type);
+  const sourceId = await db.getSourceId(area);
+  const syncRunId = await db.startSyncRun(sourceId, kind);
+  const stats = { requests: 0, fetched: 0, newCount: 0, changed: 0, failed: 0 };
   log.info(`[${area}] ingest start (last ${days} days, max ${max})`);
 
   try {
@@ -74,7 +84,15 @@ async function ingestArea(area, { days, max: requestedMax, allDetails }) {
       maxRecords: max,
       log,
       selectDetailTargets,
+      // Raw rows are stored before mapping, so a mapping bug never loses data.
+      onRaw: captureRaw ? async (rows, meta) => {
+        const { records, failed } = toRawRecords(rows, source);
+        const { newCount, changed } = await db.insertRawRecords(sourceId, syncRunId, records);
+        Object.assign(stats, { requests: meta.requests, fetched: rows.length, newCount, changed, failed });
+        log.info(`[${area}] raw: ${rows.length} fetched, ${newCount} new, ${changed} changed, ${failed} without a key`);
+      } : undefined,
     });
+    if (!captureRaw) stats.fetched = permits.length;
 
     // Adapters return newest first, so hitting the cap means the OLDEST permits
     // in the window were not fetched. Say so rather than look complete.
@@ -86,10 +104,14 @@ async function ingestArea(area, { days, max: requestedMax, allDetails }) {
     const { written, inserted } = await db.upsertPermits(withScores, area);
 
     await db.finishIngestRun(runId, { seen: permits.length, inserted });
+    await db.finishSyncRun(syncRunId, { status: 'succeeded', ...stats });
     log.info(`[${area}] done: ${permits.length} scraped, ${written} written, ${inserted} new`);
     return { seen: permits.length, written, inserted };
   } catch (err) {
     await db.finishIngestRun(runId, { error: err.message });
+    await db.finishSyncRun(syncRunId, {
+      status: 'failed', ...stats, errorClass: classifyError(err), errorDetail: String(err.stack || err.message).slice(0, 4000),
+    });
     log.error(`[${area}] FAILED: ${err.message}`);
     throw err;
   }

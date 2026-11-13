@@ -119,6 +119,15 @@ check('paging stops once the server stops reporting a transfer limit', async () 
   assert.strictEqual(permits.length, 503);
 });
 
+check('onRaw receives the unmapped attributes and the request count', async () => {
+  let got;
+  const attrs = { PERMIT_STATUS: 'Issued', X: 1 };
+  const fetchImpl = async () => ({ ok: true, json: async () => ({ features: [{ attributes: attrs }], exceededTransferLimit: false }) });
+  await fetchArcgisSource(SOURCE, { log: fakeLog(), fetchImpl, onRaw: (rows, meta) => { got = { rows, meta }; } });
+  assert.deepStrictEqual(got.rows, [attrs]);
+  assert.deepStrictEqual(got.meta, { requests: 1 });
+});
+
 check('maxRecords caps how much is pulled', async () => {
   const fetchImpl = async () => ({ ok: true, json: async () => ({
     features: Array.from({ length: 10 }, () => ({ attributes: { PERMIT_STATUS: 'Issued' } })),

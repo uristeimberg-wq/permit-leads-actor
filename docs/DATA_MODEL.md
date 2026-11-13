@@ -35,6 +35,10 @@ suppressions, data_requests, audit_log, contractor_merges (standalone)
 
 ## Sources and ingestion
 
+Built in `db/migrations/002_sources_sync_runs_raw_records.sql` (2026-11-13).
+Ingest writes `sync_runs` and `raw_records` for Socrata and ArcGIS sources;
+`ingest_runs` is still written for the UI until M2.
+
 ```sql
 CREATE TABLE jurisdictions (
   id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -82,8 +86,9 @@ CREATE TABLE sync_runs (
   records_new      INTEGER NOT NULL DEFAULT 0,   -- new raw hashes
   records_changed  INTEGER NOT NULL DEFAULT 0,
   records_failed   INTEGER NOT NULL DEFAULT 0,
-  error_class      TEXT,                          -- transient | rate_limited | auth | schema | bad_data | bug
-  error_detail     TEXT
+  error_class      TEXT,                          -- transient | rate_limited | auth | schema | bad_data | bug | unknown
+  error_detail     TEXT,
+  CHECK (status <> 'failed' OR error_class IS NOT NULL)   -- no silent failures
 );
 CREATE INDEX ON sync_runs (source_id, started_at DESC);
 
