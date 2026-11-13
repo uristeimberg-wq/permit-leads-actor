@@ -331,6 +331,7 @@ async function propertyFor(permitId) {
   const { rows: [r] } = await query(`
     SELECT c.parcel_key, c.land_use_code, c.land_use, c.year_built, c.heated_sqft, c.building_sqft, c.lot_sqft, c.bedrooms,
            c.bathrooms, c.units, c.floors, c.assessed_value, c.assessment_year, c.site_zip, c.fetched_at, c.source_edited_at,
+           c.land_value, c.improvement_value, c.improvement_type,
            pc.match_rule, s.slug, s.endpoint_url, s.attribution_text
       FROM permit_parcels pc JOIN parcels c ON c.id = pc.parcel_id
       JOIN sources s ON s.slug = pc.provider
@@ -343,6 +344,10 @@ async function propertyFor(permitId) {
     heatedSqft: num(r.heated_sqft), buildingSqft: num(r.building_sqft), lotSqft: num(r.lot_sqft), bedrooms: num(r.bedrooms),
     bathrooms: num(r.bathrooms), units: num(r.units), floors: num(r.floors),
     assessedValue: num(r.assessed_value), assessmentYear: r.assessment_year, siteZip: r.site_zip,
+    landValue: num(r.land_value), improvementValue: num(r.improvement_value), improvementType: r.improvement_type,
+    // Appraisal values are estimates for one roll year; Travis CAD asks that both be said.
+    valueNote: r.assessment_year && (r.land_value != null || r.improvement_value != null || r.assessed_value != null)
+      ? `Appraisal estimate, ${r.assessment_year} roll` : null,
     provenance: { source: r.slug, endpoint: r.endpoint_url, attribution: r.attribution_text, matchedBy: r.match_rule,
       fetchedAt: r.fetched_at, sourceEditedAt: r.source_edited_at },
   };

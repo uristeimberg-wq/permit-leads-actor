@@ -390,6 +390,13 @@ Austin leads, joined on `geo_id`. Load the supplemental export on a schedule
 (weekly `Last-Modified` check), parse only the needed columns, and never
 display owner names.
 
+**Built (2026-11-13):** `ingest/enrich_tcad.js`, daily. It finds the newest
+supplemental export link on the public-information page (falling back to the
+SUPP 336 link) and stores only parcels named by Austin permits. Living area is
+the sum of the main improvement's floor rows (`1ST`, `2ND`, ...). Year built is
+the earliest year among those floors. The flags it skips on are at positions
+990, 991, 2569, 2570, 4859 and 4860 (layout read 2026-11-13).
+
 ### Miami-Dade Property Appraiser, Property Point View
 
 | Field | Value |

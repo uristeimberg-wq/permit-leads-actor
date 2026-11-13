@@ -288,7 +288,11 @@ what would make us revisit it. Never delete an entry; supersede it.
      are `sources` rows with `role = 'enrichment'`, so their runs are in
      `sync_runs` and the health alarm watches them.
   3. **Travis CAD is internal only** until its terms are checked: nothing derived
-     from it is displayed.
+     from it is displayed. *Superseded 2026-11-13:* the compliance review
+     (PR #38) cleared the property facts under its use rules (docs/COMPLIANCE.md,
+     "Travis CAD use rules"). `ingest/enrich_tcad.js` reads an allowlist of
+     positions, skips confidential and address-suppressed parcels, sums
+     homestead splits, and the API labels values "Appraisal estimate, <year> roll".
   4. **Census geocoder: job-site addresses only.** Its terms forbid using its
      data to identify a business, so contractor business addresses are never
      sent to it. Geocode only where the source has no coordinates (Austin has

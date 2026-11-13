@@ -515,6 +515,28 @@ sections.tcad = async () => {
   }
 };
 
+// Every field of the sheets a TCAD loader reads (names and positions only, no
+// data), so the loader is written against the published layout.
+sections.tcadLayout = async () => {
+  const lay = path.join(tmp, 'layout.zip');
+  await download(TCAD.layout, lay);
+  const xname = execFileSync('unzip', ['-Z1', lay]).toString().split('\n').find((n) => /\.xlsx$/i.test(n));
+  const xfile = path.join(tmp, 'layout.xlsx');
+  fs.writeFileSync(xfile, execFileSync('unzip', ['-p', lay, xname], { maxBuffer: 64e6 }));
+  const parts = execFileSync('unzip', ['-Z1', xfile]).toString().split('\n').filter(Boolean);
+  const read = (n) => execFileSync('unzip', ['-p', xfile, n], { maxBuffer: 64e6 }).toString('utf8');
+  const strings = parts.includes('xl/sharedStrings.xml') ? read('xl/sharedStrings.xml') : '';
+  const sheetNames = [...read('xl/workbook.xml').matchAll(/<sheet [^>]*name="([^"]+)"/g)].map((m) => m[1]);
+  const sheets = parts.filter((n) => /^xl\/worksheets\/sheet\d+\.xml$/.test(n)).sort((a, b) => Number(a.match(/\d+/)) - Number(b.match(/\d+/)));
+  sheets.forEach((n, i) => {
+    if (!['Header', 'Property', 'Improvement', 'ImprovementDetail', 'LandDetail'].includes(sheetNames[i])) return;
+    console.log(`  == ${sheetNames[i]}`);
+    xlsxRows(read(n), strings).forEach((r) => {
+      if (r[0] && /^\d+$/.test(String(r[2]).trim())) console.log(`    ${String(r[0]).trim()} ${r[1]} ${r[2]}-${r[3]} :: ${String(r[5] || '').replace(/\s+/g, ' ').slice(0, 90)}`);
+    });
+  });
+};
+
 sections.mdpa = async () => {
   const svc = await http(`${MDPA}?f=json`);
   log('layers', (svc.layers || []).map((l) => `${l.id}:${l.name}`));

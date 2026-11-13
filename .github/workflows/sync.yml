@@ -108,6 +108,14 @@ jobs:
         env:
           DATABASE_URL: ${{ env.DB_URL }}
         run: set -o pipefail; node ingest/enrich_parcels.js | tee -a "$GITHUB_STEP_SUMMARY"
+      # Travis CAD property facts for Austin (ADR-15 step 3b; use rules in
+      # docs/COMPLIANCE.md). Downloads a ~510 MB zip and streams it.
+      - name: Enrich Travis CAD
+        if: always() && steps.secret.outputs.ready == 'true'
+        timeout-minutes: 30
+        env:
+          DATABASE_URL: ${{ env.DB_URL }}
+        run: set -o pipefail; node ingest/enrich_tcad.js | tee -a "$GITHUB_STEP_SUMMARY"
       # Permit locations (ADR-15 item 4): source point, then parcel point, then
       # the Census geocoder on job-site addresses only. Runs after parcels.
       - name: Locate permits
