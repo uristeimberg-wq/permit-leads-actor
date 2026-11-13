@@ -1,0 +1,17 @@
+# The web app (search UI, pilot screens and /api) for Railway (ADR-13).
+# It needs no browser: Chromium is only for the Accela ingest adapters, which
+# use the root Dockerfile. Keeping it out makes the image small and avoids
+# the Playwright browser download that fails on Railway's builder.
+FROM node:20-slim
+
+ENV NODE_ENV=production \
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
+
+COPY . .
+USER node
+EXPOSE 3000
+CMD ["node", "web/server.js"]
