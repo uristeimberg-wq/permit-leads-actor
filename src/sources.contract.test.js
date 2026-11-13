@@ -76,6 +76,11 @@ for (const [slug, src] of Object.entries(SOURCES).filter(([, s]) => s.registry))
     assert.deepStrictEqual(absent.filter((f) => required.includes(f)), [], 'required columns missing from the fixture');
     if (absent.length) console.log(`       note: ${slug} mapped columns not in this fixture (sparse or gone): ${absent.join(', ')}`);
 
+    if (src.coordinates) {
+      const { sourcePoint } = require('./enrichment/geocode.js');
+      assert.ok(fx.rows.some((r) => sourcePoint(src, r)), 'coordinates are configured but no fixture row has a usable point');
+    }
+
     const permits = MAPPERS[src.type](fx.rows, src);
     const usable = permits.filter((p) => p.permitNumber && /^\d{4}-\d{2}-\d{2}/.test(String(p.filedDate || '')));
     assert.ok(usable.length / fx.rows.length >= MIN_MAPPED, `only ${usable.length}/${fx.rows.length} rows map to a permit with a number and date`);

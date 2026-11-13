@@ -141,6 +141,9 @@ const SOURCES = {
       terms: { url: 'https://data.austintexas.gov/stories/s/City-of-Austin-Open-Data-Terms-of-Use/ranj-cccq/', licenceTag: 'USGOV_WORKS', reviewedOn: '2026-11-13', automatedAccess: 'unknown', redistribution: 'yes' },
       fixture: 'test/fixtures/sources/austin-tx.json',
     },
+    // The source's own point, where it has one (60.6% of recent permits,
+    // 84.4% of all; ADR-15 item 4). The rest are geocoded by job-site address.
+    coordinates: { lat: 'latitude', lng: 'longitude' },
     // Contractor extraction (src/contractors.js extractorFor). A permit's job is
     // its number without the type suffix: "2026-104544 BP" and "... EP".
     parties: {
@@ -302,6 +305,7 @@ const SOURCES = {
       terms: { url: 'https://creativecommons.org/licenses/by/4.0/', reviewedOn: '2026-11-13', automatedAccess: 'unknown', redistribution: 'attribution' },
       fixture: 'test/fixtures/sources/miami-city-fl.json',
     },
+    coordinates: { lat: 'Latitude', lng: 'Longitude' },
     // "BD26009606001E001": ApplicationNumber "BD26009606" ties the building
     // permit (B) to its trade permits; the letters before the last 3 digits are
     // the type. E, P, PG, ME are the trade suffixes seen (PR #21 link study);
@@ -358,6 +362,8 @@ const SOURCES = {
       terms: { url: null, reviewedOn: '2026-11-13', automatedAccess: 'unknown', redistribution: 'unknown' },
       fixture: 'test/fixtures/sources/raleigh-nc.json',
     },
+    // Building layer only; trade permits are geocoded by address.
+    coordinates: { lat: 'latitude_perm', lng: 'longitude_perm' },
     // The type is the permittype text ("Building", "DSINSP - Electrical
     // (Residential)"). Right-of-way and other types stay unclassified.
     parties: {

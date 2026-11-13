@@ -427,6 +427,14 @@ files).
 only where the source has no coordinates, and record the match type as
 provenance.
 
+**Built (2026-11-13):** `ingest/geocode.js`, daily after parcels. Order:
+source coordinates, then the appraiser parcel point, then the Census on the
+permit's job-site address (a leading house number plus a ZIP or city).
+Answers are cached in `geocode_cache`; misses and ties are asked again after
+30 days; at most 20,000 new addresses per run, 2,000 per request. Results are
+in `permit_locations` with `method` and `quality`, and the job API returns
+them as `location` with the Census notice as attribution.
+
 ### Coordinates already in the permit sources
 
 - **Austin `3syk-w9eu`:** has `latitude`, `longitude` (number) and `location`

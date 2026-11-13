@@ -349,6 +349,29 @@ async function propertyFor(permitId) {
 }
 
 /**
+ * Where the permit's job site is, and how we know (rule 6): the source's own
+ * coordinates, the appraiser parcel, or the Census geocoder (with its match
+ * quality and required notice). Null when no method placed it.
+ */
+async function locationFor(permitId) {
+  const { rows: [r] } = await query(`
+    SELECT l.lat, l.lng, l.method, l.quality, l.located_at, g.matched_address, g.benchmark,
+           s.slug, s.attribution_text
+      FROM permit_locations l
+      JOIN permits p ON p.id = l.permit_id
+      LEFT JOIN geocode_cache g ON g.address_key = l.address_key
+      LEFT JOIN permit_parcels pp ON pp.permit_id = l.permit_id AND pp.parcel_id = l.parcel_id
+      JOIN sources s ON s.slug = CASE l.method WHEN 'source' THEN p.source_area WHEN 'parcel' THEN pp.provider ELSE 'us-census-geocoder' END
+     WHERE l.permit_id = $1`, [permitId]);
+  if (!r) return null;
+  return {
+    lat: r.lat, lng: r.lng, method: r.method, quality: r.quality,
+    provenance: { source: r.slug, attribution: r.attribution_text, locatedAt: r.located_at,
+      ...(r.method === 'census' ? { matchedAddress: r.matched_address, benchmark: r.benchmark } : {}) },
+  };
+}
+
+/**
  * The lead page: one building permit, the other permits on its job, the GC with
  * its displayable phone, and how that GC has hired this trade.
  */
@@ -396,6 +419,7 @@ async function getJob(permitId, f) {
   const tradeFiled = related.filter((r) => r.trade === f.trade);
   return {
     property: await propertyFor(bp.id),
+    location: await locationFor(bp.id),
     trade: f.trade,
     permit: stripInternal(bp),
     isBuilding: Boolean(bp.is_building),
