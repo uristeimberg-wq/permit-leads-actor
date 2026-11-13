@@ -40,8 +40,10 @@ function buildQueryUrl(source, { daysBack, offset, pageSize }) {
   const where = buildWhere(source, daysBack);
   if (where) params.set('$where', where);
   // Newest first, so a capped run returns the most recent permits rather than
-  // an arbitrary slice of a multi-million-row table.
-  params.set('$order', source.orderBy || `${source.dateField || ':id'} DESC`);
+  // an arbitrary slice of a multi-million-row table. :id breaks ties: many rows
+  // share an issue date, and offset paging over a non-unique order can skip or
+  // repeat rows between pages.
+  params.set('$order', source.orderBy || (source.dateField ? `${source.dateField} DESC, :id` : ':id'));
 
   return `${base}?${params.toString()}`;
 }
@@ -49,12 +51,20 @@ function buildQueryUrl(source, { daysBack, offset, pageSize }) {
 /**
  * @param {object} source entry from sources.js (needs domain, datasetId, fieldMap)
  * @param {{daysBack?: number, maxRecords?: number, includeIssued?: boolean,
- *          log: object, fetchImpl?: Function, onRaw?: Function}} options
- *   onRaw(rows, {requests}) receives the unmapped rows (for raw_records).
+ *          log: object, fetchImpl?: Function, onRaw?: Function,
+ *          windows?: {field: string, days: number}[]}} options
+ *   onRaw(rows, {requests, truncated}) receives the unmapped rows (for raw_records).
+ *   windows: several overlapping date windows (ADR-11), e.g. issue date and
+ *   status date. Rows found by more than one window are returned once.
+ *   maxRecords is the total across windows.
  */
 async function fetchSocrataSource(source, options) {
   const { daysBack = 30, maxRecords = 2000, includeIssued = true, log, fetchImpl = fetch, onRaw } = options;
+  const windows = options.windows && options.windows.length
+    ? options.windows
+    : [{ field: source.dateField, days: daysBack }];
   let requests = 0;
+  let truncated = false;
 
   if (!source.fieldMap) {
     throw new Error(
@@ -70,9 +80,16 @@ async function fetchSocrataSource(source, options) {
   if (process.env.SOCRATA_APP_TOKEN) headers['X-App-Token'] = process.env.SOCRATA_APP_TOKEN;
 
   const rows = [];
-  for (let offset = 0; rows.length < maxRecords; offset += PAGE_SIZE) {
+  const seen = new Set();
+  const keyField = source.fieldMap.permitNumber;
+  for (const w of windows) {
+    const windowSource = { ...source, dateField: w.field };
+    const thisWindow = new Set();
+    let fetched = 0;
+    for (let offset = 0; ; offset += PAGE_SIZE) {
+    if (rows.length >= maxRecords) { truncated = true; break; }
     const pageSize = Math.min(PAGE_SIZE, maxRecords - rows.length);
-    const url = buildQueryUrl(source, { daysBack, offset, pageSize });
+    const url = buildQueryUrl(windowSource, { daysBack: w.days, offset, pageSize });
     log.info(`Querying ${url.slice(0, 150)}`);
 
     requests += 1;
@@ -88,13 +105,26 @@ async function fetchSocrataSource(source, options) {
       throw new Error(`Socrata error from ${source.datasetId}: ${JSON.stringify(page).slice(0, 200)}`);
     }
 
-    rows.push(...page);
+    fetched += page.length;
+    for (const row of page) {
+      // A permit an earlier window already returned is the same row; keep it
+      // once. Within one window nothing is dropped.
+      const key = row[keyField];
+      if (key != null && key !== '') {
+        if (seen.has(key)) continue;
+        thisWindow.add(key);
+      }
+      rows.push(row);
+    }
     log.info(`  -> ${page.length} rows (${rows.length} total)`);
-    if (page.length < pageSize) break; // last page
+    if (page.length < pageSize) break; // last page of this window
+    }
+    for (const k of thisWindow) seen.add(k);
+    if (windows.length > 1) log.info(`  window ${w.field} last ${w.days}d: ${fetched} rows`);
   }
 
   // Hand the unmodified rows to the caller for raw_records before mapping.
-  if (onRaw) await onRaw(rows, { requests });
+  if (onRaw) await onRaw(rows, { requests, truncated });
   return mapRows(rows, source, { includeIssued, log });
 }
 

@@ -53,7 +53,8 @@ async function main() {
       const [run] = await q('SELECT * FROM sync_runs ORDER BY id DESC LIMIT 1');
       assert.strictEqual(run.status, 'succeeded');
       assert.strictEqual(run.kind, 'manual');
-      assert.deepStrictEqual([run.records_fetched, run.records_new, run.records_changed, run.records_failed, run.requests_made], [3, 3, 0, 0, 1]);
+      // Two requests: Austin's issue_date and statusdate windows (ADR-11).
+      assert.deepStrictEqual([run.records_fetched, run.records_new, run.records_changed, run.records_failed, run.requests_made], [3, 3, 0, 0, 2]);
       assert.strictEqual((await q('SELECT count(*)::int AS n FROM raw_records'))[0].n, 3);
     });
 
@@ -73,6 +74,11 @@ async function main() {
       assert.deepStrictEqual([run.records_new, run.records_changed, run.records_failed], [1, 1, 1]);
       const versions = await q("SELECT count(*)::int AS n FROM raw_records WHERE source_key = '2026-1 BP'");
       assert.strictEqual(versions[0].n, 2);
+    });
+
+    await check('migration 003 switches Austin to date windows', async () => {
+      const [src] = await q("SELECT sync_mode FROM sources WHERE slug = 'austin-tx'");
+      assert.strictEqual(src.sync_mode, 'date_window');
     });
 
     await check('a failing sync is recorded with its error class', async () => {

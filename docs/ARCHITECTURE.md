@@ -155,9 +155,9 @@ Both matter for leads. Each source gets the best mode it supports:
 
 | Mode | How it works | Used for |
 | --- | --- | --- |
-| `updated_at` | Cursor = max source update time seen (plus id as a tiebreak). Query `WHERE updated > cursor ORDER BY updated, id` | Socrata, via the `:updated_at` system field (**to verify per dataset** in M1) |
-| `snapshot` | `probe` reads the layer's last-edit time. If it changed, page through the full layer, hash each record, and write only new or changed hashes | Miami-Dade ArcGIS (~139k rows; `hasStaticData: true`, last edited 2026-11-07) |
-| `date_window` | Today's behaviour: last N days by issue or filed date, with overlap | Fallback only |
+| `updated_at` | Cursor = max source update time seen (plus id as a tiebreak). Query `WHERE updated > cursor ORDER BY updated, id` | Only datasets whose update field moves per row. **Not Austin**: every row's `:updated_at` moves on each daily reload (ADR-11) |
+| `snapshot` | `probe` reads the layer's last-edit time. If it changed, page through the full layer, hash each record, and write only new or changed hashes | Miami-Dade ArcGIS (489,896 rows; `hasStaticData: true`, last edited 2026-11-07) |
+| `date_window` | One or more overlapping windows on source date fields (for example issue date and status date), deduplicated by raw-record hash | Austin (ADR-11): `issue_date` in the last 30 days plus `statusdate` in the last 14 days |
 
 **Four timestamps, never interchangeable:**
 

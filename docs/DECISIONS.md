@@ -131,3 +131,30 @@ what would make us revisit it. Never delete an entry; supersede it.
     scrubbing exist.
   - Until then, owner names are stored but never displayed or exported.
 - **Revisit when:** Yuval chooses a different sequencing.
+
+## ADR-11: Austin syncs by date windows, not `:updated_at`
+
+- **Date:** 2026-11-13. **Status:** accepted. It supersedes the Austin row of
+  the sync-mode table in ARCHITECTURE.md, which assumed `updated_at`.
+- **Context:** A live probe (`recon/feasibility.js --only=austinUpdatedAt`,
+  2026-11-13) found the following:
+  - **`:updated_at`:** all 2,385,068 rows have it between 15:18 and 15:47 UTC
+    on 2026-11-12.
+  - **`:created_at`:** every row has the same value, 12:40 that day.
+  - **`statusdate`:** it is populated on every row. 5,614 rows changed status
+    in the last 7 days, and 4,141 of those were issued more than 30 days ago.
+
+  The publisher reloads the whole dataset daily. An `updated_at` cursor would
+  therefore re-pull 2.4M rows a day.
+- **Decision:** Austin uses `date_window` with two overlapping windows:
+  - `issue_date` in the last 30 days. This covers the 2-3 day arrival lag
+    with a wide margin.
+  - `statusdate` in the last 14 days. An issue-date window would miss status
+    changes on old permits.
+
+  Raw-record hashes make the overlap free: unchanged rows are no-ops. The
+  source's update time is not used for freshness. Freshness is measured from
+  our own first-seen time (snapshots).
+- **Revisit when:** the probe shows `:updated_at` moving per row (re-run it
+  monthly), or Austin publishes a change feed.
+

@@ -115,9 +115,17 @@ const SOURCES = {
     type: 'socrata',
     domain: 'data.austintexas.gov',
     datasetId: '3syk-w9eu',
-    // ~158 issued permits/day (Oct-Nov 2026), so a 14-day window is ~2,200.
-    // 5,000 leaves headroom; ingest warns if a run hits it.
-    maxPerRun: 5000,
+    // Two windows (ADR-11): :updated_at is useless because the publisher reloads
+    // all 2.4M rows daily. issue_date catches new permits (complete 2-3 days
+    // after issue); statusdate catches status changes on old permits (~5,600 a
+    // week, 74% issued 30+ days earlier). Measured 2026-11-13.
+    syncWindows: [
+      { field: 'issue_date', days: 30 },
+      { field: 'statusdate', days: 14 },
+    ],
+    // ~4,700 issued in 30 days plus ~11,000 status changes in 14 days, before
+    // overlap. 25,000 leaves headroom (25 requests); ingest warns if hit.
+    maxPerRun: 25000,
     dateField: 'issue_date',
     defaultState: 'TX',
     fieldMap: {

@@ -136,7 +136,39 @@ check('onRaw receives the unmapped rows and the request count', async () => {
   await fetchSocrataSource(AUSTIN, { log: fakeLog(), fetchImpl, maxRecords: 5000, onRaw: (rows, meta) => { got = { rows, meta }; } });
   assert.strictEqual(got.rows.length, 1002);
   assert.strictEqual(got.rows[0], REAL_ROW);
-  assert.deepStrictEqual(got.meta, { requests: 2 });
+  assert.deepStrictEqual(got.meta, { requests: 2, truncated: false });
+});
+
+check('two windows: rows found by both come back once, with :id as the paging tiebreak', async () => {
+  const urls = []; let got;
+  const rowA = { ...REAL_ROW, permit_number: 'A' }; const rowB = { ...REAL_ROW, permit_number: 'B' };
+  const fetchImpl = async (url) => {
+    urls.push(decodeURIComponent(url).replace(/\+/g, ' '));
+    const page = urls.length === 1 ? [rowA] : [rowA, rowB];
+    return { ok: true, json: async () => page };
+  };
+  const permits = await fetchSocrataSource(AUSTIN, {
+    log: fakeLog(), fetchImpl, maxRecords: 100,
+    windows: [{ field: 'issue_date', days: 30 }, { field: 'statusdate', days: 14 }],
+    onRaw: (rows, meta) => { got = { rows, meta }; },
+  });
+  assert.match(urls[0], /issue_date >= /); assert.match(urls[0], /\$order=issue_date DESC, :id/);
+  assert.match(urls[1], /statusdate >= /); assert.match(urls[1], /\$order=statusdate DESC, :id/);
+  assert.deepStrictEqual(got.rows.map((r) => r.permit_number), ['A', 'B']);
+  assert.deepStrictEqual(got.meta, { requests: 2, truncated: false });
+  assert.strictEqual(permits.length, 2);
+});
+
+check('the cap is total across windows and truncation is reported', async () => {
+  let got; let n = 0;
+  const fetchImpl = async () => ({ ok: true, json: async () => Array.from({ length: 3 }, () => ({ ...REAL_ROW, permit_number: `P${n++}` })) });
+  await fetchSocrataSource(AUSTIN, {
+    log: fakeLog(), fetchImpl, maxRecords: 3,
+    windows: [{ field: 'issue_date', days: 30 }, { field: 'statusdate', days: 14 }],
+    onRaw: (rows, meta) => { got = { rows, meta }; },
+  });
+  assert.strictEqual(got.rows.length, 3);
+  assert.strictEqual(got.meta.truncated, true);
 });
 
 Promise.all(pending).then(() => console.log('\nDone.'));

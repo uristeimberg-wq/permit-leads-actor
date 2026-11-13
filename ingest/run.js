@@ -37,18 +37,20 @@ function tradeScoresFor(permit) {
 
 function parseArgs(argv) {
   // max: undefined = each source's own maxPerRun (src/sources.js).
-  const args = { areas: DEFAULT_AREAS, days: 14, max: undefined, allDetails: false };
+  // days: an explicit --days replaces a source's own syncWindows with one
+  // window (for backfills); otherwise sources with syncWindows use those.
+  const args = { areas: DEFAULT_AREAS, days: 14, daysExplicit: false, max: undefined, allDetails: false };
   for (const arg of argv) {
     const [key, value] = arg.replace(/^--/, '').split('=');
     if (key === 'area') args.areas = value.split(',');
-    else if (key === 'days') args.days = Number(value);
+    else if (key === 'days') { args.days = Number(value); args.daysExplicit = true; }
     else if (key === 'max') args.max = Number(value);
     else if (key === 'all-details') args.allDetails = true;
   }
   return args;
 }
 
-async function ingestArea(area, { days, max: requestedMax, allDetails, kind = 'manual' }) {
+async function ingestArea(area, { days, daysExplicit = false, max: requestedMax, allDetails, kind = 'manual' }) {
   const source = SOURCES[area];
   if (!source) throw new Error(`Unknown area "${area}". Known: ${Object.keys(SOURCES).join(', ')}`);
   const max = requestedMax === undefined ? source.maxPerRun : Math.min(requestedMax, source.maxPerRun);
@@ -60,7 +62,10 @@ async function ingestArea(area, { days, max: requestedMax, allDetails, kind = 'm
   const sourceId = await db.getSourceId(area);
   const syncRunId = await db.startSyncRun(sourceId, kind);
   const stats = { requests: 0, fetched: 0, newCount: 0, changed: 0, failed: 0 };
-  log.info(`[${area}] ingest start (last ${days} days, max ${max})`);
+  const windows = !daysExplicit && source.syncWindows ? source.syncWindows : undefined;
+  const windowText = windows ? windows.map((w) => `${w.field} last ${w.days}d`).join(' + ') : `last ${days} days`;
+  let truncated = false;
+  log.info(`[${area}] ingest start (${windowText}, max ${max})`);
 
   try {
     const fetchSource = getAdapter(source.type);
@@ -81,6 +86,7 @@ async function ingestArea(area, { days, max: requestedMax, allDetails, kind = 'm
     const permits = await fetchSource(source, {
       includeIssued: true,
       daysBack: days,
+      windows,
       maxRecords: max,
       log,
       selectDetailTargets,
@@ -89,6 +95,7 @@ async function ingestArea(area, { days, max: requestedMax, allDetails, kind = 'm
         const { records, failed } = toRawRecords(rows, source);
         const { newCount, changed } = await db.insertRawRecords(sourceId, syncRunId, records);
         Object.assign(stats, { requests: meta.requests, fetched: rows.length, newCount, changed, failed });
+        truncated = Boolean(meta.truncated);
         log.info(`[${area}] raw: ${rows.length} fetched, ${newCount} new, ${changed} changed, ${failed} without a key`);
       } : undefined,
     });
@@ -96,8 +103,8 @@ async function ingestArea(area, { days, max: requestedMax, allDetails, kind = 'm
 
     // Adapters return newest first, so hitting the cap means the OLDEST permits
     // in the window were not fetched. Say so rather than look complete.
-    if (permits.length >= max) {
-      log.warning(`[${area}] hit the ${max}-record cap for ${days} days; older permits in the window were not fetched. Use a shorter --days or run more often.`);
+    if (truncated || permits.length >= max) {
+      log.warning(`[${area}] hit the ${max}-record cap (${windowText}); older permits in the window were not fetched. Use a shorter --days or run more often.`);
     }
 
     const withScores = permits.map((p) => ({ ...p, tradeScores: tradeScoresFor(p) }));

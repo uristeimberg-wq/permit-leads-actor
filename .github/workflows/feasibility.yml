@@ -9,6 +9,9 @@ on:
       months:
         description: Months of history to analyse
         default: '18'
+      only:
+        description: Comma-separated sections (austin, austinUpdatedAt, austinWindows, miami); empty runs all
+        default: ''
 
 jobs:
   measure:
@@ -19,7 +22,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: node recon/feasibility.js --out=feasibility-report --months=${{ inputs.months }}
+      # Inputs go through env, not inline, so they can't inject shell.
+      - run: node recon/feasibility.js --out=feasibility-report --months="$MONTHS" ${ONLY:+--only="$ONLY"}
+        env:
+          MONTHS: ${{ inputs.months }}
+          ONLY: ${{ inputs.only }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:

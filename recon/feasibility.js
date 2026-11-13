@@ -239,6 +239,68 @@ async function austin(report) {
   report.austin.tradeGap = gap;
 }
 
+// ---------- Austin :updated_at behaviour (sync-mode decision) ----------
+// The updated_at sync mode only works if :updated_at moves when a row really
+// changes. If the publisher reloads the whole dataset, every row's :updated_at
+// moves at once and an "incremental" sync would pull millions of rows.
+async function austinUpdatedAt(report) {
+  const soql = async (select, where) => {
+    const q = new URLSearchParams({ $select: select });
+    if (where) q.set('$where', where);
+    return getJson(`${AUSTIN}/resource/${AUSTIN_ID}.json?${q}`);
+  };
+  const out = {};
+  out.total = Number((await soql('count(*) as n'))[0].n);
+  const [range] = await soql('min(:updated_at) as min_u, max(:updated_at) as max_u, min(:created_at) as min_c, max(:created_at) as max_c');
+  out.range = range;
+  const ts = (d) => `'${new Date(today - d * DAY).toISOString().slice(0, 19)}'`;
+  out.updatedWithin = {};
+  for (const d of [1, 2, 3, 7, 30]) out.updatedWithin[`${d}d`] = Number((await soql('count(*) as n', `:updated_at >= ${ts(d)}`))[0].n);
+  out.createdWithin = {};
+  for (const d of [1, 2, 3, 7, 30]) out.createdWithin[`${d}d`] = Number((await soql('count(*) as n', `:created_at >= ${ts(d)}`))[0].n);
+  // Top :updated_at days over the last 30 days.
+  const q = new URLSearchParams({
+    $select: "date_trunc_ymd(to_floating_timestamp(:updated_at, 'UTC')) as day, count(*) as n", $where: `:updated_at >= ${ts(30)}`,
+    $group: 'day', $order: 'day DESC', $limit: '40',
+  });
+  try {
+    out.updatedByDay = (await getJson(`${AUSTIN}/resource/${AUSTIN_ID}.json?${q}`)).map((r) => [String(r.day).slice(0, 10), Number(r.n)]);
+  } catch (err) { out.updatedByDay = []; out.updatedByDayError = err.message.slice(0, 200); }
+  // If :updated_at is useless, a status-change window needs statusdate: how
+  // many rows change status per week, and how many of those were issued long
+  // ago (an issue_date window would miss them)?
+  try {
+    out.statusChangedWithin7d = Number((await soql('count(*) as n', `statusdate >= ${ts(7)}`))[0].n);
+    out.statusChangedWithin7dIssuedOver30dAgo = Number((await soql('count(*) as n', `statusdate >= ${ts(7)} AND issue_date < ${ts(30)}`))[0].n);
+    out.statusDateNull = Number((await soql('count(*) as n', 'statusdate IS NULL'))[0].n);
+    out.issuedWithin7d = Number((await soql('count(*) as n', `issue_date >= ${ts(7)}`))[0].n);
+    out.statusDateMax = (await soql('max(statusdate) as m'))[0].m;
+  } catch (err) { out.statusDateError = err.message.slice(0, 200); }
+  out.verdict = out.updatedWithin['2d'] > 0.5 * out.total
+    ? 'bulk: most rows move together, so updated_at mode would re-pull the dataset. Use a date_window plus hash diff instead'
+    : 'incremental: only a small share of rows move per day, so updated_at mode is viable';
+  report.austinUpdatedAt = out;
+}
+
+// ---------- Austin sync windows, through the real adapter (ADR-11) ----------
+async function austinWindows(report) {
+  const { SOURCES } = require('../src/sources.js');
+  const { fetchSocrataSource } = require('../src/adapters/socrata.js');
+  const source = SOURCES['austin-tx'];
+  const quiet = { info() {}, warning() {}, error() {} };
+  let meta = null; let rawCount = 0;
+  const started = Date.now();
+  const permits = await fetchSocrataSource(source, {
+    windows: source.syncWindows, maxRecords: source.maxPerRun, log: quiet,
+    onRaw: (rows, m) => { meta = m; rawCount = rows.length; },
+  });
+  report.austinWindows = {
+    windows: source.syncWindows, maxPerRun: source.maxPerRun, rawRows: rawCount, permits: permits.length,
+    requests: meta && meta.requests, truncated: meta && meta.truncated, seconds: Math.round((Date.now() - started) / 1000),
+    withPhonePct: pct(permits.filter((p) => digits(p.contractorPhone).length >= 10).length, permits.length),
+  };
+}
+
 // ---------- Miami-Dade ----------
 async function miami(report) {
   const layer = await getJson(`${MIAMI}?f=json`);
@@ -349,13 +411,29 @@ function markdown(r) {
       'Top cities: ' + m.cities.slice(0, 15).map(([c, n]) => `${c} ${n}`).join(' · '), '',
       'Child timing under a master permit: ' + Object.entries(m.childTimingByType).map(([t, v]) => `${t}: n=${v.n}, median ${v.medianDays} d`).join(' · '), '');
   }
+  if (r.austinWindows) {
+    const w = r.austinWindows;
+    L.push('## Austin sync windows (real adapter)', '', `${w.windows.map((x) => `${x.field} ${x.days}d`).join(' + ')}: ${w.rawRows} raw rows, ${w.permits} permits, ${w.requests} requests, ${w.seconds}s, truncated: **${w.truncated}** (cap ${w.maxPerRun}). Phone on ${w.withPhonePct}%.`, '');
+  }
+  if (r.austinUpdatedAt) {
+    const u = r.austinUpdatedAt;
+    L.push('## Austin `:updated_at` behaviour', '', `Rows: ${u.total}. :updated_at ${u.range.min_u} to ${u.range.max_u}; :created_at ${u.range.min_c} to ${u.range.max_c}.`, '',
+      'Updated within: ' + Object.entries(u.updatedWithin).map(([k, v]) => `${k} ${v}`).join(' · '), '',
+      'Created within: ' + Object.entries(u.createdWithin).map(([k, v]) => `${k} ${v}`).join(' · '), '',
+      'Updated by day: ' + u.updatedByDay.map(([d, n]) => `${d}: ${n}`).join(' · '), '',
+      `statusdate: max ${u.statusDateMax}; changed in last 7 days ${u.statusChangedWithin7d}, of which issued 30+ days ago ${u.statusChangedWithin7dIssuedOver30dAgo}; NULL ${u.statusDateNull}. Issued in last 7 days: ${u.issuedWithin7d}.${u.statusDateError ? ` Error: ${u.statusDateError}` : ''}`, '',
+      `**Verdict:** ${u.verdict}`, '');
+  }
   if (r.errors.length) L.push('## Errors', '', ...r.errors.map((e) => `- ${e}`), '');
   return L.join('\n');
 }
 
 async function main() {
   const report = { generatedAt: new Date().toISOString(), errors: [] };
-  for (const [name, fn] of [['austin', austin], ['miami', miami]]) {
+  const ALL = [['austin', austin], ['austinUpdatedAt', austinUpdatedAt], ['austinWindows', austinWindows], ['miami', miami]];
+  const only = args.only ? String(args.only).split(',') : null;
+  const jobs = only ? ALL.filter(([n]) => only.includes(n)) : ALL;
+  for (const [name, fn] of jobs) {
     try { await fn(report); } catch (err) { report.errors.push(`${name}: ${err.message}`); console.error(`${name} failed:`, err.message); }
   }
   fs.mkdirSync(OUT, { recursive: true });
@@ -364,7 +442,7 @@ async function main() {
   fs.writeFileSync(path.join(OUT, 'report.md'), md);
   console.log(md);
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, md);
-  if (report.errors.length === 2) process.exitCode = 1;
+  if (report.errors.length === jobs.length) process.exitCode = 1;
 }
 
 main();

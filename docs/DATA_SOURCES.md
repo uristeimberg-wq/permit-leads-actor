@@ -23,7 +23,8 @@ source is re-checked. Never add a source here without fetching it.
 | Value | Many valuation columns, most empty. Taking the first non-zero lifts coverage from 7% to about 25% (prototype) |
 | Status | `status_current`, `statusdate`, `applieddate`, `issue_date`, `expiresdate`, `completed_date` |
 | Limits | **Issued permits only**: almost nothing awaiting approval. Pending applications would need a different dataset (to look for) |
-| Sync mode | `updated_at`, via the Socrata `:updated_at` system field (**to verify** in M1) |
+| Sync mode | `date_window` (ADR-11): `issue_date` last 30 days plus `statusdate` last 14 days. `:updated_at` is **not usable**: all 2,385,068 rows moved between 15:18 and 15:47 UTC on 2026-11-12, a daily full reload (measured 2026-11-13) |
+| `statusdate` | Populated on every row; latest 2026-11-12. 5,614 status changes in 7 days, 74% of them on permits issued 30+ days ago (measured 2026-11-13) |
 | Integration status | Working in the prototype (`austin-tx`) |
 | `:created_at` | **Useless for lag.** All 9,863 rows issued in the last 60 days carry `:created_at` 2026-11-12: the dataset is bulk-reloaded (measured 2026-11-13) |
 | Measured 2026-11-13 | See "M1 measurements" below |

@@ -52,6 +52,8 @@ function resolveScheduleConfig(env = process.env) {
   return {
     intervalMinutes: positiveInt(env.INGEST_INTERVAL_MINUTES, 'INGEST_INTERVAL_MINUTES', DEFAULTS.intervalMinutes),
     days: positiveInt(env.INGEST_DAYS, 'INGEST_DAYS', DEFAULTS.days),
+    // Only an explicit INGEST_DAYS overrides a source's own syncWindows (ADR-11).
+    daysExplicit: env.INGEST_DAYS !== undefined && env.INGEST_DAYS !== '',
     runs: areas.map((area) => ({ area, max: maxFor(area, envMax) })),
   };
 }

@@ -17,10 +17,16 @@ npx playwright install chromium   # the Accela adapter drives a real browser
 npm run db:up                     # Postgres on :5433 (5432 is left alone)
 npm run ingest                    # scrape recent permits into the database
 npm run web                       # http://localhost:3000
-npm test                          # 101 unit tests, no network needed
+npm test                          # unit tests, no network needed
 ```
 
 `npm run ingest` accepts `--area=`, `--days=`, `--max=` and `--all-details`.
+Austin syncs two windows by default, `issue_date` in the last 30 days and
+`statusdate` in the last 14 (ADR-11). An explicit `--days=` or `INGEST_DAYS`
+replaces them with one issue-date window, for backfills. Every attempt is also
+recorded in `sync_runs`, and every fetched row is stored verbatim in
+`raw_records` (unchanged rows are no-ops). `npm run test:integration` needs
+Postgres.
 `npm run schedule` keeps the data current on an interval (see **Freshness**).
 
 ## Permit lifecycle stage

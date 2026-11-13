@@ -50,6 +50,12 @@ check('bad numbers fail loudly', () => {
   assert.throws(() => resolveScheduleConfig({ INGEST_MAX: '0' }), /INGEST_MAX/);
 });
 
+check('Austin uses its own two sync windows unless INGEST_DAYS is set (ADR-11)', () => {
+  assert.deepStrictEqual(SOURCES['austin-tx'].syncWindows.map((w) => w.field), ['issue_date', 'statusdate']);
+  assert.strictEqual(resolveScheduleConfig({}).daysExplicit, false);
+  assert.strictEqual(resolveScheduleConfig({ INGEST_DAYS: '3' }).daysExplicit, true);
+});
+
 check('interval and window defaults are unchanged (6h, 7 days)', () => {
   const cfg = resolveScheduleConfig({});
   assert.strictEqual(cfg.intervalMinutes, 360);
