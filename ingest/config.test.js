@@ -9,7 +9,7 @@ function check(name, fn) {
 
 check('with no env, the scheduler refreshes the pilot markets, not Oregon', () => {
   const cfg = resolveScheduleConfig({});
-  assert.deepStrictEqual(cfg.runs.map((r) => r.area), ['austin-tx', 'miami-dade-fl']);
+  assert.deepStrictEqual(cfg.runs.map((r) => r.area), PILOT_AREAS);
   assert.ok(!cfg.runs.some((r) => r.area.includes('oregon') || r.area.includes('clackamas')));
 });
 

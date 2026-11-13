@@ -327,6 +327,8 @@ const SOURCES = {
       contractorName: 'CompanyName',
       contractorCity: 'CompanyCity',
     },
+    // 'hold' (1 row in the first pull) stays unmapped on purpose, like
+    // Austin's 'on hold': paused or stopped is not knowable from the word.
     statusMap: { active: 'issued', final: 'issued' },
   },
 
@@ -388,7 +390,8 @@ const SOURCES = {
       contractorTrade: 'contractortype',
       contractorCity: 'contractorcity',
     },
-    statusMap: { issued: 'issued' },
+    // Seen in the first 30-day pull (2026-11-13).
+    statusMap: { issued: 'issued', complete: 'issued', withdrawn: 'applied', 'ready for issuance': 'applied' },
   },
 
   // --- Not yet implemented -------------------------------------------------
@@ -424,6 +427,8 @@ const SOURCES = {
 // The markets the pilot runs on (docs/DECISIONS.md, ADR-9). These are what the
 // scheduler and a bare `npm run ingest` refresh. Oregon and Portland stay
 // available by naming them explicitly (ADR-5).
-const PILOT_AREAS = ['austin-tx', 'miami-dade-fl'];
+// Synced daily. City of Miami and Raleigh joined 2026-11-13 after a clean
+// 30-day trial; the sales screens still show Austin and Miami-Dade only.
+const PILOT_AREAS = ['austin-tx', 'miami-dade-fl', 'miami-city-fl', 'raleigh-nc'];
 
 module.exports = { SOURCES, PILOT_AREAS };

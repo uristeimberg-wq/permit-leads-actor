@@ -41,9 +41,9 @@ async function main() {
   try {
     await db.applySchema();
 
-    await check('002 seeds the sources, with only the pilot markets enabled', async () => {
+    await check('the migrations enable exactly the pilot markets', async () => {
       const rows = await q('SELECT slug, enabled, sync_mode, homeowner_use, automated_access FROM sources ORDER BY slug');
-      assert.deepStrictEqual(rows.filter((r) => r.enabled).map((r) => r.slug), ['austin-tx', 'miami-dade-fl']);
+      assert.deepStrictEqual(rows.filter((r) => r.enabled).map((r) => r.slug), [...require('../../src/sources.js').PILOT_AREAS].sort());
       assert.ok(rows.every((r) => r.homeowner_use === 'blocked' && r.automated_access === 'unknown'));
     });
 

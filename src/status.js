@@ -54,6 +54,8 @@ const STAGE_BY_STATUS = {
   'ready to issue': STAGES.PENDING,
   ready: STAGES.PENDING,
   'payment due': STAGES.PENDING,
+  // Raleigh, first sync 2026-11-13: approved but not yet issued.
+  'ready for issuance': STAGES.PENDING,
 
   // --- approved: issued, work can start ------------------------------------
   issued: STAGES.APPROVED,
