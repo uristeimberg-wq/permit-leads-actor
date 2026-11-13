@@ -26,7 +26,10 @@ ArcGIS. The contract is enforced by `src/sources.contract.test.js` (offline, in
      `electrical` / `mechanical` / `plumbing`.
    - `registry`: `jurisdiction`, `syncMode`, `expectedInterval`, `terms`,
      `fixture`.
-3. **Fixture.** Run the `fixture` workflow (Actions, inputs source and rows).
+3. **Fixture.** For a layer with no config yet, run the `fixture` workflow
+   with `layer` (the FeatureServer URL) and `date_field` to read its declared
+   fields and newest rows, and write the `fieldMap` from those. Then run the
+   `fixture` workflow (Actions, inputs source and rows).
    It prints redacted rows between `BEGIN FIXTURE` and `END FIXTURE`; save the
    JSON to `test/fixtures/sources/<slug>.json`. Check the redaction by eye:
    people's names, phones and emails must be placeholders.
@@ -40,3 +43,11 @@ ArcGIS. The contract is enforced by `src/sources.contract.test.js` (offline, in
 A portal that is not Socrata or ArcGIS needs an adapter in `src/adapters/`
 and a mapper entry in the contract test. Accela and other scraped portals are
 off for the pilot (ADR-5).
+
+## Switching a source off, and purging it
+
+Some terms (Raleigh) let the publisher order us to stop. To stop: remove the
+slug from `PILOT_AREAS` and run `UPDATE sources SET enabled = false WHERE slug = '<slug>'`
+in a migration. To purge, after the user approves (it cannot be undone): delete
+its `permit_parties`, `permits` (`source_area = '<slug>'`) and `raw_records`
+(`source_id`), then re-run the resolver.

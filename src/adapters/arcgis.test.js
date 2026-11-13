@@ -195,4 +195,20 @@ check('Miami has no property postal code, and none is invented', () => {
   assert.strictEqual(permit.city, 'MIAMI');
 });
 
+check('a multi-layer source reads every layer and hands one raw batch over', async () => {
+  const urls = [];
+  const fetchImpl = async (url) => {
+    urls.push(url);
+    const n = url.includes('/A/') ? 'A-1' : 'B-1';
+    return { ok: true, status: 200, json: async () => ({ features: [{ attributes: { num: n, d: 1794455349183 } }] }) };
+  };
+  let raw = null;
+  const src = { label: 'Two', layerUrls: ['https://x.test/A/FeatureServer/0', 'https://x.test/B/FeatureServer/0'], dateField: 'd',
+    fieldMap: { permitNumber: 'num', filedDate: 'd' } };
+  const permits = await fetchArcgisSource(src, { log: fakeLog(), fetchImpl, onRaw: async (r, meta) => { raw = { r, meta }; } });
+  assert.deepStrictEqual(permits.map((p) => p.permitNumber), ['A-1', 'B-1']);
+  assert.deepStrictEqual([raw.r.length, raw.meta.requests], [2, 2]);
+  assert.ok(urls[0].startsWith('https://x.test/A/') && urls[1].startsWith('https://x.test/B/'));
+});
+
 Promise.all(pending).then(() => console.log('\nDone.'));

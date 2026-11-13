@@ -118,3 +118,22 @@ check('relationships: the BP contractor is the GC, trade-permit contractors are 
   ]);
   assert.deepStrictEqual(rels, [{ gcKey: 'gc', subKey: 'sparky', trade: 'electrical', jobs: 2, first: '2026-02-01', last: '2026-04-01' }]);
 });
+
+check('City of Miami: type from the permit-number pattern, job from ApplicationNumber', () => {
+  const x = C.EXTRACTORS['miami-city-fl'];
+  const b = x({ PermitNumber: 'BD26009606001B001', ApplicationNumber: 'BD26009606', IssuedDate: 1794455349183, CompanyName: 'Acme Builders Inc' });
+  const e = x({ PermitNumber: 'BD26009606001E001', ApplicationNumber: 'BD26009606', IssuedDate: 1794455349183 });
+  const z = x({ PermitNumber: 'BD26009606001ZS001', ApplicationNumber: 'BD26009606' });
+  assert.deepStrictEqual([b.isBuilding, b.trade, e.isBuilding, e.trade, z.typeCode, z.trade], [true, null, false, 'electrical', 'ZS', null]);
+  assert.strictEqual(b.groupKey, e.groupKey);
+  assert.strictEqual(b.phone, null);
+});
+
+check('Raleigh: trade from the permit-type text, job from the parcel pin', () => {
+  const x = C.EXTRACTORS['raleigh-nc'];
+  const b = x({ permitnum: 'BLDR-1-2026', permittype: 'Building', pin: '0795592357', issueddate: 1794455349183 });
+  const m = x({ permitnum: 'MECHR-2-2026', permittype: 'DSINSP - Online Only Mechanical (Residential)', pin: '0795592357' });
+  const r = x({ permitnum: 'ROW-3-2026', permittype: 'DSENG - Right of Way', pin: '0795592357' });
+  assert.deepStrictEqual([b.isBuilding, m.trade, r.trade, r.isBuilding], [true, 'mechanical', null, false]);
+  assert.strictEqual(b.groupKey, m.groupKey);
+});

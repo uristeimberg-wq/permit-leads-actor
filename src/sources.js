@@ -133,11 +133,12 @@ const SOURCES = {
     // at most this old. Austin publishes 2-3 days after issue, plus weekends.
     maxDataAgeDays: 5,
     // What the sources table must hold (checked by test/integration/registry
-    // and src/sources.contract.test.js). Terms: the City's Terms of Use page did
-    // not render when checked, so they are recorded as unread, not as allowed.
+    // and src/sources.contract.test.js). Terms read 2026-11-13 (migration 007):
+    // public domain, so redistribution yes; automated access not addressed in
+    // the text that could be read, so unknown.
     registry: {
       jurisdiction: 'austin-tx', syncMode: 'date_window', expectedInterval: '1 day',
-      terms: { url: null, licenceTag: 'USGOV_WORKS', reviewedOn: null, automatedAccess: 'unknown', redistribution: 'unknown' },
+      terms: { url: 'https://data.austintexas.gov/stories/s/City-of-Austin-Open-Data-Terms-of-Use/ranj-cccq/', licenceTag: 'USGOV_WORKS', reviewedOn: '2026-11-13', automatedAccess: 'unknown', redistribution: 'yes' },
       fixture: 'test/fixtures/sources/austin-tx.json',
     },
     // Contractor extraction (src/contractors.js extractorFor). A permit's job is
@@ -222,10 +223,12 @@ const SOURCES = {
     backfillMaxPerRun: 40000,
     // Weekly refresh with up to ~9 days' lag (measured 2026-11-13).
     maxDataAgeDays: 17,
-    // The service states no terms; the county portal's terms are unread.
+    // The service states no terms. The county site's user agreement (read
+    // 2026-11-13, migration 007) grants no licence and reserves all other
+    // rights, so redistribution is unknown until the lawyer answers.
     registry: {
       jurisdiction: 'miami-dade-county-fl', syncMode: 'snapshot', expectedInterval: '1 day',
-      terms: { url: null, reviewedOn: null, automatedAccess: 'unknown', redistribution: 'unknown' },
+      terms: { url: 'https://www.miamidade.gov/global/disclaimer/disclaimer.page', reviewedOn: '2026-11-13', automatedAccess: 'unknown', redistribution: 'unknown' },
       fixture: 'test/fixtures/sources/miami-dade-fl.json',
     },
     // A trade permit names its building permit in MasterPermitNumber;
@@ -276,6 +279,116 @@ const SOURCES = {
       }
       return { statusRaw: null, status: 'applied', statusStage: 'pending' };
     },
+  },
+
+  // City of Miami's own permit layer (the county layer above covers county-
+  // processed permits). Fields read off the live layer on 2026-11-13 with
+  // recon/capture_fixture.js --layer (fixture: test/fixtures/sources/miami-city-fl.json).
+  // No contractor phone column: phones come later from the county layer or
+  // licence files, never guessed.
+  'miami-city-fl': {
+    label: 'City of Miami, FL',
+    type: 'arcgis',
+    layerUrl: 'https://services1.arcgis.com/CvuPhqcTQpZPT9qY/arcgis/rest/services/Building_Permits_Since_2014/FeatureServer/0',
+    // ~2,600 issued per 30 days (7,815 in 90 days, docs/DATA_SOURCES.md).
+    maxPerRun: 6000,
+    backfillMaxPerRun: 40000,
+    // Edited daily (last edit 2026-11-13 when read); weekends plus slack.
+    maxDataAgeDays: 4,
+    registry: {
+      jurisdiction: 'miami-fl', syncMode: 'date_window', expectedInterval: '1 day',
+      // Item licence CC BY 4.0, read 2026-11-13 (PR #24). The credit line is
+      // the sources row's attribution_text and shows wherever the data does.
+      terms: { url: 'https://creativecommons.org/licenses/by/4.0/', reviewedOn: '2026-11-13', automatedAccess: 'unknown', redistribution: 'attribution' },
+      fixture: 'test/fixtures/sources/miami-city-fl.json',
+    },
+    // "BD26009606001E001": ApplicationNumber "BD26009606" ties the building
+    // permit (B) to its trade permits; the letters before the last 3 digits are
+    // the type. E, P, PG, ME are the trade suffixes seen (PR #21 link study);
+    // others (ZS, ...) stay unclassified rather than guessed.
+    parties: {
+      number: 'PermitNumber', typeFromNumber: '^[A-Z]+\\d+([A-Z]+)\\d{3}$',
+      buildingTypes: ['B'], tradeByType: { E: 'electrical', P: 'plumbing', PG: 'plumbing', ME: 'mechanical' },
+      job: { kind: 'masterField', field: 'ApplicationNumber' }, issued: 'IssuedDate',
+      name: 'CompanyName', phone: null, licence: null, rawTrade: null, city: 'CompanyCity', state: 'FL',
+    },
+    dateField: 'IssuedDate',
+    orderByFields: 'IssuedDate DESC, ObjectId',
+    defaultState: 'FL',
+    fieldMap: {
+      permitNumber: 'PermitNumber',
+      permitType: 'ScopeofWork',
+      workDescription: 'WorkItems',
+      valuation: 'TotalCost',
+      status: 'BuildingPermitStatusDescription',
+      filedDate: 'IssuedDate',
+      address: 'DeliveryAddress',
+      parcelNumber: 'FolioNumber',
+      contractorName: 'CompanyName',
+      contractorCity: 'CompanyCity',
+    },
+    statusMap: { active: 'issued', final: 'issued' },
+  },
+
+  // Raleigh splits permits over two layers: building permits, and trade
+  // ("Permits Other Than Buildings"). Fields read live 2026-11-13 (fixtures
+  // raleigh-nc.json). Jobs link by parcel `pin` (72-85% of trade permits,
+  // median 0 days apart, PR #21). The Open Raleigh Data Policy lets the City
+  // "require the termination" of any use: switching off = remove from
+  // PILOT_AREAS and set sources.enabled = false; purge = delete its permits and
+  // raw_records by source (docs/CONNECTORS.md).
+  'raleigh-nc': {
+    label: 'Raleigh, NC',
+    type: 'arcgis',
+    layerUrls: [
+      'https://services.arcgis.com/v400IkDOw1ad7Yad/arcgis/rest/services/Building_Permits/FeatureServer/0',
+      'https://services.arcgis.com/v400IkDOw1ad7Yad/arcgis/rest/services/Permits_Other_Than_Buildings/FeatureServer/0',
+    ],
+    // ~2,500 per 30 days across both layers (7,528 in 90 days). The limit is
+    // per layer, so a layer at the limit also trips the run's truncation alarm.
+    maxPerRun: 6000,
+    backfillMaxPerRun: 40000,
+    maxDataAgeDays: 4,
+    registry: {
+      jurisdiction: 'raleigh-nc', syncMode: 'date_window', expectedInterval: '1 day',
+      // Open Raleigh Data Policy (the layers' licence field), read 2026-11-13;
+      // its page URL was not recorded, and the privacy policy it cites is unread.
+      terms: { url: null, reviewedOn: '2026-11-13', automatedAccess: 'unknown', redistribution: 'unknown' },
+      fixture: 'test/fixtures/sources/raleigh-nc.json',
+    },
+    // The type is the permittype text ("Building", "DSINSP - Electrical
+    // (Residential)"). Right-of-way and other types stay unclassified.
+    parties: {
+      number: 'permitnum', typeField: 'permittype',
+      buildingTypes: ['Building'],
+      tradeByPattern: [['electrical', 'electrical'], ['mechanical', 'mechanical'], ['plumbing', 'plumbing']],
+      job: { kind: 'masterField', field: 'pin' }, issued: 'issueddate',
+      name: 'contractorcompanyname', phone: 'contractorphone', licence: 'contractorlicnum',
+      rawTrade: 'contractortype', city: 'contractorcity', state: 'NC',
+    },
+    dateField: 'issueddate',
+    orderByFields: 'issueddate DESC, OBJECTID',
+    defaultState: 'NC',
+    fieldMap: {
+      permitNumber: 'permitnum',
+      permitType: 'permittype',
+      workDescription: 'proposedworkdescription',
+      valuation: 'estprojectcost',
+      status: 'statuscurrent',
+      filedDate: 'issueddate',
+      address: 'originaladdress1',
+      city: 'originalcity',
+      state: 'originalstate',
+      zip: 'originalzip',
+      parcelNumber: 'pin',
+      owner: 'parcelownername',
+      contractorName: 'contractorcompanyname',
+      contractorPhone: 'contractorphone',
+      contractorLicence: 'contractorlicnum',
+      contractorTrade: 'contractortype',
+      contractorCity: 'contractorcity',
+    },
+    statusMap: { issued: 'issued' },
   },
 
   // --- Not yet implemented -------------------------------------------------

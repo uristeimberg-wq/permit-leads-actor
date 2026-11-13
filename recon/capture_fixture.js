@@ -10,6 +10,12 @@
 //
 //   node recon/capture_fixture.js --source=austin-tx [--rows=20] [--days=14]
 // Prints the fixture between BEGIN FIXTURE / END FIXTURE markers.
+//
+// Discovery, for a candidate ArcGIS layer that has no config yet (so no
+// fieldMap, and the adapter rightly refuses it): reads the layer's declared
+// fields and its newest rows directly, so the fieldMap can be written from
+// real column names (hard rule 1).
+//   node recon/capture_fixture.js --layer=<FeatureServer/N url> --date-field=IssuedDate --slug=miami-city-fl
 
 const { SOURCES } = require('../src/sources.js');
 const { getAdapter } = require('../src/adapters/index.js');
@@ -37,7 +43,43 @@ function arg(name, fallback) {
   return hit ? hit.split('=')[1] : fallback;
 }
 
+const LAYER_URL = /^https:\/\/services[0-9]*\.arcgis\.com\/[A-Za-z0-9]+\/arcgis\/rest\/services\/[A-Za-z0-9_]+\/FeatureServer\/[0-9]+$/;
+const FIELD = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+async function discover(layer, dateField, slug, rows) {
+  if (!LAYER_URL.test(layer)) throw new Error('--layer must be an ArcGIS Online FeatureServer layer URL');
+  if (!FIELD.test(dateField) || !/^[a-z0-9-]+$/.test(slug)) throw new Error('bad --date-field or --slug');
+  const { fetchWithRetry } = require('../src/adapters/http.js');
+  const get = async (url) => {
+    const res = await fetchWithRetry(fetch, url, {}, { log: { warning: (m) => console.error(m) } });
+    const body = await res.json();
+    if (body.error) throw new Error(`${url}: ${JSON.stringify(body.error)}`);
+    return body;
+  };
+  const meta = await get(`${layer}?f=json`);
+  const q = new URLSearchParams({ where: '1=1', outFields: '*', orderByFields: `${dateField} DESC`, resultRecordCount: String(rows), f: 'json' });
+  const data = await get(`${layer}/query?${q}`);
+  const raw = (data.features || []).map((f) => f.attributes);
+  if (!raw.length) throw new Error('layer returned no rows');
+  return {
+    source: slug, layer, capturedAt: new Date().toISOString(), discovery: true,
+    layerName: meta.name, editedAt: meta.editingInfo && meta.editingInfo.lastEditDate ? new Date(meta.editingInfo.lastEditDate).toISOString() : null,
+    licenseInfo: meta.copyrightText || null,
+    declaredFields: (meta.fields || []).map((f) => ({ name: f.name, type: f.type, alias: f.alias })),
+    rows: raw.map(redactRow),
+    fields: [...new Set(raw.flatMap((r) => Object.keys(r)))].sort(),
+  };
+}
+
 async function main() {
+  if (arg('layer')) {
+    const fixture = await discover(arg('layer'), arg('date-field', ''), arg('slug', ''), Math.min(Number(arg('rows', 20)), 200));
+    console.log('BEGIN FIXTURE');
+    // One value per line: Actions drops a log line over ~64 KB.
+    console.log(JSON.stringify(fixture, null, 1));
+    console.log('END FIXTURE');
+    return;
+  }
   const slug = arg('source');
   const source = SOURCES[slug];
   if (!source) throw new Error(`Unknown --source "${slug}". Known: ${Object.keys(SOURCES).join(', ')}`);
@@ -55,7 +97,8 @@ async function main() {
     fields: [...new Set(raw.flatMap((r) => Object.keys(r)))].sort(),
   };
   console.log('BEGIN FIXTURE');
-  console.log(JSON.stringify(fixture));
+  // One value per line: Actions drops a log line over ~64 KB.
+    console.log(JSON.stringify(fixture, null, 1));
   console.log('END FIXTURE');
 }
 

@@ -120,14 +120,25 @@ const str = (v) => String(v ?? '').trim();
  *                            (Austin: "2026-104544 BP" and "... EP")
  *   job.kind 'masterField' - a parent-permit field; values matching job.none
  *                            mean "no parent", so the permit is its own group
- *                            (Miami-Dade: MasterPermitNumber, "0000000000")
+ *                            (Miami-Dade: MasterPermitNumber, "0000000000";
+ *                            City of Miami: ApplicationNumber; Raleigh: pin)
+ * The type code comes from typeField, or from the permit number: a trailing
+ * " XX" (typeFromNumberSuffix, Austin) or a regex's first group
+ * (typeFromNumber, City of Miami "BD26009606001E001" -> "E"). The trade is
+ * tradeByType[code], else the first tradeByPattern [regex, trade] that matches
+ * (Raleigh "DSINSP - Electrical (Residential)").
  */
 function extractorFor(spec) {
   const none = spec.job && spec.job.none ? new RegExp(spec.job.none) : null;
+  const fromNumber = spec.typeFromNumber ? new RegExp(spec.typeFromNumber) : null;
+  const patterns = (spec.tradeByPattern || []).map(([re, trade]) => [new RegExp(re, 'i'), trade]);
+  const building = new Set((spec.buildingTypes || []).map((t) => t.toUpperCase()));
+  const tradeOf = (code) => (spec.tradeByType || {})[code] || (code && (patterns.find(([re]) => re.test(code)) || [])[1]) || null;
   return (p) => {
     const permitNumber = str(p[spec.number]);
     const typeCode = str(spec.typeField && p[spec.typeField]).toUpperCase()
-      || (spec.typeFromNumberSuffix ? (permitNumber.match(/\s([A-Z]{2,3})$/) || [])[1] : null) || null;
+      || (spec.typeFromNumberSuffix ? (permitNumber.match(/\s([A-Z]{2,3})$/) || [])[1] : null)
+      || (fromNumber ? (permitNumber.match(fromNumber) || [])[1] : null) || null;
     let groupKey = null;
     if (spec.job && spec.job.kind === 'numberBase') groupKey = permitNumber.replace(/\s+[A-Z]{2,3}$/, '') || null;
     else if (spec.job && spec.job.kind === 'masterField') {
@@ -138,8 +149,8 @@ function extractorFor(spec) {
     return {
       permitNumber,
       typeCode,
-      isBuilding: (spec.buildingTypes || []).includes(typeCode),
-      trade: (spec.tradeByType || {})[typeCode] || null,
+      isBuilding: building.has(typeCode),
+      trade: tradeOf(typeCode),
       groupKey,
       issuedOn: day(p[spec.issued]),
       name: field(spec.name),

@@ -7,9 +7,17 @@ on:
   workflow_dispatch:
     inputs:
       source:
-        description: Source slug from src/sources.js
+        description: Source slug from src/sources.js (or the new slug, with layer)
         type: string
         required: true
+      layer:
+        description: Discovery only - ArcGIS FeatureServer layer URL of a source not yet configured
+        type: string
+        default: ''
+      date_field:
+        description: Discovery only - the layer's issue-date field, for newest-first order
+        type: string
+        default: ''
       rows:
         description: Rows to keep
         type: string
@@ -35,8 +43,16 @@ jobs:
         env:
           SOURCE: ${{ inputs.source }}
           ROWS: ${{ inputs.rows }}
+          LAYER: ${{ inputs.layer }}
+          DATE_FIELD: ${{ inputs.date_field }}
           SOCRATA_APP_TOKEN: ${{ secrets.SOCRATA_APP_TOKEN }}
         run: |
           [[ "$SOURCE" =~ ^[a-z0-9-]+$ ]] || { echo "::error::bad source slug"; exit 1; }
           [[ "$ROWS" =~ ^[0-9]{1,3}$ ]] || { echo "::error::rows must be a number"; exit 1; }
-          node recon/capture_fixture.js --source="$SOURCE" --rows="$ROWS"
+          if [ -n "$LAYER" ]; then
+            [[ "$LAYER" =~ ^https://services[0-9]*\.arcgis\.com/[A-Za-z0-9]+/arcgis/rest/services/[A-Za-z0-9_]+/FeatureServer/[0-9]+$ ]] || { echo "::error::bad layer url"; exit 1; }
+            [[ "$DATE_FIELD" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || { echo "::error::bad date field"; exit 1; }
+            node recon/capture_fixture.js --layer="$LAYER" --date-field="$DATE_FIELD" --slug="$SOURCE" --rows="$ROWS"
+          else
+            node recon/capture_fixture.js --source="$SOURCE" --rows="$ROWS"
+          fi

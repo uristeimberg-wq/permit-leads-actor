@@ -440,6 +440,37 @@ provenance.
   fields. Coordinates come from the Property Appraiser layer through
   `FolioNumber`.
 
+## Connectors built, not yet enabled (2026-11-13)
+
+Fields read live from GitHub Actions with `recon/capture_fixture.js --layer`
+(runs 43449338813, 43449344268, 43449348906); fixtures in
+`test/fixtures/sources/`. Both are `enabled = false` until a trial backfill
+passes the health check.
+
+### City of Miami, FL (`miami-city-fl`)
+
+| | |
+| --- | --- |
+| Endpoint | `https://services1.arcgis.com/CvuPhqcTQpZPT9qY/arcgis/rest/services/Building_Permits_Since_2014/FeatureServer/0` |
+| Freshness | Layer edited 2026-11-13 (daily) |
+| Contractor | `CompanyName`, `CompanyAddress`, `CompanyCity` (97% of the 60 newest). **No phone** |
+| Job link | `ApplicationNumber`; the type is the letters before the last 3 digits of `PermitNumber` (B building, E electrical, P/PG plumbing, ME mechanical). Unmapped codes seen: ZS, SE, MA, PW |
+| Parcel | `FolioNumber` (12 digits as a number; the county uses 13-digit folios, so the join needs a leading zero check) |
+| Coordinates | `Latitude`, `Longitude` (100%) |
+| Terms | CC BY 4.0 (item licence). Credit line stored as the sources row's `attribution_text` |
+
+### Raleigh, NC (`raleigh-nc`)
+
+| | |
+| --- | --- |
+| Endpoints | `.../v400IkDOw1ad7Yad/arcgis/rest/services/Building_Permits/FeatureServer/0` and `.../Permits_Other_Than_Buildings/FeatureServer/0`, read as one source |
+| Freshness | Both edited 2026-11-13 |
+| Contractor | `contractorcompanyname` (93% building, 100% trade), `contractorphone` (78% / 95%), `contractoremail` (stored, not shown), `contractortype`. `contractorlicnum` is empty |
+| Job link | Parcel `pin`. Trade from `permittype` text ("DSINSP - Electrical (Residential)") |
+| Owner | `parcelownername` (stored, never shown: rule 5) |
+| Coordinates | `latitude_perm`, `longitude_perm` on the building layer only |
+| Terms | Open Raleigh Data Policy: the City may require us to stop. Switch-off and purge steps in `docs/CONNECTORS.md` |
+
 ## Explicitly excluded
 
 - **Washington County, OR:** CAPTCHA-gated. Do not automate. The legitimate

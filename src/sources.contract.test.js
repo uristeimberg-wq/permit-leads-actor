@@ -87,6 +87,6 @@ for (const [slug, src] of Object.entries(SOURCES).filter(([, s]) => s.registry))
     assert.ok(parties.every((p) => p.permitNumber && p.groupKey), 'a row has no permit number or job key');
     assert.ok(parties.filter((p) => p.issuedOn).length / parties.length >= MIN_MAPPED, 'issue dates do not parse');
     assert.ok(parties.some((p) => p.name), 'no contractor names: is parties.name the right column?');
-    for (const t of Object.keys(src.parties.tradeByType)) assert.ok(/^[A-Z]{2,4}$/.test(t), `trade code ${t}`);
+    for (const t of Object.keys(src.parties.tradeByType || {})) assert.ok(/^[A-Z]{1,5}$/.test(t), `trade code ${t}`);
   });
 }

@@ -48,6 +48,21 @@ function buildQueryUrl(source, { daysBack, offset, pageSize }) {
  *   onRaw(rows, {requests}) receives the unmapped attributes (for raw_records).
  */
 async function fetchArcgisSource(source, options) {
+  // A market split across layers (Raleigh: building permits and "permits other
+  // than buildings") reads each layer with the same fieldMap, then hands the
+  // rows over as one run. Permit numbers must not collide across the layers.
+  if (Array.isArray(source.layerUrls)) {
+    let raw = [];
+    let requests = 0;
+    const permits = [];
+    for (const layerUrl of source.layerUrls) {
+      permits.push(...await fetchArcgisSource({ ...source, layerUrls: undefined, layerUrl }, {
+        ...options, onRaw: async (rows, meta) => { raw = raw.concat(rows); requests += meta.requests; },
+      }));
+    }
+    if (options.onRaw) await options.onRaw(raw, { requests });
+    return permits;
+  }
   const { daysBack = 30, maxRecords = 2000, includeIssued = true, log, fetchImpl = fetch, onRaw, retry } = options;
   let requests = 0;
 
@@ -131,6 +146,7 @@ function mapFeatures(features, source, { includeIssued = true, log }) {
       filedDate: pick('filedDate'),
 
       owner: pick('owner'),
+      parcelNumber: pick('parcelNumber'),
       contractorName: pick('contractorName'),
       contractorPhone: pick('contractorPhone'),
       contractorLicence: pick('contractorLicence'),
