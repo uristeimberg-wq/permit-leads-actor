@@ -100,6 +100,14 @@ jobs:
         env:
           DATABASE_URL: ${{ env.DB_URL }}
         run: node ingest/resolve.js
+      # Lifecycle stages from the reviewed vocabularies, official dates, and the
+      # Austin plan-review -> building-permit links (ADR-16). After the sync,
+      # on what we have; prints unmapped statuses and the link rate.
+      - name: Lifecycle and links
+        if: always() && steps.secret.outputs.ready == 'true'
+        env:
+          DATABASE_URL: ${{ env.DB_URL }}
+        run: set -o pipefail; node ingest/lifecycle.js | tee -a "$GITHUB_STEP_SUMMARY"
       # Property facts for permits whose source publishes a parcel id (ADR-14
       # step 3). After the sync so new permits are covered; runs even if one
       # area failed. Its own sync_runs row makes a failure visible to health.

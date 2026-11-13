@@ -62,6 +62,7 @@ const COLUMNS = [
   'fees', 'fees_paid', 'fees_balance', 'inspections',
   'contractor_name', 'contractor_phone', 'contractor_licence', 'contractor_trade',
   'contractor_city', 'applicant_name', 'applicant_phone',
+  'filing_kind', 'lifecycle_stage', 'submitted_on', 'stage_since', 'first_seen_stage',
 ];
 
 function toRow(permit, sourceArea) {
@@ -103,6 +104,13 @@ function toRow(permit, sourceArea) {
     permit.contractorCity ?? null,
     permit.applicantName ?? null,
     permit.applicantPhone ?? null,
+    permit.filingKind ?? null,
+    permit.lifecycleStage ?? 'unknown',
+    permit.submittedOn ?? null,
+    permit.stageSince ?? null,
+    // The stage when we first saw it: written on insert only (never in the
+    // ON CONFLICT list below), so it keeps the early-discovery fact.
+    permit.lifecycleStage ?? 'unknown',
   ];
 }
 
@@ -201,6 +209,12 @@ async function upsertPermits(permits, sourceArea) {
       contractor_city    = COALESCE(EXCLUDED.contractor_city, permits.contractor_city),
       applicant_name     = COALESCE(EXCLUDED.applicant_name, permits.applicant_name),
       applicant_phone    = COALESCE(EXCLUDED.applicant_phone, permits.applicant_phone),
+      filing_kind        = COALESCE(EXCLUDED.filing_kind, permits.filing_kind),
+      lifecycle_stage    = EXCLUDED.lifecycle_stage,
+      submitted_on       = COALESCE(EXCLUDED.submitted_on, permits.submitted_on),
+      -- The source's date for the CURRENT status: a new status without one
+      -- must not keep the old status's date.
+      stage_since        = EXCLUDED.stage_since,
       last_seen_at     = now()
     RETURNING (xmax = 0) AS inserted`;
 

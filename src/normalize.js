@@ -114,6 +114,12 @@ function normalizePermit(fields) {
     permitUrl: fields.permitUrl ?? null,
     permitNumber: fields.permitNumber ?? null,
     filedDate: toIsoDate(fields.filedDate),
+    // Lifecycle (ADR-16): the official submission date, the date the source
+    // gives for the current status, and the canonical stage (src/lifecycle.js).
+    submittedOn: toIsoDate(fields.submittedOn),
+    stageSince: toIsoDate(fields.stageSince),
+    lifecycleStage: fields.lifecycleStage ?? 'unknown',
+    filingKind: fields.filingKind ?? null,
 
     // Detail-page fields. These come from the page already fetched for the
     // description, so they cost nothing extra — the point is that a user can

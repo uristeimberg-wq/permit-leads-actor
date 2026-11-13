@@ -11,7 +11,7 @@ on:
         type: string
         required: true
       layer:
-        description: Discovery only - ArcGIS FeatureServer layer URL of a source not yet configured
+        description: Discovery only - ArcGIS FeatureServer layer URL, or Socrata /resource/<id>.json URL, of a source not yet configured
         type: string
         default: ''
       date_field:
@@ -50,7 +50,7 @@ jobs:
           [[ "$SOURCE" =~ ^[a-z0-9-]+$ ]] || { echo "::error::bad source slug"; exit 1; }
           [[ "$ROWS" =~ ^[0-9]{1,3}$ ]] || { echo "::error::rows must be a number"; exit 1; }
           if [ -n "$LAYER" ]; then
-            [[ "$LAYER" =~ ^https://services[0-9]*\.arcgis\.com/[A-Za-z0-9]+/arcgis/rest/services/[A-Za-z0-9_]+/FeatureServer/[0-9]+$ ]] || { echo "::error::bad layer url"; exit 1; }
+            [[ "$LAYER" =~ ^https://services[0-9]*\.arcgis\.com/[A-Za-z0-9]+/arcgis/rest/services/[A-Za-z0-9_]+/FeatureServer/[0-9]+$ || "$LAYER" =~ ^https://[a-z0-9.-]+\.[a-z]+/resource/[a-z0-9]{4}-[a-z0-9]{4}\.json$ ]] || { echo "::error::bad layer url"; exit 1; }
             [[ "$DATE_FIELD" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || { echo "::error::bad date field"; exit 1; }
             node recon/capture_fixture.js --layer="$LAYER" --date-field="$DATE_FIELD" --slug="$SOURCE" --rows="$ROWS"
           else

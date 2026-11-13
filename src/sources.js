@@ -170,6 +170,8 @@ const SOURCES = {
       ],
       status: 'status_current',
       filedDate: 'issue_date',
+      submittedDate: 'applieddate',
+      statusDate: 'statusdate',
       permitUrl: 'link',
       street: 'original_address1',
       city: 'original_city',
@@ -199,6 +201,84 @@ const SOURCES = {
       'inactive pending revision': 'applied',
       'pending permit': 'applied',
       'expired - license': 'issued',
+    },
+    // Canonical lifecycle stage (src/lifecycle.js, ADR-16). 'pending' and
+    // 'on hold' stay unmapped: on an issued-permits feed neither says which
+    // stage the permit is in, so they are reported as unknown.
+    lifecycle: {
+      statuses: {
+        active: 'issued', final: 'completed', closed: 'completed',
+        expired: 'expired', 'expired - license': 'expired',
+        void: 'cancelled', cancelled: 'cancelled', 'cancelled - contractor required': 'cancelled',
+        withdrawn: 'withdrawn', aborted: 'withdrawn',
+        'inactive pending revision': 'corrections', 'pending permit': 'approved',
+      },
+    },
+  },
+
+  // Austin Plan Review Cases (n8ck-xkda): building applications from intake
+  // to approval, before the permit in 3syk-w9eu exists (ADR-16 E1). Fields
+  // read live 2026-11-13 (fixture austin-plan-review-tx.json). The issued
+  // permit's masterpermitnum equals the case's folderrsn (ingest/link_filings.js).
+  // No contractor at this stage: applicants are builders, owners and permit
+  // expediters, and individual names are never shown (rule 5), so no party
+  // columns are mapped. No city or zip columns; project_name is the address.
+  'austin-plan-review-tx': {
+    label: 'Austin, TX (plan review)',
+    type: 'socrata',
+    domain: 'datahub.austintexas.gov',
+    datasetId: 'n8ck-xkda',
+    filingKind: 'building_application',
+    // project_name is sometimes a project title, not an address.
+    addressMustStartWithNumber: true,
+    // New cases by applied date, status changes by status date (intra-day
+    // publication, read 2026-11-13).
+    syncWindows: [
+      { field: 'applied_date', days: 30 },
+      { field: 'status_date', days: 14 },
+    ],
+    maxPerRun: 25000,
+    backfillMaxPerRun: 100000,
+    maxDataAgeDays: 4,
+    registry: {
+      jurisdiction: 'austin-tx', syncMode: 'date_window', expectedInterval: '1 day',
+      terms: { url: 'https://data.austintexas.gov/stories/s/City-of-Austin-Open-Data-Terms-of-Use/ranj-cccq/', reviewedOn: '2026-11-13', automatedAccess: 'unknown', redistribution: 'yes' },
+      fixture: 'test/fixtures/sources/austin-plan-review-tx.json',
+    },
+    // GeoJSON point [lng, lat].
+    coordinates: { point: 'location' },
+    dateField: 'applied_date',
+    defaultState: 'TX',
+    fieldMap: {
+      permitNumber: 'permit_number',
+      permitType: 'sub_type',
+      workDescription: 'folder_description',
+      valuation: ['total_job_valuation', 'total_valuation_remodel', 'building_valuation_remodel',
+        'electrical_valuation_remodel', 'mechanical_valuation_remodel', 'plumbing_valuation_remodel'],
+      status: 'status_current',
+      filedDate: 'applied_date',
+      submittedDate: 'applied_date',
+      statusDate: 'status_date',
+      permitUrl: 'web_link',
+      address: 'project_name',
+    },
+    // Scoring's applied/issued bucket: nothing here is issued.
+    statusMap: {
+      pending: 'applied', 'intake pending': 'applied', 'application incomplete': 'applied', 'in review': 'applied',
+      'prerequisite review approved': 'applied', 'awaiting update': 'applied', approved: 'applied',
+      void: 'applied', aborted: 'applied', expired: 'applied', withdrawn: 'applied', denied: 'applied',
+    },
+    // "Approved" here means the plans are approved; the permit is not issued,
+    // so status_stage (src/status.js) keeps it pending.
+    statusStages: { approved: 'pending' },
+    lifecycle: {
+      statuses: {
+        pending: 'submitted', 'intake pending': 'submitted',
+        'application incomplete': 'corrections', 'awaiting update': 'corrections',
+        'in review': 'in_review', 'prerequisite review approved': 'in_review',
+        approved: 'approved', void: 'cancelled', aborted: 'withdrawn',
+        expired: 'expired', withdrawn: 'withdrawn', denied: 'denied',
+      },
     },
   },
 
@@ -244,6 +324,8 @@ const SOURCES = {
       rawTrade: null, city: 'ContractorCity', state: 'FL',
     },
     dateField: 'PermitIssuedDate',
+    // No status column: the stage comes from deriveStatus below.
+    lifecycle: { derived: true },
     // Without an order, offset paging over the layer is not stable. Newest
     // first, ObjectId as the tiebreak.
     orderByFields: 'PermitIssuedDate DESC, ObjectId',
@@ -334,6 +416,7 @@ const SOURCES = {
     // 'hold' (1 row in the first pull) stays unmapped on purpose, like
     // Austin's 'on hold': paused or stopped is not knowable from the word.
     statusMap: { active: 'issued', final: 'issued' },
+    lifecycle: { statuses: { active: 'issued', final: 'completed', revoked: 'cancelled' } },
   },
 
   // Raleigh splits permits over two layers: building permits, and trade
@@ -384,6 +467,7 @@ const SOURCES = {
       valuation: 'estprojectcost',
       status: 'statuscurrent',
       filedDate: 'issueddate',
+      submittedDate: 'applieddate',
       address: 'originaladdress1',
       city: 'originalcity',
       state: 'originalstate',
@@ -398,6 +482,13 @@ const SOURCES = {
     },
     // Seen in the first 30-day pull (2026-11-13).
     statusMap: { issued: 'issued', complete: 'issued', withdrawn: 'applied', 'ready for issuance': 'applied' },
+    // 'delayed issuance' and 'on hold' stay unmapped: neither says the stage.
+    lifecycle: {
+      statuses: {
+        issued: 'issued', complete: 'completed', withdrawn: 'withdrawn', 'ready for issuance': 'approved',
+        'submitted - online': 'submitted', submitted: 'submitted', 'in review': 'in_review',
+      },
+    },
   },
 
   // --- Not yet implemented -------------------------------------------------
@@ -435,6 +526,8 @@ const SOURCES = {
 // available by naming them explicitly (ADR-5).
 // Synced daily. City of Miami and Raleigh joined 2026-11-13 after a clean
 // 30-day trial; the sales screens still show Austin and Miami-Dade only.
-const PILOT_AREAS = ['austin-tx', 'miami-dade-fl', 'miami-city-fl', 'raleigh-nc'];
+// Austin plan review joined 2026-11-13 (ADR-16 E1): applications, not leads, so
+// the lead screens never list it (db/pilot_queries.js filters by source).
+const PILOT_AREAS = ['austin-tx', 'austin-plan-review-tx', 'miami-dade-fl', 'miami-city-fl', 'raleigh-nc'];
 
 module.exports = { SOURCES, PILOT_AREAS };

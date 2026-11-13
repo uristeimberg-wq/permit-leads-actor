@@ -37,7 +37,8 @@ for (const [slug, src] of Object.entries(SOURCES).filter(([, s]) => s.registry))
   const reg = src.registry;
 
   check(`${slug}: required config`, () => {
-    for (const k of ['label', 'type', 'fieldMap', 'maxPerRun', 'maxDataAgeDays', 'dateField', 'defaultState', 'parties']) {
+    // An application feed (filingKind) names no contractor yet, so it has no parties.
+    for (const k of ['label', 'type', 'fieldMap', 'maxPerRun', 'maxDataAgeDays', 'dateField', 'defaultState', ...(src.filingKind ? [] : ['parties'])]) {
       assert.ok(src[k] != null, `missing ${k}`);
     }
     assert.ok(MAPPERS[src.type], `type ${src.type} has no offline mapper; connectors must use socrata or arcgis, or add one here`);
@@ -86,7 +87,11 @@ for (const [slug, src] of Object.entries(SOURCES).filter(([, s]) => s.registry))
     assert.ok(usable.length / fx.rows.length >= MIN_MAPPED, `only ${usable.length}/${fx.rows.length} rows map to a permit with a number and date`);
   });
 
-  check(`${slug}: contractor extractor reads the fixture`, () => {
+  if (src.lifecycle) check(`${slug}: lifecycle vocabulary uses known stages`, () => {
+    assert.deepStrictEqual(require('./lifecycle.js').validateVocabulary(slug, src), []);
+  });
+
+  if (src.parties) check(`${slug}: contractor extractor reads the fixture`, () => {
     const fx = JSON.parse(fs.readFileSync(path.join(ROOT, reg.fixture), 'utf8'));
     const parties = fx.rows.map(EXTRACTORS[slug]);
     assert.ok(parties.every((p) => p.permitNumber && p.groupKey), 'a row has no permit number or job key');

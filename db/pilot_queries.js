@@ -428,6 +428,7 @@ async function getJob(permitId, f) {
   return {
     property: await propertyFor(bp.id),
     location: await locationFor(bp.id),
+    lifecycle: await lifecycleFor(bp.id),
     trade: f.trade,
     permit: stripInternal(bp),
     isBuilding: Boolean(bp.is_building),
@@ -443,6 +444,37 @@ async function getJob(permitId, f) {
     })),
     meta: await sourceMeta(bp.source_area),
   };
+}
+
+/**
+ * A filing's lifecycle (ADR-16): the stage, the source's official dates kept
+ * apart from when we first saw it, its status history, and the application
+ * that led to it (an Austin plan-review case), each with its own dates.
+ * History rows from before migration 017 have no stage: shown as missing.
+ */
+async function lifecycleFor(permitId) {
+  const one = async (id) => {
+    const { rows: [p] } = await query(`
+      SELECT p.id, p.source_area, p.permit_number, p.filing_kind, p.lifecycle_stage, p.first_seen_stage, p.submitted_on, p.stage_since,
+             p.first_seen_at, p.status_raw, p.permit_url FROM permits p WHERE p.id = $1`, [id]);
+    if (!p) return null;
+    const { rows: history } = await query(`
+      SELECT status_raw, lifecycle_stage, stage_since, observed_at FROM permit_status_history WHERE permit_id = $1 ORDER BY observed_at, id`, [id]);
+    return {
+      source: p.source_area, permitNumber: p.permit_number, filingKind: p.filing_kind, stage: p.lifecycle_stage, status: p.status_raw,
+      firstSeenStage: p.first_seen_stage, submittedOn: p.submitted_on, stageSince: p.stage_since, firstSeenAt: p.first_seen_at, url: p.permit_url,
+      history: history.map((h) => ({ status: h.status_raw, stage: h.lifecycle_stage, stageSince: h.stage_since, observedAt: h.observed_at })),
+    };
+  };
+  const self = await one(permitId);
+  if (!self) return null;
+  const { rows: links } = await query(`
+    SELECT from_permit_id, link_basis, basis_detail, confidence FROM permit_links WHERE to_permit_id = $1 ORDER BY from_permit_id`, [permitId]);
+  const applications = [];
+  for (const l of links) {
+    applications.push({ ...(await one(l.from_permit_id)), link: { basis: l.link_basis, detail: l.basis_detail, confidence: Number(l.confidence) } });
+  }
+  return { ...self, applications };
 }
 
 function stripInternal(r) {
@@ -519,5 +551,5 @@ async function listLeads(f, { days = 7, limit = 25, minValuation = null } = {}) 
 
 module.exports = {
   TRADES, SOURCES, OPEN_WINDOW_DAYS,
-  parseFilters, publicContractor, listGcs, marketBaseline, sourceMeta, getJob, getContractor, listLeads,
+  parseFilters, publicContractor, listGcs, marketBaseline, sourceMeta, getJob, getContractor, listLeads, lifecycleFor,
 };

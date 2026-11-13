@@ -54,6 +54,36 @@ source is re-checked. Never add a source here without fetching it.
 | Coordinates | None: the layer is a table with no geometry. Use the Property Appraiser layer via `FolioNumber` (99% match, 2026-11-13) |
 | Integration status | Working in the prototype (`miami-dade-fl`) |
 
+### Austin, TX: Plan Review Cases (`austin-plan-review-tx`)
+
+`https://datahub.austintexas.gov/resource/n8ck-xkda.json`, read live
+2026-11-13 by `fixture.yml` (fixture `test/fixtures/sources/austin-plan-review-tx.json`,
+people's names and addresses redacted). Licence: Public Domain (dataset
+metadata); same portal terms as Issued Construction Permits.
+
+- **What it is:** building applications (folder type `PR`) from intake to plan
+  approval, before the permit exists in `3syk-w9eu` (ADR-16 E1).
+- **Fields used:** `permit_number` ("2026-149359 PR"), `sub_type`
+  (permit type), `folder_description`, valuation columns, `status_current`,
+  `status_date`, `applied_date` (official submission), `web_link.url`,
+  `project_name` (the address when it starts with a house number; otherwise a
+  project title, stored as no address), `location` (GeoJSON point),
+  `appraisal_id` (= Travis CAD geo id), `folderrsn` (the link key).
+- **Not used:** `applicant_*`, `owner_*`, `other_*`. There is no contractor at
+  this stage; applicants are builders, owners and permit expediters, and
+  individual names are never shown (hard rule 5). They stay in the raw payload.
+- **No** city or zip column.
+- **Statuses seen and their stage** (`src/sources.js` `lifecycle`): Pending and
+  Intake Pending -> submitted; In Review and Prerequisite Review Approved ->
+  in_review; Application Incomplete and Awaiting Update -> corrections;
+  Approved -> approved (plans approved, not an issued permit); VOID ->
+  cancelled; Aborted -> withdrawn. Others are `unknown` and reported by
+  `ingest/lifecycle.js`.
+- **Link to the issued permit:** the building permit's `masterpermitnum`
+  equals the case's `folderrsn` (`permit_links`, `official_reference`, 1.00).
+  Checked on 4 samples (PR #43); the rate at scale is printed by each sync.
+- **Sync:** windows on `applied_date` (30 days) and `status_date` (14 days).
+
 ## M1 measurements (2026-11-13)
 
 From `recon/feasibility.js`, run in GitHub Actions against the live APIs over the
@@ -106,6 +136,9 @@ from 2026-07-01 are 10 business days for new construction and 5 for remodels
 elapsed time includes applicant correction cycles, so it is not a test of
 those targets. No current open dataset of applications still in review was
 found (`7aas-g4y3` stops in 2019; `n8ck-xkda` was last modified 2022).
+*Correction (2026-11-13):* `n8ck-xkda` on `datahub.austintexas.gov` is current
+(cases applied the same day are published that afternoon). It is now a pilot
+source; see "Austin, TX: Plan Review Cases" above.
 
 *2. Trade-permit application dates carry no hiring signal.* For 6,928
 residential BPs issued 6 to 24 months ago, linked to their trade permits by

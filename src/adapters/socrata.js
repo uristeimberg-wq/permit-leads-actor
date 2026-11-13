@@ -11,6 +11,7 @@
 // read off the live dataset and declared per source in `fieldMap`.
 
 const { createStatusNormalizer, normalizePermit } = require('../normalize.js');
+const { lifecycleStage, statusKey } = require('../lifecycle.js');
 const { fetchWithRetry } = require('./http.js');
 
 // Socrata's own per-request ceiling for the JSON endpoint.
@@ -129,6 +130,8 @@ async function fetchSocrataSource(source, options) {
   return mapRows(rows, source, { includeIssued, log });
 }
 
+const urlOf = (v) => (v && typeof v === 'object' ? v.url ?? null : v);
+
 /** Pure row -> permit mapping, unit tested offline. */
 function mapRows(rows, source, { includeIssued = true, log }) {
   const map = source.fieldMap;
@@ -149,7 +152,8 @@ function mapRows(rows, source, { includeIssued = true, log }) {
     const rawStatus = pick(row, 'status');
 
     return normalizePermit({
-      address: buildAddress(row, map),
+      address: source.addressMustStartWithNumber && !/^\d+\s/.test(String(buildAddress(row, map) ?? '').trim())
+        ? null : buildAddress(row, map),
       // Socrata datasets carry explicit city/zip columns, which are more
       // reliable than parsing them back out of a concatenated address string.
       city: pick(row, 'city'),
@@ -161,9 +165,17 @@ function mapRows(rows, source, { includeIssued = true, log }) {
       valuation: pick(row, 'valuation'),
       status: status.normalize(rawStatus),
       statusRaw: rawStatus,
-      permitUrl: pick(row, 'permitUrl'),
+      // A source may override the shared wording table where a word means
+      // something else there (plan review's 'Approved' is not an issued permit).
+      statusStage: (source.statusStages && source.statusStages[statusKey(rawStatus)]) || undefined,
+      // Socrata URL columns come back as { url }.
+      permitUrl: urlOf(pick(row, 'permitUrl')),
       permitNumber: pick(row, 'permitNumber'),
       filedDate: pick(row, 'filedDate'),
+      submittedOn: pick(row, 'submittedDate'),
+      stageSince: pick(row, 'statusDate'),
+      lifecycleStage: lifecycleStage(source, rawStatus),
+      filingKind: source.filingKind || null,
 
       owner: pick(row, 'owner'),
       contractorName: pick(row, 'contractorName'),

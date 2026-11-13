@@ -26,7 +26,7 @@ const PROVIDER = {
   // ("SUPP 336"), so the run finds the newest link on the page and falls back
   // to this one.
   knownFile: 'https://traviscad.org/wp-content/largefiles/travis_SUPP%20336_2026_WEBSITE%20EXPORT_Renamed.zip',
-  permitKeyFields: { 'austin-tx': 'tcad_id' },
+  permitKeyFields: { 'austin-tx': 'tcad_id', 'austin-plan-review-tx': 'appraisal_id' },
 };
 
 const PROP = {

@@ -558,6 +558,14 @@ ALTER TABLE permits ADD COLUMN first_alerted_at TIMESTAMPTZ;
 ALTER TABLE permits ADD COLUMN observed_stage_at_first_seen TEXT; -- the stage when we first saw it: the key early-discovery metric
 ```
 
+**As built (migration 017, 2026-11-13).** Four differences from the sketch above, each on purpose:
+
+- **Vocabulary in code.** Each source's vocabulary lives in `src/sources.js` (`lifecycle.statuses`), not in a `status_vocabulary` table. Every mapping is reviewed in a pull request, and the contract test rejects a stage that isn't listed. `ingest/lifecycle.js` re-applies the vocabulary to held rows and their history after each sync.
+- **Column name.** `observed_stage_at_first_seen` is named `first_seen_stage`. It is written on insert only, so rows from before 017 keep NULL.
+- **Filing kind.** `filing_kind` is `'building_application'` for plan-review cases and NULL for permits. Building versus trade stays in `permit_parties`.
+- **Submission dates.** `submitted_on` is backfilled from the source's own application date in the raw payload, never from `filed_date`. `filed_date` is the issue date in Austin, so copying it would be invented data (rule 1).
+- **Not built yet.** `searchable_at`, `first_public_at` and `first_alerted_at`.
+
 **The two dates the product promises to keep apart:**
 
 - `submitted_on`: what the government recorded. Shown as "Submitted".

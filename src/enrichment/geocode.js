@@ -27,6 +27,10 @@ function point(lat, lng) {
 function sourcePoint(source, payload) {
   const c = source && source.coordinates;
   if (!c || !payload) return null;
+  if (c.point) { // GeoJSON point: [lng, lat]
+    const xy = payload[c.point] && payload[c.point].coordinates;
+    return Array.isArray(xy) ? point(xy[1], xy[0]) : null;
+  }
   return point(payload[c.lat], payload[c.lng]);
 }
 

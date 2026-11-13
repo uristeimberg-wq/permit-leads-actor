@@ -63,7 +63,7 @@ check('every status mapped by a live source resolves to a real stage', () => {
   const missing = [];
   for (const source of Object.values(SOURCES)) {
     for (const raw of Object.keys(source.statusMap ?? {})) {
-      if (stageFor(raw) === STAGES.UNKNOWN) missing.push(`${source.label}: "${raw}"`);
+      if ((source.statusStages || {})[raw] == null && stageFor(raw) === STAGES.UNKNOWN) missing.push(`${source.label}: "${raw}"`);
     }
   }
   assert.deepStrictEqual(missing, [], `unmapped live statuses: ${missing.join(', ')}`);

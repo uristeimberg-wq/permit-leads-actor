@@ -31,8 +31,11 @@ async function sourcePoints() {
   const { rows } = await db.query(`
     SELECT DISTINCT ON (r.source_id, r.source_key)
            p.id AS permit_id, r.id AS raw_record_id,
-           r.payload ->> (($2::jsonb) -> s.slug ->> 'lat') AS lat,
-           r.payload ->> (($2::jsonb) -> s.slug ->> 'lng') AS lng
+           -- { lat, lng } columns, or { point } for a GeoJSON point ([lng, lat]).
+           coalesce(r.payload ->> (($2::jsonb) -> s.slug ->> 'lat'),
+                    r.payload -> (($2::jsonb) -> s.slug ->> 'point') -> 'coordinates' ->> 1) AS lat,
+           coalesce(r.payload ->> (($2::jsonb) -> s.slug ->> 'lng'),
+                    r.payload -> (($2::jsonb) -> s.slug ->> 'point') -> 'coordinates' ->> 0) AS lng
       FROM raw_records r
       JOIN sources s ON s.id = r.source_id
       JOIN permits p ON p.source_area = s.slug AND p.permit_number = r.source_key

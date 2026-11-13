@@ -20,7 +20,7 @@
 const { SOURCES } = require('../src/sources.js');
 const { getAdapter } = require('../src/adapters/index.js');
 
-const PERSON_FIELD = /owner|applicant|full_?name|first_?name|last_?name|contact_?name|agent|architect|engineer|designer|surveyor/i;
+const PERSON_FIELD = /owner|applicant|full_?name|first_?name|last_?name|contact_?name|agent|architect|engineer|designer|surveyor|other_address/i; // other_address: Austin plan review, often an owner's name and address
 const PHONE_FIELD = /phone|tel|fax|mobile/i;
 const EMAIL_FIELD = /e_?mail/i;
 
@@ -71,7 +71,41 @@ async function discover(layer, dateField, slug, rows) {
   };
 }
 
+const SOCRATA_URL = /^https:\/\/[a-z0-9.-]+\.[a-z]+\/resource\/[a-z0-9]{4}-[a-z0-9]{4}\.json$/;
+
+/** Discovery for a Socrata dataset with no config yet: its declared columns and newest rows. */
+async function discoverSocrata(url, dateField, slug, rows) {
+  if (!SOCRATA_URL.test(url)) throw new Error('--layer must be a Socrata /resource/<id>.json URL');
+  if (!FIELD.test(dateField) || !/^[a-z0-9-]+$/.test(slug)) throw new Error('bad --date-field or --slug');
+  const { fetchWithRetry } = require('../src/adapters/http.js');
+  const headers = process.env.SOCRATA_APP_TOKEN ? { 'X-App-Token': process.env.SOCRATA_APP_TOKEN } : {};
+  const get = async (u) => {
+    const res = await fetchWithRetry(fetch, u, { headers }, { log: { warning: (m) => console.error(m) } });
+    if (!res.ok) throw new Error(`HTTP ${res.status} from ${u}`);
+    return res.json();
+  };
+  const meta = await get(url.replace('/resource/', '/api/views/'));
+  const q = new URLSearchParams({ $order: `${dateField} DESC`, $limit: String(rows) });
+  const raw = await get(`${url}?${q}`);
+  if (!raw.length) throw new Error('dataset returned no rows');
+  return {
+    source: slug, layer: url, capturedAt: new Date().toISOString(), discovery: true,
+    layerName: meta.name, editedAt: meta.rowsUpdatedAt ? new Date(meta.rowsUpdatedAt * 1000).toISOString() : null,
+    licenseInfo: (meta.license && meta.license.name) || meta.licenseId || null,
+    declaredFields: (meta.columns || []).map((c) => ({ name: c.fieldName, type: c.dataTypeName, alias: c.name })),
+    rows: raw.map(redactRow),
+    fields: [...new Set(raw.flatMap((r) => Object.keys(r)))].sort(),
+  };
+}
+
 async function main() {
+  if (arg('layer') && SOCRATA_URL.test(arg('layer'))) {
+    const fixture = await discoverSocrata(arg('layer'), arg('date-field', ''), arg('slug', ''), Math.min(Number(arg('rows', 20)), 200));
+    console.log('BEGIN FIXTURE');
+    console.log(JSON.stringify(fixture, null, 1));
+    console.log('END FIXTURE');
+    return;
+  }
   if (arg('layer')) {
     const fixture = await discover(arg('layer'), arg('date-field', ''), arg('slug', ''), Math.min(Number(arg('rows', 20)), 200));
     console.log('BEGIN FIXTURE');

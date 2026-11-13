@@ -8,6 +8,7 @@
 // `fieldMap`. Do not guess them.
 
 const { createStatusNormalizer, normalizePermit } = require('../normalize.js');
+const { lifecycleStage } = require('../lifecycle.js');
 const { fetchWithRetry } = require('./http.js');
 
 const PAGE_SIZE = 500;
@@ -144,6 +145,10 @@ function mapFeatures(features, source, { includeIssued = true, log }) {
       // ArcGIS date fields come back as epoch milliseconds; normalizePermit's
       // toIsoDate() handles that shape directly.
       filedDate: pick('filedDate'),
+      submittedOn: pick('submittedDate'),
+      stageSince: pick('statusDate'),
+      lifecycleStage: lifecycleStage(source, rawStatus, derived ? derived.statusStage : undefined),
+      filingKind: source.filingKind || null,
 
       owner: pick('owner'),
       parcelNumber: pick('parcelNumber'),

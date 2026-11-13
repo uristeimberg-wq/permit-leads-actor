@@ -1,0 +1,2200 @@
+{
+  "source": "austin-plan-review-tx",
+  "layer": "https://datahub.austintexas.gov/resource/n8ck-xkda.json",
+  "capturedAt": "2026-11-13T19:21:55.582Z",
+  "discovery": true,
+  "layerName": "Plan Review Cases",
+  "editedAt": "2026-11-13T18:22:33.000Z",
+  "licenseInfo": "Public Domain U.S. Government",
+  "declaredFields": [
+    {
+      "name": "permit_type",
+      "type": "text",
+      "alias": "Case_Type"
+    },
+    {
+      "name": "folder_type",
+      "type": "text",
+      "alias": "Folder_Type"
+    },
+    {
+      "name": "sub_type",
+      "type": "text",
+      "alias": "Sub_Type"
+    },
+    {
+      "name": "work_class",
+      "type": "text",
+      "alias": "Work_Class"
+    },
+    {
+      "name": "permit_number",
+      "type": "text",
+      "alias": "Permit_Number"
+    },
+    {
+      "name": "referencefile",
+      "type": "text",
+      "alias": "Referencefile"
+    },
+    {
+      "name": "project_name",
+      "type": "text",
+      "alias": "Project_Name"
+    },
+    {
+      "name": "folder_description",
+      "type": "text",
+      "alias": "Folder_Description"
+    },
+    {
+      "name": "express_permit",
+      "type": "text",
+      "alias": "Express_Permit"
+    },
+    {
+      "name": "folder_section",
+      "type": "text",
+      "alias": "Folder_Section"
+    },
+    {
+      "name": "folderrsn",
+      "type": "number",
+      "alias": "Folderrsn"
+    },
+    {
+      "name": "web_link",
+      "type": "url",
+      "alias": "Web_Link"
+    },
+    {
+      "name": "status_current",
+      "type": "text",
+      "alias": "Status_Current"
+    },
+    {
+      "name": "status_date",
+      "type": "calendar_date",
+      "alias": "Status_Date"
+    },
+    {
+      "name": "applicant_full_name",
+      "type": "text",
+      "alias": "Applicant_Full_Name"
+    },
+    {
+      "name": "applicant_organization_name",
+      "type": "text",
+      "alias": "Applicant_Organization_Name"
+    },
+    {
+      "name": "applicant_address",
+      "type": "text",
+      "alias": "Applicant_Address"
+    },
+    {
+      "name": "applicant_phone",
+      "type": "text",
+      "alias": "Applicant_Phone"
+    },
+    {
+      "name": "owner_full_name",
+      "type": "text",
+      "alias": "Owner_Full_Name"
+    },
+    {
+      "name": "owner_organization_name",
+      "type": "text",
+      "alias": "Owner_Organization_Name"
+    },
+    {
+      "name": "owner_address",
+      "type": "text",
+      "alias": "Owner_Address"
+    },
+    {
+      "name": "owner_phone",
+      "type": "text",
+      "alias": "Owner_Phone"
+    },
+    {
+      "name": "other_full_name",
+      "type": "text",
+      "alias": "Other_Full_Name"
+    },
+    {
+      "name": "other_organization_name",
+      "type": "text",
+      "alias": "Other_Organization_Name"
+    },
+    {
+      "name": "other_address",
+      "type": "text",
+      "alias": "Other_Address"
+    },
+    {
+      "name": "other_phone",
+      "type": "text",
+      "alias": "Other_Phone"
+    },
+    {
+      "name": "condominium",
+      "type": "text",
+      "alias": "Condominium"
+    },
+    {
+      "name": "appraisal_id",
+      "type": "text",
+      "alias": "Appraisal_Id"
+    },
+    {
+      "name": "issued_date",
+      "type": "calendar_date",
+      "alias": "Issued_Date"
+    },
+    {
+      "name": "issued_in_last_30_days",
+      "type": "checkbox",
+      "alias": "Issued_In_Last_30_Days"
+    },
+    {
+      "name": "day_issued",
+      "type": "text",
+      "alias": "Day_Issued"
+    },
+    {
+      "name": "calendar_year_issued",
+      "type": "text",
+      "alias": "Calendar_Year_Issued"
+    },
+    {
+      "name": "fiscal_year_issued",
+      "type": "text",
+      "alias": "Fiscal_Year_Issued"
+    },
+    {
+      "name": "applied_date",
+      "type": "calendar_date",
+      "alias": "Applied_Date"
+    },
+    {
+      "name": "fiscal_year_indate",
+      "type": "text",
+      "alias": "Fiscal_Year_InDate"
+    },
+    {
+      "name": "expires_date",
+      "type": "calendar_date",
+      "alias": "Expires_Date"
+    },
+    {
+      "name": "final_date",
+      "type": "calendar_date",
+      "alias": "Final_Date"
+    },
+    {
+      "name": "building_valuation",
+      "type": "number",
+      "alias": "Building_Valuation"
+    },
+    {
+      "name": "building_valuation_remodel",
+      "type": "number",
+      "alias": "Building_Valuation_Remodel"
+    },
+    {
+      "name": "electrical_valuation",
+      "type": "number",
+      "alias": "Electrical_Valuation"
+    },
+    {
+      "name": "electrical_valuation_remodel",
+      "type": "number",
+      "alias": "Electrical_Valuation_Remodel"
+    },
+    {
+      "name": "mechanical_valuation",
+      "type": "number",
+      "alias": "Mechanical_Valuation"
+    },
+    {
+      "name": "mechanical_valuation_remodel",
+      "type": "number",
+      "alias": "Mechanical_Valuation_Remodel"
+    },
+    {
+      "name": "medgas_valuation",
+      "type": "number",
+      "alias": "Medgas_Valuation"
+    },
+    {
+      "name": "medgas_valuation_remodel",
+      "type": "number",
+      "alias": "Medgas_Valuation_Remodel"
+    },
+    {
+      "name": "number_of_floors",
+      "type": "number",
+      "alias": "Number_Of_Floors"
+    },
+    {
+      "name": "number_of_units",
+      "type": "number",
+      "alias": "Number_Of_Units"
+    },
+    {
+      "name": "plumbing_valuation",
+      "type": "number",
+      "alias": "Plumbing_Valuation"
+    },
+    {
+      "name": "plumbing_valuation_remodel",
+      "type": "number",
+      "alias": "Plumbing_Valuation_Remodel"
+    },
+    {
+      "name": "remodel_repair_footage",
+      "type": "number",
+      "alias": "Remodel_Repair_Footage"
+    },
+    {
+      "name": "total_existing_bldg_footage",
+      "type": "number",
+      "alias": "Total_Existing_Bldg_Footage"
+    },
+    {
+      "name": "total_job_valuation",
+      "type": "number",
+      "alias": "Total_Job_Valuation"
+    },
+    {
+      "name": "total_new_add_footage",
+      "type": "number",
+      "alias": "Total_New_Add_Footage"
+    },
+    {
+      "name": "total_valuation_remodel",
+      "type": "number",
+      "alias": "Total_Valuation_Remodel"
+    },
+    {
+      "name": "council_district",
+      "type": "number",
+      "alias": "Council_District"
+    },
+    {
+      "name": "legal_description",
+      "type": "text",
+      "alias": "Legal_Description"
+    },
+    {
+      "name": "propx",
+      "type": "number",
+      "alias": "Propx"
+    },
+    {
+      "name": "propy",
+      "type": "number",
+      "alias": "Propy"
+    },
+    {
+      "name": "propertyrsn",
+      "type": "number",
+      "alias": "Propertyrsn"
+    },
+    {
+      "name": "update_date",
+      "type": "text",
+      "alias": "Update_Date"
+    },
+    {
+      "name": "location",
+      "type": "point",
+      "alias": "Location"
+    },
+    {
+      "name": ":@computed_region_8spj_utxs",
+      "type": "number",
+      "alias": "Single Member Council Districts"
+    },
+    {
+      "name": ":@computed_region_jcrc_4uuy",
+      "type": "number",
+      "alias": "Boundaries: Zip Code Tabulation Areas, 2017"
+    },
+    {
+      "name": ":@computed_region_q9nd_rr82",
+      "type": "number",
+      "alias": "BOUNDARIES_single_member_districts"
+    },
+    {
+      "name": ":@computed_region_e9j2_6w3z",
+      "type": "number",
+      "alias": "Neighborhood Planning Areas"
+    },
+    {
+      "name": ":@computed_region_m2th_e4b7",
+      "type": "number",
+      "alias": "Community Registry"
+    },
+    {
+      "name": ":@computed_region_rxpj_nzrk",
+      "type": "number",
+      "alias": "Zipcodes"
+    },
+    {
+      "name": ":@computed_region_xzeg_zdjk",
+      "type": "number",
+      "alias": "Neighborhood Planning Areas Dissolved"
+    }
+  ],
+  "rows": [
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "C-1000 Commercial Remodel",
+      "work_class": "Remodel",
+      "permit_number": "2026-149359 PR",
+      "project_name": "4211 S LAMAR BLVD NB BLDG B UNIT 4",
+      "folder_description": "small interior remodel: remove two glass partition walls and three knee walls; construct three rooms at front. remove partition between two dressing rooms to form one room. update electrical panel sch",
+      "folderrsn": "13804808",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804808"
+      },
+      "status_current": "Pending",
+      "status_date": "2026-11-13T09:56:35.000",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "Variant Construction Group",
+      "other_phone": "5125550101",
+      "condominium": "No",
+      "appraisal_id": "0406110101",
+      "issued_in_last_30_days": true,
+      "applied_date": "2026-11-13T00:00:00.000",
+      "expires_date": "2027-11-15T00:00:00.000",
+      "council_district": "5",
+      "legal_description": "LOT 1 BARTON MARKET SQUARE & LOT 4 BARTON MARKET SQUARE SEC 3",
+      "propx": "3098881",
+      "propy": "10058094",
+      "propertyrsn": "541851",
+      "update_date": "2026-11-13T12:08:17.5375707",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.79259308,
+          30.23424542
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 435 Renovations/Remodel",
+      "work_class": "Repair",
+      "permit_number": "2026-149293 PR",
+      "referencefile": "2026-149293 PR",
+      "project_name": "6403 KEN CARYL DR",
+      "folder_description": "Express: Replacing 8 windows like for like",
+      "folderrsn": "13804728",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804728"
+      },
+      "status_current": "Approved",
+      "status_date": "2026-11-13T08:20:12.000",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "Renewal by Andersen",
+      "other_phone": "5125550101",
+      "condominium": "No",
+      "appraisal_id": "0334032405",
+      "issued_date": "2026-11-13T00:00:00.000",
+      "issued_in_last_30_days": true,
+      "day_issued": "FRIDAY",
+      "calendar_year_issued": "2026",
+      "fiscal_year_issued": "2027",
+      "applied_date": "2026-11-13T00:00:00.000",
+      "expires_date": "2027-11-15T00:00:00.000",
+      "final_date": "2026-11-13T08:20:10.000",
+      "building_valuation_remodel": "1",
+      "electrical_valuation_remodel": "1",
+      "mechanical_valuation_remodel": "1",
+      "plumbing_valuation_remodel": "1",
+      "total_job_valuation": "1",
+      "total_valuation_remodel": "4",
+      "council_district": "2",
+      "legal_description": "LOT 47 BLK H SPRINGFIELD PHS B SEC 5",
+      "propx": "3115336",
+      "propy": "10030724",
+      "propertyrsn": "3079404",
+      "update_date": "2026-11-13T12:12:40.8809389",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.7425199,
+          30.15796612
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "C- 329 Com Structures Other Than Bldg",
+      "work_class": "New",
+      "permit_number": "2026-149340 PR",
+      "project_name": "6505 BRIDGE POINT PKWY",
+      "folder_description": "Retaining walls. Existing Four Seasons.",
+      "folderrsn": "13804788",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804788"
+      },
+      "status_current": "Prerequisite Review Approved",
+      "status_date": "2026-11-13T09:34:34.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_organization_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "owner_organization_name": "REDACTED",
+      "owner_address": "REDACTED",
+      "other_organization_name": "LOOP 360 LAND LP",
+      "other_address": "REDACTED",
+      "condominium": "No",
+      "appraisal_id": "0134180410",
+      "issued_in_last_30_days": true,
+      "applied_date": "2026-11-13T00:00:00.000",
+      "expires_date": "2027-11-15T00:00:00.000",
+      "total_job_valuation": "510000",
+      "total_new_add_footage": "34000",
+      "council_district": "10",
+      "legal_description": "ABS 437 SUR 1 JETT J ACR & VAR SURVEYS 127.9886",
+      "propx": "3094500",
+      "propy": "10101857",
+      "propertyrsn": "6504748",
+      "update_date": "2026-11-13T12:12:34.5103282",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.80331068,
+          30.3548192
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 435 Renovations/Remodel",
+      "work_class": "Repair",
+      "permit_number": "2026-149363 PR",
+      "project_name": "4505 DORSETT OAKS CIR",
+      "folder_description": "EXPRESS: Remove and recycle siding, window, and doors. Install new windows, siding, and doors like for like",
+      "folderrsn": "13804813",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804813"
+      },
+      "status_current": "Pending",
+      "status_date": "2026-11-13T09:53:08.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0262061902",
+      "issued_in_last_30_days": true,
+      "applied_date": "2026-11-13T00:00:00.000",
+      "expires_date": "2027-11-15T00:00:00.000",
+      "council_district": "7",
+      "legal_description": "LOT 25 BLK B DORSETT OAKS",
+      "propx": "3117382",
+      "propy": "10125465",
+      "propertyrsn": "544719",
+      "update_date": "2026-11-13T12:13:41.1250088",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.72903074,
+          30.41826282
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 645 Demolition One Family Homes",
+      "work_class": "Demolition",
+      "permit_number": "2026-149338 PR",
+      "project_name": "1903 HOLLY HILL DR",
+      "folder_description": "Greater than 50% of exterior demo 1751sqft, circa 1983\n\n***The building shall not be demolished until after the contractor has fulfilled the neighbor notification requirements outlined in Steps 5 & 6",
+      "folderrsn": "13804786",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804786"
+      },
+      "status_current": "Pending",
+      "status_date": "2026-11-13T09:37:12.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_organization_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "Aqua Permits",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0105160711",
+      "issued_in_last_30_days": true,
+      "applied_date": "2026-11-13T00:00:00.000",
+      "expires_date": "2027-11-15T00:00:00.000",
+      "mechanical_valuation_remodel": "0",
+      "number_of_floors": "2",
+      "number_of_units": "1",
+      "council_district": "8",
+      "legal_description": "LOT 82 BEECAVE WOODS SEC 4",
+      "propx": "3095668",
+      "propy": "10068040",
+      "propertyrsn": "912897",
+      "update_date": "2026-11-13T12:16:27.3233988",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.80204799,
+          30.26178709
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 435 Renovations/Remodel",
+      "work_class": "Repair",
+      "permit_number": "2026-149281 PR",
+      "referencefile": "2026-149281 PR",
+      "project_name": "1732 MC CLANNAHAN DR",
+      "folder_description": "Express: Replace one window like for like, existing water heater, HVAC no ducts",
+      "folderrsn": "13804714",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804714"
+      },
+      "status_current": "Approved",
+      "status_date": "2026-11-13T06:38:01.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "Modified Access Cons",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0440250624",
+      "issued_date": "2026-11-13T00:00:00.000",
+      "issued_in_last_30_days": true,
+      "day_issued": "FRIDAY",
+      "calendar_year_issued": "2026",
+      "fiscal_year_issued": "2027",
+      "applied_date": "2026-11-13T00:00:00.000",
+      "expires_date": "2027-11-15T00:00:00.000",
+      "final_date": "2026-11-13T06:37:07.000",
+      "building_valuation_remodel": "1",
+      "electrical_valuation_remodel": "1",
+      "mechanical_valuation_remodel": "1",
+      "plumbing_valuation_remodel": "1",
+      "total_job_valuation": "1",
+      "total_valuation_remodel": "4",
+      "council_district": "5",
+      "legal_description": "LOT 24 BLK D RANCHO ALTO PHS II",
+      "propx": "3084678",
+      "propy": "10026040",
+      "propertyrsn": "3264696",
+      "update_date": "2026-11-13T12:16:16.4074204",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.83983133,
+          30.14701675
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 101 Single Family Houses",
+      "work_class": "New",
+      "permit_number": "2026-149321 PR",
+      "project_name": "4922 NATIVE PEARL LN",
+      "folder_description": "SINGLE FAMILY RESIDENTIAL NEW HOME CONSTRUCTION. 1-STORY 4 BEDROOM WITH 3 BATHROOMS WITH 2 CAR GARAGE AND COVERED PATIO.",
+      "folderrsn": "13804763",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804763"
+      },
+      "status_current": "Prerequisite Review Approved",
+      "status_date": "2026-11-13T09:11:27.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0239360609",
+      "issued_in_last_30_days": true,
+      "applied_date": "2026-11-13T00:00:00.000",
+      "expires_date": "2027-11-15T00:00:00.000",
+      "number_of_units": "1",
+      "total_new_add_footage": "2742",
+      "council_district": "1",
+      "propx": "3148038",
+      "propy": "10102318",
+      "propertyrsn": "8104683",
+      "update_date": "2026-11-13T12:16:44.3036874",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.63358228,
+          30.3526264
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 435 Renovations/Remodel",
+      "work_class": "Repair",
+      "permit_number": "2026-149346 PR",
+      "referencefile": "2026-149346 PR",
+      "project_name": "8860 MOUNTAIN RIDGE CIR",
+      "folder_description": "EXPRESS: Exploratory work and door removal at front",
+      "folderrsn": "13804794",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804794"
+      },
+      "status_current": "Approved",
+      "status_date": "2026-11-13T09:43:13.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_organization_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "DMW Retreats",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0150010409",
+      "issued_date": "2026-11-13T00:00:00.000",
+      "issued_in_last_30_days": true,
+      "day_issued": "FRIDAY",
+      "calendar_year_issued": "2026",
+      "fiscal_year_issued": "2027",
+      "applied_date": "2026-11-13T00:00:00.000",
+      "expires_date": "2027-11-15T00:00:00.000",
+      "final_date": "2026-11-13T09:42:31.000",
+      "building_valuation_remodel": "1",
+      "electrical_valuation_remodel": "1",
+      "mechanical_valuation_remodel": "1",
+      "plumbing_valuation_remodel": "1",
+      "total_job_valuation": "1",
+      "total_valuation_remodel": "4",
+      "council_district": "10",
+      "legal_description": "LOT 9 BLK B GREAT HILLS I THE",
+      "propx": "3109971",
+      "propy": "10113350",
+      "propertyrsn": "978620",
+      "update_date": "2026-11-13T12:17:57.7740081",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.75342788,
+          30.38543514
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 435 Renovations/Remodel",
+      "work_class": "Repair",
+      "permit_number": "2026-149038 PR",
+      "referencefile": "2026-149038 PR",
+      "project_name": "2907 JADEWOOD CT",
+      "folder_description": "Express: Foundation repair-installing 11 exterior pilings",
+      "folderrsn": "13804450",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804450"
+      },
+      "status_current": "Approved",
+      "status_date": "2026-11-12T13:51:36.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_organization_name": "Olshan Foundation Repair",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0428250479",
+      "issued_date": "2026-11-12T00:00:00.000",
+      "issued_in_last_30_days": true,
+      "day_issued": "THURSDAY",
+      "calendar_year_issued": "2026",
+      "fiscal_year_issued": "2027",
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "final_date": "2026-11-12T13:50:54.000",
+      "building_valuation_remodel": "1",
+      "electrical_valuation_remodel": "1",
+      "mechanical_valuation_remodel": "1",
+      "plumbing_valuation_remodel": "1",
+      "total_job_valuation": "1",
+      "total_valuation_remodel": "4",
+      "council_district": "5",
+      "legal_description": "LOT 41 BLK B TANGLEWOOD FOREST SEC 4 PHS F",
+      "propx": "3084339",
+      "propy": "10037144",
+      "propertyrsn": "254748",
+      "update_date": "2026-11-13T12:07:57.1772342",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.84011627,
+          30.17756115
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 435 Renovations/Remodel",
+      "work_class": "Repair",
+      "permit_number": "2026-148853 PR",
+      "referencefile": "2026-148853 PR",
+      "project_name": "7620 ROCKPOINT DR",
+      "folder_description": "Express- 16 windows and 1 door, like for like.",
+      "folderrsn": "13804243",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804243"
+      },
+      "status_current": "Approved",
+      "status_date": "2026-11-12T09:48:21.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_organization_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "Renewal by Andersen",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0141031412",
+      "issued_date": "2026-11-12T00:00:00.000",
+      "issued_in_last_30_days": true,
+      "day_issued": "THURSDAY",
+      "calendar_year_issued": "2026",
+      "fiscal_year_issued": "2027",
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "final_date": "2026-11-12T09:47:12.000",
+      "building_valuation_remodel": "1",
+      "electrical_valuation_remodel": "1",
+      "mechanical_valuation_remodel": "1",
+      "plumbing_valuation_remodel": "1",
+      "total_job_valuation": "1",
+      "total_valuation_remodel": "4",
+      "council_district": "10",
+      "legal_description": "LOT 12 BLK F NORTHWEST HILLS NORTHWEST OAKS II",
+      "propx": "3108594",
+      "propy": "10105437",
+      "propertyrsn": "340676",
+      "update_date": "2026-11-13T12:08:01.3076841",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.75837475,
+          30.36377107
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 329 Res Structures Other Than Bldg",
+      "work_class": "New",
+      "permit_number": "2026-149125 PR",
+      "referencefile": "2026-149125 PR",
+      "project_name": "8712 MERIDIAN OAK LN",
+      "folder_description": "New In-ground Pool and associated equipment and pad",
+      "folderrsn": "13804540",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804540"
+      },
+      "status_current": "In Review",
+      "status_date": "2026-11-13T09:31:50.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0434090814",
+      "issued_in_last_30_days": true,
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "total_new_add_footage": "0",
+      "council_district": "5",
+      "legal_description": "LOT 7 BLK 2 CROSSING AT ONION CREEK SEC 3&4 AMENDED PLAT OF",
+      "propx": "3102407",
+      "propy": "10031893",
+      "propertyrsn": "3121536",
+      "update_date": "2026-11-13T12:08:27.6617692",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.78333244,
+          30.16200085
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 101 Single Family Houses",
+      "work_class": "New",
+      "permit_number": "2026-148788 PR",
+      "referencefile": "2026-148788 PR",
+      "project_name": "605 E 45TH ST",
+      "folder_description": "Two-story residential building with the master bedroom on the ground floor and guest bedrooms on the second floor.",
+      "folderrsn": "13804174",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804174"
+      },
+      "status_current": "In Review",
+      "status_date": "2026-11-13T09:20:25.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0220080834",
+      "issued_in_last_30_days": true,
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "number_of_units": "1",
+      "total_new_add_footage": "2597",
+      "council_district": "9",
+      "legal_description": "66X298 FT OF OLT 15 DIVISION C",
+      "propx": "3120152",
+      "propy": "10084822",
+      "propertyrsn": "3028858",
+      "update_date": "2026-11-13T12:08:29.7467482",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.72327021,
+          30.30636286
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 435 Renovations/Remodel",
+      "work_class": "Repair",
+      "permit_number": "2026-148898 PR",
+      "referencefile": "2026-148898 PR",
+      "project_name": "4522 AVENUE G",
+      "folder_description": "Express: Foundation repair",
+      "folderrsn": "13804295",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804295"
+      },
+      "status_current": "Approved",
+      "status_date": "2026-11-12T10:39:26.000",
+      "other_organization_name": "Olshan Foundation Repair",
+      "other_phone": "5125550101",
+      "condominium": "No",
+      "appraisal_id": "0221080125",
+      "issued_date": "2026-11-12T00:00:00.000",
+      "issued_in_last_30_days": true,
+      "day_issued": "THURSDAY",
+      "calendar_year_issued": "2026",
+      "fiscal_year_issued": "2027",
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "final_date": "2026-11-12T10:39:24.000",
+      "building_valuation_remodel": "1",
+      "electrical_valuation_remodel": "1",
+      "mechanical_valuation_remodel": "1",
+      "plumbing_valuation_remodel": "1",
+      "total_job_valuation": "17220",
+      "total_valuation_remodel": "4",
+      "council_district": "9",
+      "legal_description": "LOT 26 BLK 2 HYDE PARK ANNEX",
+      "propx": "3119312",
+      "propy": "10085830",
+      "propertyrsn": "554954",
+      "update_date": "2026-11-13T12:09:03.4949325",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.72585651,
+          30.30918785
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 646 Demolition Two Family Bldgs",
+      "work_class": "Demolition",
+      "permit_number": "2026-148941 PR",
+      "project_name": "4703 EVERGLADE DR",
+      "folder_description": "Total demo of sfr 2926 sq ft circa 1959. \n\n***The building shall not be demolished until after the contractor has fulfilled the neighbor notification requirements outlined in Steps 5 & 6 of the Demoli",
+      "folderrsn": "13804344",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804344"
+      },
+      "status_current": "Pending",
+      "status_date": "2026-11-12T12:17:43.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_organization_name": "REDACTED",
+      "applicant_address": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "Moore-Tate Projects & Design",
+      "other_address": "REDACTED",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0409120505",
+      "issued_in_last_30_days": true,
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "mechanical_valuation_remodel": "1",
+      "number_of_floors": "1",
+      "number_of_units": "1",
+      "council_district": "5",
+      "legal_description": "LOT 22 BLK D PARK FOREST SEC 1",
+      "propx": "3099626",
+      "propy": "10054435",
+      "propertyrsn": "111506",
+      "update_date": "2026-11-13T12:09:25.9499027",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.79049944,
+          30.22414053
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 435 Renovations/Remodel",
+      "work_class": "Repair",
+      "permit_number": "2026-148938 PR",
+      "referencefile": "2026-148938 PR",
+      "project_name": "7604 CAYENNE LN",
+      "folder_description": "*VOID*\n\nExpress- Install 16 concrete piers, 7 exterior breakouts, 1 garage breakout.",
+      "folderrsn": "13804341",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804341"
+      },
+      "status_current": "VOID",
+      "status_date": "2026-11-12T11:33:19.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "GL Hunt Foundation Repair",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0310180324",
+      "issued_date": "2026-11-12T00:00:00.000",
+      "issued_in_last_30_days": true,
+      "day_issued": "THURSDAY",
+      "calendar_year_issued": "2026",
+      "fiscal_year_issued": "2027",
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "final_date": "2026-11-12T11:26:25.000",
+      "building_valuation_remodel": "1",
+      "electrical_valuation_remodel": "1",
+      "mechanical_valuation_remodel": "1",
+      "plumbing_valuation_remodel": "1",
+      "total_job_valuation": "1",
+      "total_valuation_remodel": "4",
+      "council_district": "3",
+      "legal_description": "LOT 24 BLK H RIVERSIDE MEADOWS SEC 2",
+      "propx": "3130761",
+      "propy": "10055012",
+      "propertyrsn": "3194036",
+      "update_date": "2026-11-13T12:09:07.3875414",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.69190349,
+          30.22373195
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 435 Renovations/Remodel",
+      "work_class": "Repair",
+      "permit_number": "2026-148950 PR",
+      "referencefile": "2026-148950 PR",
+      "project_name": "6613 ASHLAND DR",
+      "folder_description": "Express- Install 24 steel hybrid piers, 5 exterior breakouts, 4 angle iron \"24",
+      "folderrsn": "13804353",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804353"
+      },
+      "status_current": "Approved",
+      "status_date": "2026-11-12T11:39:06.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "GL Hunt Foundation Repair",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0220270424",
+      "issued_date": "2026-11-12T00:00:00.000",
+      "issued_in_last_30_days": true,
+      "day_issued": "THURSDAY",
+      "calendar_year_issued": "2026",
+      "fiscal_year_issued": "2027",
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "final_date": "2026-11-12T11:38:26.000",
+      "building_valuation_remodel": "1",
+      "electrical_valuation_remodel": "1",
+      "mechanical_valuation_remodel": "1",
+      "plumbing_valuation_remodel": "1",
+      "total_job_valuation": "1",
+      "total_valuation_remodel": "4",
+      "council_district": "1",
+      "legal_description": "LOT 7 BLK D BLUFFS OF UNIVERSITY HILLS SEC 1",
+      "propx": "3138775",
+      "propy": "10085962",
+      "propertyrsn": "405158",
+      "update_date": "2026-11-13T12:09:52.7005456",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.66418572,
+          30.30828159
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 435 Renovations/Remodel",
+      "work_class": "Repair",
+      "permit_number": "2026-148923 PR",
+      "referencefile": "2026-148923 PR",
+      "project_name": "306 BEN HOWELL DR",
+      "folder_description": "Express: Foundation repair-installing 3 sono tubes, 14ft of beam, 14ft of joist, and adjusting off existing piers",
+      "folderrsn": "13804325",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804325"
+      },
+      "status_current": "Approved",
+      "status_date": "2026-11-12T11:19:42.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_organization_name": "Olshan Foundation Repair",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0405030414",
+      "issued_date": "2026-11-12T00:00:00.000",
+      "issued_in_last_30_days": true,
+      "day_issued": "THURSDAY",
+      "calendar_year_issued": "2026",
+      "fiscal_year_issued": "2027",
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "final_date": "2026-11-12T11:19:11.000",
+      "building_valuation_remodel": "1",
+      "electrical_valuation_remodel": "1",
+      "mechanical_valuation_remodel": "1",
+      "plumbing_valuation_remodel": "1",
+      "total_job_valuation": "1",
+      "total_valuation_remodel": "4",
+      "council_district": "3",
+      "legal_description": "LOT 14 *RESUB PTS OF LTS 1-2 LIVE OAK GROVE ADDN",
+      "propx": "3109318",
+      "propy": "10059063",
+      "propertyrsn": "369842",
+      "update_date": "2026-11-13T12:09:48.2029194",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.75948161,
+          30.23624941
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 435 Renovations/Remodel",
+      "work_class": "Repair",
+      "permit_number": "2026-148834 PR",
+      "referencefile": "2026-148834 PR",
+      "project_name": "1406 PAYNE AVE",
+      "folder_description": "Express: Foundation repair",
+      "folderrsn": "13804224",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804224"
+      },
+      "status_current": "Approved",
+      "status_date": "2026-11-12T09:33:25.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_organization_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "Level Best Foundation Repair Inc",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0231050206",
+      "issued_date": "2026-11-12T00:00:00.000",
+      "issued_in_last_30_days": true,
+      "day_issued": "THURSDAY",
+      "calendar_year_issued": "2026",
+      "fiscal_year_issued": "2027",
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "final_date": "2026-11-12T09:32:26.000",
+      "building_valuation_remodel": "1",
+      "electrical_valuation_remodel": "1",
+      "mechanical_valuation_remodel": "1",
+      "plumbing_valuation_remodel": "1",
+      "total_job_valuation": "1",
+      "total_valuation_remodel": "4",
+      "council_district": "7",
+      "legal_description": "E40FT OF LOT 7 & W20FT OF LOT 8 BLK L VIOLET CROWN HEIGHTS SEC 1",
+      "propx": "3117717",
+      "propy": "10095700",
+      "propertyrsn": "355976",
+      "update_date": "2026-11-13T12:09:31.1829906",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.73017783,
+          30.33642166
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 434 Addition & Alterations",
+      "work_class": "Addition and Remodel",
+      "permit_number": "2026-148878 PR",
+      "project_name": "11505 D K RANCH RD",
+      "folder_description": "Comprehensive interior renovation of an existing single-family residence, including reconfiguration of the kitchen, primary bathroom and closet. Scope includes selective demolition, revised interior l",
+      "folderrsn": "13804268",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804268"
+      },
+      "status_current": "Prerequisite Review Approved",
+      "status_date": "2026-11-12T10:24:33.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_organization_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "Martha Nolan Interiors",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0166071913",
+      "issued_in_last_30_days": true,
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "total_new_add_footage": "0",
+      "council_district": "10",
+      "legal_description": "LOT 11 BLK U OAK FOREST SEC 5-A",
+      "propx": "3103644",
+      "propy": "10128327",
+      "propertyrsn": "581175",
+      "update_date": "2026-11-13T12:09:53.9141055",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.77239533,
+          30.42700698
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 435 Renovations/Remodel",
+      "work_class": "Repair",
+      "permit_number": "2026-148951 PR",
+      "referencefile": "2026-148951 PR",
+      "project_name": "10200 PINNACLE CREST LOOP",
+      "folder_description": "Express: Foundation repair-install 7 push piers",
+      "folderrsn": "13804354",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804354"
+      },
+      "status_current": "Approved",
+      "status_date": "2026-11-12T11:45:43.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_organization_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "Foundation Support Specialists",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0443030904",
+      "issued_date": "2026-11-12T00:00:00.000",
+      "issued_in_last_30_days": true,
+      "day_issued": "THURSDAY",
+      "calendar_year_issued": "2026",
+      "fiscal_year_issued": "2027",
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "final_date": "2026-11-12T11:44:58.000",
+      "building_valuation_remodel": "1",
+      "electrical_valuation_remodel": "1",
+      "mechanical_valuation_remodel": "1",
+      "plumbing_valuation_remodel": "1",
+      "total_job_valuation": "1",
+      "total_valuation_remodel": "4",
+      "council_district": "2",
+      "legal_description": "LOT 17 BLK N BRADSHAW CROSSING SUBD SEC 9",
+      "propx": "3108547",
+      "propy": "10023995",
+      "propertyrsn": "5054859",
+      "update_date": "2026-11-13T12:10:21.9772973",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.76448656,
+          30.13990216
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "C-1000 Commercial Remodel",
+      "work_class": "Remodel",
+      "permit_number": "2026-148871 PR",
+      "referencefile": "2026-148871 PR",
+      "project_name": "1106 RIO GRANDE ST",
+      "folder_description": "Interior demolition and renovation, including window and stair repairs and replacements. No new construction for Pease Community Campus.",
+      "folderrsn": "13804261",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804261"
+      },
+      "status_current": "In Review",
+      "status_date": "2026-11-13T08:11:33.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_organization_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "owner_organization_name": "REDACTED",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "Waterloo512 **MAIN",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0208001301",
+      "issued_in_last_30_days": true,
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "number_of_floors": "3",
+      "number_of_units": "1",
+      "council_district": "9",
+      "legal_description": "ABS 342 HARRELL J ACR 2.1543",
+      "propx": "3112663",
+      "propy": "10073221",
+      "propertyrsn": "428678",
+      "update_date": "2026-11-13T12:10:31.1189337",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.74785021,
+          30.27495434
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 435 Renovations/Remodel",
+      "work_class": "Repair",
+      "permit_number": "2026-149182 PR",
+      "referencefile": "2026-149182 PR",
+      "project_name": "905 MINTURN LN",
+      "folder_description": "Express - Replace 7 windows like for like",
+      "folderrsn": "13804605",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804605"
+      },
+      "status_current": "Approved",
+      "status_date": "2026-11-12T15:58:26.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0428130202",
+      "issued_date": "2026-11-12T00:00:00.000",
+      "issued_in_last_30_days": true,
+      "day_issued": "THURSDAY",
+      "calendar_year_issued": "2026",
+      "fiscal_year_issued": "2027",
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "final_date": "2026-11-12T15:56:38.000",
+      "building_valuation_remodel": "0",
+      "electrical_valuation_remodel": "0",
+      "mechanical_valuation_remodel": "0",
+      "plumbing_valuation_remodel": "0",
+      "total_job_valuation": "1",
+      "council_district": "5",
+      "legal_description": "LOT 9 BLK Q BUCKINGHAM ESTATES PHS IV SEC B",
+      "propx": "3095315",
+      "propy": "10037438",
+      "propertyrsn": "552802",
+      "update_date": "2026-11-13T12:10:38.3141535",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.80536838,
+          30.17768826
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 435 Renovations/Remodel",
+      "work_class": "Repair",
+      "permit_number": "2026-149206 PR",
+      "referencefile": "2026-149206 PR",
+      "project_name": "4206 FAR WEST BLVD",
+      "folder_description": "EXPRESS: Foundation Repair",
+      "folderrsn": "13804629",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804629"
+      },
+      "status_current": "Approved",
+      "status_date": "2026-11-13T07:40:12.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_organization_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "Level Best Foundation Repair",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0141050810",
+      "issued_date": "2026-11-13T00:00:00.000",
+      "issued_in_last_30_days": true,
+      "day_issued": "FRIDAY",
+      "calendar_year_issued": "2026",
+      "fiscal_year_issued": "2027",
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "final_date": "2026-11-13T07:40:10.000",
+      "building_valuation_remodel": "1",
+      "electrical_valuation_remodel": "1",
+      "mechanical_valuation_remodel": "1",
+      "plumbing_valuation_remodel": "1",
+      "total_job_valuation": "1",
+      "total_valuation_remodel": "4",
+      "council_district": "10",
+      "legal_description": "LOT 18 BLK L NORTHWEST HILLS MESA OAKS PHS 2",
+      "propx": "3105288",
+      "propy": "10104416",
+      "propertyrsn": "264914",
+      "update_date": "2026-11-13T12:10:31.492048",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.76892927,
+          30.36117444
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 435 Renovations/Remodel",
+      "work_class": "Repair",
+      "permit_number": "2026-148865 PR",
+      "referencefile": "2026-148865 PR",
+      "project_name": "7604 CAYENNE LN",
+      "folder_description": "Express- Install 16 concrete piers, 7 exterior breakouts, 1 garage breakout",
+      "folderrsn": "13804255",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804255"
+      },
+      "status_current": "Approved",
+      "status_date": "2026-11-12T11:15:12.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "GL Hunt Foundation Repair",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0310180324",
+      "issued_date": "2026-11-12T00:00:00.000",
+      "issued_in_last_30_days": true,
+      "day_issued": "THURSDAY",
+      "calendar_year_issued": "2026",
+      "fiscal_year_issued": "2027",
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "final_date": "2026-11-12T11:13:19.000",
+      "building_valuation_remodel": "1",
+      "electrical_valuation_remodel": "1",
+      "mechanical_valuation_remodel": "1",
+      "plumbing_valuation_remodel": "1",
+      "total_job_valuation": "1",
+      "total_valuation_remodel": "4",
+      "council_district": "3",
+      "legal_description": "LOT 24 BLK H RIVERSIDE MEADOWS SEC 2",
+      "propx": "3130761",
+      "propy": "10055012",
+      "propertyrsn": "3194036",
+      "update_date": "2026-11-13T12:10:59.9107848",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.69190349,
+          30.22373195
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 435 Renovations/Remodel",
+      "work_class": "Repair",
+      "permit_number": "2026-149009 PR",
+      "referencefile": "2026-149009 PR",
+      "project_name": "1204 PAYNE AVE",
+      "folder_description": "Express: Tub to shower conversion",
+      "folderrsn": "13804420",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804420"
+      },
+      "status_current": "Approved",
+      "status_date": "2026-11-12T12:53:29.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "West Shore Home, LLC",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0229070703",
+      "issued_date": "2026-11-12T00:00:00.000",
+      "issued_in_last_30_days": true,
+      "day_issued": "THURSDAY",
+      "calendar_year_issued": "2026",
+      "fiscal_year_issued": "2027",
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "final_date": "2026-11-12T12:52:23.000",
+      "building_valuation_remodel": "1",
+      "electrical_valuation_remodel": "1",
+      "mechanical_valuation_remodel": "1",
+      "plumbing_valuation_remodel": "1",
+      "total_job_valuation": "1",
+      "total_valuation_remodel": "4",
+      "council_district": "7",
+      "legal_description": "LOT 25 BLK E VIOLET CROWN HEIGHTS SEC 1",
+      "propx": "3118832",
+      "propy": "10095116",
+      "propertyrsn": "133316",
+      "update_date": "2026-11-13T12:11:25.6556962",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.72668772,
+          30.33474455
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 101 Single Family Houses",
+      "work_class": "New",
+      "permit_number": "2026-149225 PR",
+      "referencefile": "2026-149225 PR",
+      "project_name": "8905 BREEZE HILL DR",
+      "folder_description": "New 1 Story Single Family Residential with 3 bedrooms, 3 bathrooms, attached 2 garage covered porch and patio.",
+      "folderrsn": "13804649",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804649"
+      },
+      "status_current": "In Review",
+      "status_date": "2026-11-13T09:32:59.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_organization_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "condominium": "No",
+      "appraisal_id": "0340130203",
+      "issued_in_last_30_days": true,
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "number_of_units": "1",
+      "total_new_add_footage": "2889",
+      "council_district": "2",
+      "legal_description": "PROSPECT PARK PHS 1 BLK BB LOT 6",
+      "propx": "3124818",
+      "propy": "10026180",
+      "propertyrsn": "6521039",
+      "update_date": "2026-11-13T12:11:31.5446893",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.7128653,
+          30.14486491
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 435 Renovations/Remodel",
+      "work_class": "Repair",
+      "permit_number": "2026-148911 PR",
+      "referencefile": "2026-148911 PR",
+      "project_name": "1713 ANISE DR",
+      "folder_description": "Express: Foundation repair - installing 9 steel piers, 4 exterior breakouts 1 garage breakout",
+      "folderrsn": "13804308",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804308"
+      },
+      "status_current": "Approved",
+      "status_date": "2026-11-12T10:51:52.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "GL Hunt Foundation Repair",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0310180403",
+      "issued_date": "2026-11-12T00:00:00.000",
+      "issued_in_last_30_days": true,
+      "day_issued": "THURSDAY",
+      "calendar_year_issued": "2026",
+      "fiscal_year_issued": "2027",
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "final_date": "2026-11-12T10:50:54.000",
+      "building_valuation_remodel": "0",
+      "electrical_valuation_remodel": "0",
+      "mechanical_valuation_remodel": "0",
+      "plumbing_valuation_remodel": "0",
+      "total_job_valuation": "1",
+      "council_district": "3",
+      "legal_description": "LOT 3 BLK E RIVERSIDE MEADOWS SEC 1",
+      "propx": "3129852",
+      "propy": "10054595",
+      "propertyrsn": "3142409",
+      "update_date": "2026-11-13T12:11:40.9877945",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.69481208,
+          30.22264501
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 329 Res Structures Other Than Bldg",
+      "work_class": "New",
+      "permit_number": "2026-149193 PR",
+      "project_name": "1193 ANGELINA ST",
+      "folder_description": "New In-Ground Concrete Pool and Associated Equipment and Pad (Unit B)\n\nPlan Review\nThis folder was cancelled during the automatic add phase. - People tab",
+      "folderrsn": "13804616",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804616"
+      },
+      "status_current": "Aborted",
+      "status_date": "2026-11-12T16:03:29.000",
+      "owner_organization_name": "REDACTED",
+      "owner_address": "REDACTED",
+      "other_organization_name": "REDACTED",
+      "other_address": "REDACTED",
+      "condominium": "No",
+      "appraisal_id": "0207081801",
+      "issued_in_last_30_days": true,
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "council_district": "1",
+      "propx": "3120030.75",
+      "propy": "10072370",
+      "propertyrsn": "526886",
+      "update_date": "2026-11-13T12:11:55.2673859",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.72457963,
+          30.27214215
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 329 Res Structures Other Than Bldg",
+      "work_class": "New",
+      "permit_number": "2026-149127 PR",
+      "project_name": "1801 ROCKMOOR AVE",
+      "folder_description": "New gunite pool",
+      "folderrsn": "13804542",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804542"
+      },
+      "status_current": "Prerequisite Review Approved",
+      "status_date": "2026-11-12T15:24:21.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_organization_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "Permits Plus ATX",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0117091120",
+      "issued_in_last_30_days": true,
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "total_new_add_footage": "0",
+      "council_district": "10",
+      "legal_description": "LOT 5 CHERRY ROCK ADDN",
+      "propx": "3102352",
+      "propy": "10081269",
+      "propertyrsn": "545108",
+      "update_date": "2026-11-13T12:13:01.954133",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.77992055,
+          30.29773196
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 435 Renovations/Remodel",
+      "work_class": "Repair",
+      "permit_number": "2026-149158 PR",
+      "referencefile": "2026-149158 PR",
+      "project_name": "10708 SPICEWOOD CLUB DR",
+      "folder_description": "Express: Replacing 1 window (like for like)",
+      "folderrsn": "13804576",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804576"
+      },
+      "status_current": "Approved",
+      "status_date": "2026-11-12T15:38:37.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_organization_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "Renewal by Andersen",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0168190402",
+      "issued_date": "2026-11-12T00:00:00.000",
+      "issued_in_last_30_days": true,
+      "day_issued": "THURSDAY",
+      "calendar_year_issued": "2026",
+      "fiscal_year_issued": "2027",
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "final_date": "2026-11-12T15:37:34.000",
+      "building_valuation_remodel": "0",
+      "electrical_valuation_remodel": "0",
+      "mechanical_valuation_remodel": "0",
+      "plumbing_valuation_remodel": "0",
+      "total_job_valuation": "1",
+      "council_district": "6",
+      "legal_description": "LOT 2 BLK BE SPICEWOOD AT BALCONES VILLAGESEC 3",
+      "propx": "3092785",
+      "propy": "10130982",
+      "propertyrsn": "381542",
+      "update_date": "2026-11-13T12:11:46.8338769",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.80664949,
+          30.434988
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 434 Addition & Alterations",
+      "work_class": "Addition and Remodel",
+      "permit_number": "2026-148957 PR",
+      "referencefile": "2026-148957 PR",
+      "project_name": "9503 HANSFORD DR",
+      "folder_description": "Interior remodel of SFR",
+      "folderrsn": "13804360",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804360"
+      },
+      "status_current": "In Review",
+      "status_date": "2026-11-13T09:22:28.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_organization_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "Ace Remodeling TX",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0239200307",
+      "issued_in_last_30_days": true,
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "total_new_add_footage": "0",
+      "council_district": "4",
+      "legal_description": "LOT 7 BLK D NORTHCAPE SEC 1",
+      "propx": "3132566",
+      "propy": "10103588",
+      "propertyrsn": "253268",
+      "update_date": "2026-11-13T12:11:57.6729754",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.68252546,
+          30.35714039
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 101 Single Family Houses",
+      "work_class": "New",
+      "permit_number": "2026-148838 PR",
+      "project_name": "5921 FAIRLANE DR",
+      "folder_description": "ePlan: Residential Expedited Review - New Construction of 2-Story Single Family Res.",
+      "folderrsn": "13804228",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804228"
+      },
+      "status_current": "Intake Pending",
+      "status_date": "2026-11-13T09:27:28.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_organization_name": "REDACTED",
+      "applicant_address": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "Waterloo Permits LLC *MAIN*",
+      "other_address": "REDACTED",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0133010304",
+      "issued_in_last_30_days": true,
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "number_of_units": "1",
+      "total_new_add_footage": "5362",
+      "council_district": "7",
+      "legal_description": "LOT 5 BLK G ALLANDALE WEST SEC 4",
+      "propx": "3111633",
+      "propy": "10096331",
+      "propertyrsn": "600188",
+      "update_date": "2026-11-13T12:12:59.7865132",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.74941188,
+          30.33854617
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "C-1000 Commercial Remodel",
+      "work_class": "Remodel",
+      "permit_number": "2026-149026 PR",
+      "project_name": "730 W STASSNEY LN",
+      "folder_description": "Exterior renovations to existing commercial building, including new exterior elevator tower and expanded canopies. 5844 SF of remodel work and 825 SF of new canopies. 2026-125669 DA.",
+      "folderrsn": "13804438",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804438"
+      },
+      "status_current": "Prerequisite Review Approved",
+      "status_date": "2026-11-12T13:47:50.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_organization_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "owner_organization_name": "REDACTED",
+      "owner_address": "REDACTED",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "Mercury Permits Inc. *MAIN*",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0414101549",
+      "issued_in_last_30_days": true,
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "council_district": "2",
+      "legal_description": "LOT A *LESS S .29AC FAIRVIEW VILLAGE LOT 1 * 45 SQ FT SAFEWAY ADDN NO 3",
+      "propx": "3102401",
+      "propy": "10049301",
+      "propertyrsn": "223937",
+      "update_date": "2026-11-13T12:12:49.6598504",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.78208826,
+          30.2098532
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 435 Renovations/Remodel",
+      "work_class": "Repair",
+      "permit_number": "2026-149023 PR",
+      "referencefile": "2026-149023 PR",
+      "project_name": "1900 SCOFIELD RIDGE PKWY UNIT 2901",
+      "folder_description": "Express: Replace 8 existing windows - size for size",
+      "folderrsn": "13804435",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804435"
+      },
+      "status_current": "In Review",
+      "status_date": "2026-11-12T14:28:04.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_organization_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_organization_name": "Home Depot USA Inc",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0266181701",
+      "issued_in_last_30_days": true,
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "building_valuation_remodel": "1",
+      "electrical_valuation_remodel": "1",
+      "mechanical_valuation_remodel": "1",
+      "plumbing_valuation_remodel": "1",
+      "total_job_valuation": "9090",
+      "total_valuation_remodel": "4",
+      "council_district": "7",
+      "propx": "3131232.150000006",
+      "propy": "10129379.799999997",
+      "propertyrsn": "3066931",
+      "update_date": "2026-11-13T12:12:47.8280317",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.68480656,
+          30.42812494
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 434 Addition & Alterations",
+      "work_class": "Addition and Remodel",
+      "permit_number": "2026-148867 PR",
+      "referencefile": "2026-148867 PR",
+      "project_name": "9403 RAMBLEWOOD DR",
+      "folder_description": "Retroactively permitting the rear patio being enclosed and covered. Work was done years prior to 2018 when current owners purchased the house.\nThis area functions as a sun room",
+      "folderrsn": "13804257",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804257"
+      },
+      "status_current": "In Review",
+      "status_date": "2026-11-13T09:21:27.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_organization_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "AUSTIN PLANS FOR PERMITS *MAIN",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0426230704",
+      "issued_in_last_30_days": true,
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "total_new_add_footage": "418",
+      "council_district": "5",
+      "legal_description": "LOT 8 BLK I CASTLEWOOD FOREST SEC 1",
+      "propx": "3087919",
+      "propy": "10038501",
+      "propertyrsn": "706994",
+      "update_date": "2026-11-13T12:13:13.7235211",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.82869284,
+          30.18107027
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 435 Renovations/Remodel",
+      "work_class": "Repair",
+      "permit_number": "2026-149161 PR",
+      "referencefile": "2026-149161 PR",
+      "project_name": "4216 LOSTRIDGE DR",
+      "folder_description": "Express - DOOR & WINDOW REPLACEMENT, ELECTRICAL RE-WIRE, NEW HVAC EQUIPMENT, DRYWALL REPAIRS, NEW CABINETS IN KITCHEN & BATH, FLOORING AND PAINT",
+      "folderrsn": "13804580",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804580"
+      },
+      "status_current": "Approved",
+      "status_date": "2026-11-12T15:45:27.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_organization_name": "REDACTED",
+      "applicant_address": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "Owner",
+      "other_address": "REDACTED",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0143060502",
+      "issued_date": "2026-11-12T00:00:00.000",
+      "issued_in_last_30_days": true,
+      "day_issued": "THURSDAY",
+      "calendar_year_issued": "2026",
+      "fiscal_year_issued": "2027",
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "final_date": "2026-11-12T15:42:45.000",
+      "building_valuation_remodel": "0",
+      "electrical_valuation_remodel": "0",
+      "mechanical_valuation_remodel": "0",
+      "plumbing_valuation_remodel": "0",
+      "total_job_valuation": "1",
+      "council_district": "10",
+      "legal_description": "LOT 7 BLK R NORTHWEST HILLS MESA OAKS PHS 3",
+      "propx": "3106135",
+      "propy": "10106578",
+      "propertyrsn": "223388",
+      "update_date": "2026-11-13T12:13:19.6295641",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.7660862,
+          30.36706379
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "C-1000 Commercial Remodel",
+      "work_class": "Remodel",
+      "permit_number": "2026-148880 PR",
+      "referencefile": "2026-148880 PR",
+      "project_name": "701 E PARMER LN BLDG PS2",
+      "folder_description": "THIS PROJECT IS FOR MEP SYSTEMS UPGRADE AND EXPANSION,  ALONG WITH THE ADDITION OF SERVER RACKS AND ASSOCIATED EQUIPMENT IN AN EXISTING BUILDING.",
+      "folderrsn": "13804270",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804270"
+      },
+      "status_current": "In Review",
+      "status_date": "2026-11-13T08:11:33.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_organization_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "Cushing Terrell **MAIN",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0258280102",
+      "issued_in_last_30_days": true,
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "council_district": "1",
+      "legal_description": "PARMER SOUTH SUBVISION; A RESUBDIVISION OF LOT 2,* BLK A LOT 1A",
+      "propx": "3138514.89687499",
+      "propy": "10120074.23",
+      "propertyrsn": "3393066",
+      "update_date": "2026-11-13T12:13:25.3520081",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.66241448,
+          30.40206684
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 435 Renovations/Remodel",
+      "work_class": "Repair",
+      "permit_number": "2026-148976 PR",
+      "referencefile": "2026-148976 PR",
+      "project_name": "5402 PENDLETON LN",
+      "folder_description": "Express- Install 25 concrete piers, 25 steel hybrid piers, 21 interior breakouts, 16 angle, 8 deck breakouts, 2 access, 32 tunnels.",
+      "folderrsn": "13804381",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804381"
+      },
+      "status_current": "Approved",
+      "status_date": "2026-11-12T12:17:18.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "GL Hunt Foundation Repair",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0217221315",
+      "issued_date": "2026-11-12T00:00:00.000",
+      "issued_in_last_30_days": true,
+      "day_issued": "THURSDAY",
+      "calendar_year_issued": "2026",
+      "fiscal_year_issued": "2027",
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "final_date": "2026-11-12T12:16:47.000",
+      "building_valuation_remodel": "1",
+      "electrical_valuation_remodel": "1",
+      "mechanical_valuation_remodel": "1",
+      "plumbing_valuation_remodel": "1",
+      "total_job_valuation": "1",
+      "total_valuation_remodel": "4",
+      "council_district": "1",
+      "legal_description": "LOT 15 BLK J PRESWYCK HILLS SEC 4",
+      "propx": "3134532",
+      "propy": "10082345",
+      "propertyrsn": "406346",
+      "update_date": "2026-11-13T12:13:15.9498202",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.67790148,
+          30.29861833
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "C-1000 Commercial Remodel",
+      "work_class": "Remodel",
+      "permit_number": "2026-149082 PR",
+      "project_name": "1250 S CAPITAL OF TEXAS HWY SB BLDG 1",
+      "folder_description": "Interior Remodel \u00bf Elevator Lobby, Commissary, Meeting Room",
+      "folderrsn": "13804497",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804497"
+      },
+      "status_current": "Prerequisite Review Approved",
+      "status_date": "2026-11-12T14:36:57.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_organization_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "*Main*",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0111210203",
+      "issued_in_last_30_days": true,
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "number_of_floors": "1",
+      "number_of_units": "1",
+      "council_district": "8",
+      "legal_description": "ABS 272 SUR 507 EANES A ACR 14.6192",
+      "propx": "3088991",
+      "propy": "10074721",
+      "propertyrsn": "3072529",
+      "update_date": "2026-11-13T12:13:37.1913086",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.82271416,
+          30.28056841
+        ]
+      }
+    },
+    {
+      "permit_type": "Plan Review",
+      "folder_type": "PR",
+      "sub_type": "R- 101 Single Family Houses",
+      "work_class": "New",
+      "permit_number": "2026-149129 PR",
+      "referencefile": "2026-149129 PR",
+      "project_name": "9205 BOATHOUSE DR",
+      "folder_description": "New 2-story SFR, w/ 5 bedrooms, 4 1/2 bathrooms, attached 2 car garage, and covered porch and patio\n\n*Production Builder-PUD*",
+      "folderrsn": "13804544",
+      "web_link": {
+        "url": "https://abc.austintexas.gov/web/permit/public-search-other?t_detail=1&t_selected_folderrsn=13804544"
+      },
+      "status_current": "In Review",
+      "status_date": "2026-11-13T09:50:03.000",
+      "applicant_full_name": "REDACTED",
+      "applicant_organization_name": "REDACTED",
+      "applicant_phone": "5125550101",
+      "other_full_name": "REDACTED",
+      "other_organization_name": "Taylor Morrison",
+      "other_phone": "5125550102",
+      "condominium": "No",
+      "appraisal_id": "0338131811",
+      "issued_in_last_30_days": true,
+      "applied_date": "2026-11-12T00:00:00.000",
+      "expires_date": "2027-11-12T00:00:00.000",
+      "number_of_units": "1",
+      "total_new_add_footage": "3660",
+      "council_district": "2",
+      "legal_description": "PROSPECT PARK PHS 1 BLK G LOT 27",
+      "propx": "3126194.57187501",
+      "propy": "10026237.335625",
+      "propertyrsn": "6521860",
+      "update_date": "2026-11-13T12:14:01.4650292",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          -97.70850727,
+          30.14493329
+        ]
+      }
+    }
+  ],
+  "fields": [
+    "applicant_address",
+    "applicant_full_name",
+    "applicant_organization_name",
+    "applicant_phone",
+    "applied_date",
+    "appraisal_id",
+    "building_valuation_remodel",
+    "calendar_year_issued",
+    "condominium",
+    "council_district",
+    "day_issued",
+    "electrical_valuation_remodel",
+    "expires_date",
+    "final_date",
+    "fiscal_year_issued",
+    "folder_description",
+    "folder_type",
+    "folderrsn",
+    "issued_date",
+    "issued_in_last_30_days",
+    "legal_description",
+    "location",
+    "mechanical_valuation_remodel",
+    "number_of_floors",
+    "number_of_units",
+    "other_address",
+    "other_full_name",
+    "other_organization_name",
+    "other_phone",
+    "owner_address",
+    "owner_organization_name",
+    "permit_number",
+    "permit_type",
+    "plumbing_valuation_remodel",
+    "project_name",
+    "propertyrsn",
+    "propx",
+    "propy",
+    "referencefile",
+    "status_current",
+    "status_date",
+    "sub_type",
+    "total_job_valuation",
+    "total_new_add_footage",
+    "total_valuation_remodel",
+    "update_date",
+    "web_link",
+    "work_class"
+  ]
+}
