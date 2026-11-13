@@ -32,6 +32,24 @@
     : 'Provenance not recorded for this permit';
   const val = (d, field, html) => `<span class="prov" title="${L.esc(prov(d, field))}">${html}</span>`;
 
+  // Where the map point came from, and how sure it is (rule 6). A Census
+  // point is an estimate along the street, so it never reads as exact.
+  const METHOD = {
+    source: 'Map point published with the permit',
+    parcel: 'Map point of the appraiser parcel',
+    census: 'Map point estimated from the address (US Census geocoder)',
+  };
+  function place(loc) {
+    if (!loc) return '<p class="sub">No map point: the address could not be placed.</p>';
+    const ll = `${Number(loc.lat).toFixed(5)}, ${Number(loc.lng).toFixed(5)}`;
+    const osm = `https://www.openstreetmap.org/?mlat=${Number(loc.lat)}&mlon=${Number(loc.lng)}#map=18/${Number(loc.lat)}/${Number(loc.lng)}`;
+    const how = [loc.provenance.matchedAddress ? `Census read it as ${loc.provenance.matchedAddress}` : '',
+      `located ${L.dateTime(loc.provenance.locatedAt)}`, loc.provenance.attribution || ''].filter(Boolean).join('. ');
+    return `<p class="sub">${loc.approximate ? '<span class="pill">approximate</span> ' : ''}<span class="prov" title="${L.esc(how)}">${L.esc(METHOD[loc.method] || loc.method)}</span>
+      · <a class="mono" href="${L.esc(osm)}" rel="noopener noreferrer" target="_blank">${L.esc(ll)}</a>
+      ${loc.method === 'census' ? `<br>${L.esc(loc.provenance.attribution || '')}` : ''}</p>`;
+  }
+
   function render(d) {
     const pm = d.permit;
     document.title = `${pm.permit_number} · ${L.TRADE[trade]} lead`;
@@ -50,6 +68,7 @@
         <h1>${L.esc(pm.permit_type || 'Permit')}${pm.city ? ` · ${L.esc(pm.city)}` : ''}</h1>
         <span class="context">${L.esc(L.TRADE[trade])} · ${L.esc(L.AREA[pm.source_area] || pm.source_area)} · ${d.isBuilding ? 'building permit' : 'permit'}</span>
         <p class="lede">${val(d, 'address', L.esc(pm.address || 'Address not published'))}${pm.zip && !String(pm.address || '').includes(pm.zip) ? ` ${L.esc(pm.zip)}` : ''}</p>
+        ${place(d.location)}
         <p class="lede"><strong>${d.tradePermitIssued ? `A ${L.esc(trade)} permit has been issued on this job.` : `No ${L.esc(trade)} permit issued on this job yet.`}</strong>
           <span class="sub">${d.tradePermitIssued ? '' : 'The source lists issued permits only, so one may be in review, and a sub may already be lined up.'}</span></p>
       </div>

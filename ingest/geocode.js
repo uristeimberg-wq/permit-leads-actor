@@ -55,11 +55,11 @@ async function parcelPoints() {
 /** Job-site addresses of permit-feed permits, with the state from the source when the row has none. */
 async function permitAddresses() {
   const { rows } = await db.query(`
-    SELECT p.id AS permit_id, coalesce(p.street, p.address) AS street, p.city, coalesce(p.state, j.state) AS state, p.zip
+    SELECT p.id AS permit_id, p.source_area, coalesce(p.street, p.address) AS street, p.city, coalesce(p.state, j.state) AS state, p.zip
       FROM permits p
       JOIN sources s ON s.slug = p.source_area AND s.role = 'permits'
       JOIN jurisdictions j ON j.id = s.jurisdiction_id`);
-  return rows.map((r) => ({ permitId: String(r.permit_id), key: G.addressKey(r) }));
+  return rows.map((r) => ({ permitId: String(r.permit_id), sourceArea: r.source_area, street: r.street, key: G.addressKey(r) }));
 }
 
 async function askCensus(items, fetchImpl) {
@@ -147,19 +147,29 @@ async function geocodePermits({ max = 20000, fetchImpl = fetch, kind = 'schedule
       await writeCache(answers, runId); // saved per request, so a later failure keeps what was paid for
     }
 
-    const { rows: hits } = await db.query(
-      'SELECT address_key, lat, lng, quality FROM geocode_cache WHERE matched AND address_key = ANY($1::text[])', [keys]);
-    const byKey = new Map(hits.map((h) => [h.address_key, h]));
+    const { rows: cached } = await db.query(
+      'SELECT address_key, matched, lat, lng, quality FROM geocode_cache WHERE address_key = ANY($1::text[])', [keys]);
+    const byKey = new Map(cached.map((h) => [h.address_key, h]));
+    // Why each permit still has no point, per market, so the next address rule
+    // is chosen from counts (street shapes only; no address is printed).
+    const misses = {};
     for (const a of needs) {
       const h = a.key && byKey.get(a.key);
-      if (h) chosen.set(a.permitId, { permitId: a.permitId, lat: h.lat, lng: h.lng, method: 'census', quality: h.quality, addressKey: a.key });
+      if (h && h.matched) {
+        chosen.set(a.permitId, { permitId: a.permitId, lat: h.lat, lng: h.lng, method: 'census', quality: h.quality, addressKey: a.key });
+        continue;
+      }
+      const m = (misses[a.sourceArea] = misses[a.sourceArea] || { reasons: {}, shapes: {} });
+      const reason = !a.key ? 'no_house_number_or_place' : h ? h.quality : 'not_asked_yet';
+      m.reasons[reason] = (m.reasons[reason] || 0) + 1;
+      if (h) for (const t of G.streetTags(a.street)) m.shapes[t] = (m.shapes[t] || 0) + 1;
     }
 
     const locs = [...chosen.values()];
     const written = await writeLocations(locs, runId);
     const byMethod = locs.reduce((m, l) => ({ ...m, [l.method]: (m[l.method] || 0) + 1 }), {});
     await db.finishSyncRun(runId, { status: 'succeeded', requests, fetched: asked, newCount: matched, changed: written.changed });
-    return { asked, matched, byMethod, located: locs.length, unlocated: needs.length - (byMethod.census || 0), ...written };
+    return { asked, matched, byMethod, located: locs.length, unlocated: needs.length - (byMethod.census || 0), misses, ...written };
   } catch (err) {
     await db.finishSyncRun(runId, { status: 'failed', requests, errorClass: classifyError(err), errorDetail: String(err.stack || err.message).slice(0, 4000) });
     throw err;
@@ -182,6 +192,8 @@ async function main() {
   for (const r of rows) {
     console.log(`  ${r.source_area}: ${r.located} of ${r.permits} (${((100 * r.located) / r.permits).toFixed(1)}%) `
       + `[source ${r.source}, parcel ${r.parcel}, census ${r.census}]`);
+    const m = s.misses[r.source_area];
+    if (m) console.log(`    unlocated: ${JSON.stringify(m.reasons)}; Census misses by street shape: ${JSON.stringify(m.shapes)}`);
   }
   await db.close();
 }

@@ -22,6 +22,28 @@ check('address keys: one per job site, none without a house number or a place', 
   assert.strictEqual(G.addressKey({ street: 'Main St and 5th', city: 'Austin', state: 'TX', zip: '78701' }), null); // an intersection
 });
 
+check('street cleanup keeps house number and street, and leaves street names alone', () => {
+  const cases = {
+    '6915 BRIDGE POINT PKWY BLDG 13 UNIT GAR': '6915 BRIDGE POINT PKWY',
+    '28 SW 8 ST  UNIT B ': '28 SW 8 ST',
+    '12350 SW 132 CT STE 106': '12350 SW 132 CT',
+    '100 MAIN ST #4': '100 MAIN ST',
+    '617 1/2 Rawls Dr': '617 RAWLS DR',
+    '1200-1210 MAIN ST': '1200 MAIN ST',
+    '1200A MAIN ST': '1200 MAIN ST',
+    '1717 E ANDERSON LN SVRD EB': '1717 E ANDERSON LN',
+    '8517 N CAPITAL OF TEXAS HWY NB': '8517 N CAPITAL OF TEXAS HWY',
+    // Street names that look like designators stay whole.
+    '5 SPACE CENTER BLVD': '5 SPACE CENTER BLVD',
+    '9000 RM 620 N': '9000 RM 620 N',
+    '12 LOTUS DR': '12 LOTUS DR',
+  };
+  for (const [raw, want] of Object.entries(cases)) assert.strictEqual(G.cleanStreet(raw), want, raw);
+  assert.deepStrictEqual(G.streetTags('4709 BRIDWELL LN'), ['plain']);
+  assert.deepStrictEqual(G.streetTags('10 N IH 35 SVRD NB'), ['bound', 'highway']);
+  assert.strictEqual(G.addressKey({ street: '617 1/2 Rawls Dr', city: 'Raleigh', state: 'NC', zip: '27610' }), '617 RAWLS DR|RALEIGH|NC|27610');
+});
+
 check('Census input is quoted CSV and the batch limit is enforced', () => {
   assert.strictEqual(G.buildCensusCsv([{ id: '7', key: '12 MAIN ST|AUSTIN|TX|78701' }]), '"7","12 MAIN ST","AUSTIN","TX","78701"');
   assert.throws(() => G.buildCensusCsv(Array.from({ length: 10001 }, (_, i) => ({ id: String(i), key: '1 A|B|TX|1' }))), /limit/);

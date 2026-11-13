@@ -24,6 +24,7 @@ const austin = [
   row(5, '400 PINE ST'), // Census: tie, which is not a match
   row(6, 'MAIN ST AND 5TH'), // no house number: never sent
   row(7, '500 BAY ST', { latitude: '0', longitude: '0' }), // a 0,0 point is not a place: Census instead
+  row(8, '200 OAK ST UNIT 4'), // a unit on a known address: same key, not asked again
 ];
 global.fetch = async () => ({ ok: true, json: async () => austin, text: async () => '' });
 
@@ -68,13 +69,15 @@ async function main() {
       const streets = sent[0].csv.split('\n').map((l) => l.split(',')[1]).sort();
       assert.deepStrictEqual(streets, ['"200 OAK ST"', '"300 ELM ST"', '"400 PINE ST"', '"500 BAY ST"']);
       assert.ok(!/CONTRACTOR WAY/.test(sent[0].csv), 'a contractor business address was sent to the Census');
-      assert.deepStrictEqual([s.asked, s.matched, s.byMethod], [4, 2, { source: 1, census: 3 }]);
+      assert.deepStrictEqual([s.asked, s.matched, s.byMethod], [4, 2, { source: 1, census: 4 }]);
+      assert.deepStrictEqual(s.misses['austin-tx'].reasons, { no_match: 1, tie: 1, no_house_number_or_place: 1 });
     });
 
     await check('each permit keeps its method; misses, ties and unplaceable addresses stay unlocated', async () => {
       assert.deepStrictEqual([(await loc(1)).method, (await loc(1)).lat], ['source', 30.27]);
       assert.deepStrictEqual([(await loc(2)).method, (await loc(2)).quality, (await loc(2)).lat], ['census', 'exact', 30.28]);
       assert.strictEqual((await loc(3)).lat, 30.28);
+      assert.deepStrictEqual([(await loc(8)).method, (await loc(8)).lat], ['census', 30.28]);
       assert.deepStrictEqual([await loc(4), await loc(5), await loc(6)], [undefined, undefined, undefined]);
       assert.deepStrictEqual([(await loc(7)).method, (await loc(7)).quality], ['census', 'non_exact']);
       const [tie] = await q("SELECT matched, quality, lat FROM geocode_cache WHERE address_key LIKE '400 PINE%'");

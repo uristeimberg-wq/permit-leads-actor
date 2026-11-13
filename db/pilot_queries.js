@@ -366,6 +366,9 @@ async function locationFor(permitId) {
   if (!r) return null;
   return {
     lat: r.lat, lng: r.lng, method: r.method, quality: r.quality,
+    // A Census point is placed along the street's address range; one it could
+    // not match exactly is shown as approximate.
+    approximate: r.method === 'census' && r.quality !== 'exact',
     provenance: { source: r.slug, attribution: r.attribution_text, locatedAt: r.located_at,
       ...(r.method === 'census' ? { matchedAddress: r.matched_address, benchmark: r.benchmark } : {}) },
   };
