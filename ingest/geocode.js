@@ -59,7 +59,11 @@ async function permitAddresses() {
       FROM permits p
       JOIN sources s ON s.slug = p.source_area AND s.role = 'permits'
       JOIN jurisdictions j ON j.id = s.jurisdiction_id`);
-  return rows.map((r) => ({ permitId: String(r.permit_id), sourceArea: r.source_area, street: r.street, key: G.addressKey(r) }));
+  return rows.map((r) => {
+    const key = G.addressKey(r);
+    const written = G.addressKey(r, { clean: false });
+    return { permitId: String(r.permit_id), sourceArea: r.source_area, street: r.street, key, writtenKey: written !== key ? written : null };
+  });
 }
 
 async function askCensus(items, fetchImpl) {
@@ -130,33 +134,44 @@ async function geocodePermits({ max = 20000, fetchImpl = fetch, kind = 'schedule
     for (const p of await parcelPoints()) if (!chosen.has(p.permitId)) chosen.set(p.permitId, { ...p, method: 'parcel' });
 
     const needs = (await permitAddresses()).filter((a) => !chosen.has(a.permitId));
-    const keys = [...new Set(needs.map((a) => a.key).filter(Boolean))];
-    const { rows: due } = await db.query(`
-      SELECT k FROM unnest($1::text[]) AS k LEFT JOIN geocode_cache c ON c.address_key = k
-       WHERE c.address_key IS NULL OR (NOT c.matched AND c.geocoded_at < now() - make_interval(days => $2))
-       ORDER BY c.geocoded_at NULLS FIRST, k LIMIT $3`, [keys, RETRY_MISS_DAYS, max]);
-    const todo = due.map((r) => r.k);
+    let budget = max;
     let matched = 0;
-    for (let i = 0; i < todo.length; i += REQUEST_ROWS) {
-      const items = todo.slice(i, i + REQUEST_ROWS).map((key, n) => ({ id: String(i + n + 1), key }));
-      const out = await askCensus(items, fetchImpl);
-      requests += 1;
-      asked += items.length;
-      const answers = items.map((it) => ({ key: it.key, ...(out.get(it.id) || { matched: false, quality: 'no_match' }) }));
-      matched += answers.filter((a) => a.matched).length;
-      await writeCache(answers, runId); // saved per request, so a later failure keeps what was paid for
-    }
+    // Asks the Census for keys never asked (or misses past the retry window), within the run's budget.
+    const ask = async (keys) => {
+      const { rows: due } = await db.query(`
+        SELECT k FROM unnest($1::text[]) AS k LEFT JOIN geocode_cache c ON c.address_key = k
+         WHERE c.address_key IS NULL OR (NOT c.matched AND c.geocoded_at < now() - make_interval(days => $2))
+         ORDER BY c.geocoded_at NULLS FIRST, k LIMIT $3`, [keys, RETRY_MISS_DAYS, budget]);
+      const todo = due.map((r) => r.k);
+      budget -= todo.length;
+      for (let i = 0; i < todo.length; i += REQUEST_ROWS) {
+        const items = todo.slice(i, i + REQUEST_ROWS).map((key, n) => ({ id: String(i + n + 1), key }));
+        const out = await askCensus(items, fetchImpl);
+        requests += 1;
+        asked += items.length;
+        const answers = items.map((it) => ({ key: it.key, ...(out.get(it.id) || { matched: false, quality: 'no_match' }) }));
+        matched += answers.filter((a) => a.matched).length;
+        await writeCache(answers, runId); // saved per request, so a later failure keeps what was paid for
+      }
+      const { rows } = await db.query(
+        'SELECT address_key, matched, lat, lng, quality FROM geocode_cache WHERE address_key = ANY($1::text[])', [keys]);
+      return new Map(rows.map((h) => [h.address_key, h]));
+    };
 
-    const { rows: cached } = await db.query(
-      'SELECT address_key, matched, lat, lng, quality FROM geocode_cache WHERE address_key = ANY($1::text[])', [keys]);
-    const byKey = new Map(cached.map((h) => [h.address_key, h]));
+    // The cleaned line first; where it misses, the line as written.
+    const byKey = await ask([...new Set(needs.map((a) => a.key).filter(Boolean))]);
+    const fallback = needs.filter((a) => a.writtenKey && byKey.has(a.key) && !byKey.get(a.key).matched).map((a) => a.writtenKey);
+    for (const [k, v] of await ask([...new Set(fallback)])) byKey.set(k, v);
+
     // Why each permit still has no point, per market, so the next address rule
     // is chosen from counts (street shapes only; no address is printed).
     const misses = {};
     for (const a of needs) {
       const h = a.key && byKey.get(a.key);
-      if (h && h.matched) {
-        chosen.set(a.permitId, { permitId: a.permitId, lat: h.lat, lng: h.lng, method: 'census', quality: h.quality, addressKey: a.key });
+      const hit = [a.key, a.writtenKey].find((k) => k && byKey.get(k) && byKey.get(k).matched);
+      if (hit) {
+        const c = byKey.get(hit);
+        chosen.set(a.permitId, { permitId: a.permitId, lat: c.lat, lng: c.lng, method: 'census', quality: c.quality, addressKey: hit });
         continue;
       }
       const m = (misses[a.sourceArea] = misses[a.sourceArea] || { reasons: {}, shapes: {} });

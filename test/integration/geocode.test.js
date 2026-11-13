@@ -25,6 +25,7 @@ const austin = [
   row(6, 'MAIN ST AND 5TH'), // no house number: never sent
   row(7, '500 BAY ST', { latitude: '0', longitude: '0' }), // a 0,0 point is not a place: Census instead
   row(8, '200 OAK ST UNIT 4'), // a unit on a known address: same key, not asked again
+  row(9, '600 FIR ST BLDG 2'), // the cleaned line misses, the line as written matches
 ];
 global.fetch = async () => ({ ok: true, json: async () => austin, text: async () => '' });
 
@@ -39,6 +40,7 @@ const answers = (lines) => lines.map(([id, street, city, state, zip]) => {
   const input = `"${id}","${street}, ${city}, ${state}, ${zip}"`;
   if (street.startsWith('200 OAK')) return `${input},"Match","Exact","200 OAK ST, AUSTIN, TX, 78701","-97.75,30.28","1","L"`;
   if (street.startsWith('400 PINE')) return `${input},"Tie"`;
+  if (street === '600 FIR ST BLDG 2') return `${input},"Match","Exact","600 FIR ST, AUSTIN, TX, 78701","-97.77,30.30","3","L"`;
   if (street.startsWith('500 BAY')) return `${input},"Match","Non_Exact","500 BAY ST, AUSTIN, TX, 78701","-97.76,30.29","2","R"`;
   return `${input},"No_Match"`;
 }).join('\n');
@@ -64,12 +66,13 @@ async function main() {
 
     await check('source points first; only job-site addresses without one go to the Census, each once', async () => {
       const s = await geocodePermits({ fetchImpl: census(answers) });
-      assert.strictEqual(sent.length, 1);
+      assert.strictEqual(sent.length, 2);
       assert.strictEqual(sent[0].benchmark, 'Public_AR_Current');
-      const streets = sent[0].csv.split('\n').map((l) => l.split(',')[1]).sort();
-      assert.deepStrictEqual(streets, ['"200 OAK ST"', '"300 ELM ST"', '"400 PINE ST"', '"500 BAY ST"']);
-      assert.ok(!/CONTRACTOR WAY/.test(sent[0].csv), 'a contractor business address was sent to the Census');
-      assert.deepStrictEqual([s.asked, s.matched, s.byMethod], [4, 2, { source: 1, census: 4 }]);
+      const streets = (i) => sent[i].csv.split('\n').map((l) => l.split(',')[1]).sort();
+      assert.deepStrictEqual(streets(0), ['"200 OAK ST"', '"300 ELM ST"', '"400 PINE ST"', '"500 BAY ST"', '"600 FIR ST"']);
+      assert.deepStrictEqual(streets(1), ['"600 FIR ST BLDG 2"']); // only the miss is asked as written
+      assert.ok(!sent.some((x) => /CONTRACTOR WAY/.test(x.csv)), 'a contractor business address was sent to the Census');
+      assert.deepStrictEqual([s.asked, s.matched, s.byMethod], [6, 3, { source: 1, census: 5 }]);
       assert.deepStrictEqual(s.misses['austin-tx'].reasons, { no_match: 1, tie: 1, no_house_number_or_place: 1 });
     });
 
@@ -78,6 +81,7 @@ async function main() {
       assert.deepStrictEqual([(await loc(2)).method, (await loc(2)).quality, (await loc(2)).lat], ['census', 'exact', 30.28]);
       assert.strictEqual((await loc(3)).lat, 30.28);
       assert.deepStrictEqual([(await loc(8)).method, (await loc(8)).lat], ['census', 30.28]);
+      assert.deepStrictEqual([(await loc(9)).lat, (await loc(9)).address_key], [30.3, '600 FIR ST BLDG 2|AUSTIN|TX|78701']);
       assert.deepStrictEqual([await loc(4), await loc(5), await loc(6)], [undefined, undefined, undefined]);
       assert.deepStrictEqual([(await loc(7)).method, (await loc(7)).quality], ['census', 'non_exact']);
       const [tie] = await q("SELECT matched, quality, lat FROM geocode_cache WHERE address_key LIKE '400 PINE%'");
@@ -86,7 +90,7 @@ async function main() {
 
     await check('a second run asks the Census nothing and rewrites no row', async () => {
       const s = await geocodePermits({ fetchImpl: census(answers) });
-      assert.deepStrictEqual([sent.length, s.asked, s.changed, s.removed], [1, 0, 0, 0]);
+      assert.deepStrictEqual([sent.length, s.asked, s.changed, s.removed], [2, 0, 0, 0]);
     });
 
     await check('the job API shows the point with its method and the Census notice', async () => {

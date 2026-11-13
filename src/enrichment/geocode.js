@@ -63,10 +63,14 @@ function cleanStreet(street) {
   return s;
 }
 
-/** A stable key for one job-site address, so it is geocoded once. */
-function addressKey({ street, city, state, zip }) {
+/**
+ * A stable key for one job-site address, so it is geocoded once. With
+ * { clean: false } the street is kept as written (units and all): the
+ * fallback when the cleaned line misses, since some written forms match.
+ */
+function addressKey({ street, city, state, zip }, { clean = true } = {}) {
   const norm = (v) => String(v ?? '').toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
-  const st = norm(cleanStreet(street));
+  const st = norm(clean ? cleanStreet(street) : street);
   const z = String(zip ?? '').replace(/\D/g, '').slice(0, 5);
   if (!st || !/^\d+ [A-Z0-9]/.test(st) || (!z && !norm(city))) return null; // nothing a geocoder can place
   return [st, norm(city), norm(state), z].join('|');
