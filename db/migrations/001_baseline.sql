@@ -1,3 +1,8 @@
+-- 001: baseline. The prototype's db/schema.sql as it stood on 2026-11-13. Its
+-- SQL statements are unchanged; only comments were added. Every statement is
+-- IF NOT EXISTS, so it is safe on databases created before migrations existed.
+-- Never edit this file after merge; add 002_*.sql instead.
+--
 -- Permit search platform schema.
 --
 -- One row per permit per source. Ingest is incremental and re-runs overlap, so
@@ -79,7 +84,8 @@ ALTER TABLE permits ADD COLUMN IF NOT EXISTS fees_balance  NUMERIC(14,2);
 ALTER TABLE permits ADD COLUMN IF NOT EXISTS inspections   JSONB;
 -- Contractor contact. Availability differs sharply by market: Austin's open
 -- data publishes the phone outright, Miami-Dade a name and licence number but
--- no phone, and the Oregon portals publish neither. Phones are stored as bare
+-- no phone, and the Oregon portals publish neither. [Stale as of 2026-11-13:
+-- the Miami-Dade layer does carry ContractorPhone; see docs/DATA_SOURCES.md.] Phones are stored as bare
 -- digits so they compare and de-duplicate reliably.
 ALTER TABLE permits ADD COLUMN IF NOT EXISTS contractor_name    TEXT;
 ALTER TABLE permits ADD COLUMN IF NOT EXISTS contractor_phone   TEXT;

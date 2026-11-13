@@ -1,9 +1,8 @@
 // Database access. Plain `pg` and hand-written SQL — no ORM, matching the
 // dependency-light style of the scraper.
 
-const fs = require('node:fs');
-const path = require('node:path');
 const { Pool, types } = require('pg');
+const { migrate } = require('./migrate.js');
 
 // Return DATE (OID 1082) as the plain 'YYYY-MM-DD' string the column actually
 // holds. By default node-pg builds a JS Date at LOCAL midnight, which then
@@ -31,9 +30,9 @@ function query(text, params) {
   return getPool().query(text, params);
 }
 
+/** Bring the database up to date by applying pending db/migrations/*.sql. */
 async function applySchema() {
-  const sql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
-  await query(sql);
+  await migrate(getPool());
 }
 
 async function close() {

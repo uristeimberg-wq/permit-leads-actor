@@ -5,7 +5,7 @@
   "description": "Trade-scored building permit leads for subcontractors.",
   "scripts": {
     "start": "node src/main.js",
-    "test": "node src/scoring.test.js && node src/address.test.js && node src/dates.test.js && node src/status.test.js && node src/normalize.test.js && node src/adapters/accela.test.js && node src/adapters/arcgis.test.js && node src/adapters/socrata.test.js",
+    "test": "node src/scoring.test.js && node ingest/config.test.js && node db/migrate.test.js && node src/address.test.js && node src/dates.test.js && node src/status.test.js && node src/normalize.test.js && node src/adapters/accela.test.js && node src/adapters/arcgis.test.js && node src/adapters/socrata.test.js",
     "ingest": "node ingest/run.js",
     "db:up": "docker compose up -d",
     "web": "node web/server.js",

@@ -63,12 +63,22 @@ red beyond that — and opens to a per-source breakdown, so "12 days old" can be
 traced to the feed that is behind. A platform that claims "latest permits" should
 say out loud when it is serving a stale snapshot.
 
-Note that `INGEST_AREAS` defaults to the two Oregon sources only. Austin and
-Miami-Dade are **not** refreshed by the scheduler unless you add them:
+`INGEST_AREAS` defaults to the pilot markets, Austin and Miami-Dade
+(`PILOT_AREAS` in `src/sources.js`); the Oregon Accela sources run only when
+named. Each run is capped by its source's own `maxPerRun` (Austin 5,000,
+Miami-Dade 1,500). `INGEST_MAX` can lower a cap but not raise it, and a run
+that hits its cap logs a warning, because the oldest permits in the window
+were then not fetched. An unknown area name fails at startup rather than
+being skipped.
 
 ```bash
-INGEST_AREAS=clackamas-county-or,oregon-statewide,austin-tx,miami-dade-fl npm run schedule
+INGEST_AREAS=austin-tx,miami-dade-fl,clackamas-county-or npm run schedule
 ```
+
+Schema changes live in numbered files under `db/migrations/` and are applied
+in order by `db/migrate.js` on every start (recorded in `schema_migrations`;
+editing an applied file is an error). `001_baseline.sql` is the former
+`db/schema.sql`.
 
 ## The web UI
 

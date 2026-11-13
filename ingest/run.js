@@ -7,14 +7,15 @@
 //   node ingest/run.js --all-details          re-fetch details for known permits
 
 const { log } = require('apify');
-const { SOURCES } = require('../src/sources.js');
+const { SOURCES, PILOT_AREAS } = require('../src/sources.js');
 const { getAdapter } = require('../src/adapters/index.js');
 const { scorePermit } = require('../src/scoring.js');
 const { toScorable } = require('../src/normalize.js');
 const db = require('../db/index.js');
 
-// Only the sources verified to work against live data.
-const DEFAULT_AREAS = ['clackamas-county-or', 'oregon-statewide', 'austin-tx', 'miami-dade-fl'];
+// The pilot markets. Oregon (Accela) still works but is slow and out of the
+// pilot (ADR-5): run it explicitly with --area=clackamas-county-or.
+const DEFAULT_AREAS = PILOT_AREAS;
 const TRADES = ['flooring', 'hvac', 'plumbing', 'electrical', 'painting', 'roofing'];
 
 /**
@@ -31,7 +32,8 @@ function tradeScoresFor(permit) {
 }
 
 function parseArgs(argv) {
-  const args = { areas: DEFAULT_AREAS, days: 14, max: 500, allDetails: false };
+  // max: undefined = each source's own maxPerRun (src/sources.js).
+  const args = { areas: DEFAULT_AREAS, days: 14, max: undefined, allDetails: false };
   for (const arg of argv) {
     const [key, value] = arg.replace(/^--/, '').split('=');
     if (key === 'area') args.areas = value.split(',');
@@ -42,9 +44,10 @@ function parseArgs(argv) {
   return args;
 }
 
-async function ingestArea(area, { days, max, allDetails }) {
+async function ingestArea(area, { days, max: requestedMax, allDetails }) {
   const source = SOURCES[area];
   if (!source) throw new Error(`Unknown area "${area}". Known: ${Object.keys(SOURCES).join(', ')}`);
+  const max = requestedMax === undefined ? source.maxPerRun : Math.min(requestedMax, source.maxPerRun);
 
   const runId = await db.startIngestRun(area);
   log.info(`[${area}] ingest start (last ${days} days, max ${max})`);
@@ -72,6 +75,12 @@ async function ingestArea(area, { days, max, allDetails }) {
       log,
       selectDetailTargets,
     });
+
+    // Adapters return newest first, so hitting the cap means the OLDEST permits
+    // in the window were not fetched. Say so rather than look complete.
+    if (permits.length >= max) {
+      log.warning(`[${area}] hit the ${max}-record cap for ${days} days; older permits in the window were not fetched. Use a shorter --days or run more often.`);
+    }
 
     const withScores = permits.map((p) => ({ ...p, tradeScores: tradeScoresFor(p) }));
     const { written, inserted } = await db.upsertPermits(withScores, area);

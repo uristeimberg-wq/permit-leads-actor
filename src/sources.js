@@ -8,6 +8,7 @@ const SOURCES = {
   'portland-or': {
     label: 'Portland, OR (City)',
     type: 'csv',
+    maxPerRun: 1000,
     // TODO — still unverified. portlandmaps.com was unreachable from the
     // machine this was last worked on (connection times out, DNS resolves), so
     // the export URLs and the column headers below remain best guesses.
@@ -34,6 +35,8 @@ const SOURCES = {
     label: 'Clackamas County, OR',
     type: 'accela',
     baseUrl: 'https://aca-prod.accela.com/CLACKAMAS/',
+    // The ACA grid's pager stops after 10 pages, so ~100 is the real ceiling.
+    maxPerRun: 300,
     module: 'Building',
     // Observed live in the results grid. Accela's vocabulary is in-process
     // workflow states, not applied/issued, so everything that isn't finalized
@@ -69,6 +72,7 @@ const SOURCES = {
     label: 'Oregon statewide (ePermitting)',
     type: 'accela',
     baseUrl: 'https://aca-oregon.accela.com/oregon/',
+    maxPerRun: 300,
     module: 'Building',
     statusMap: {
       issued: 'issued',
@@ -111,6 +115,9 @@ const SOURCES = {
     type: 'socrata',
     domain: 'data.austintexas.gov',
     datasetId: '3syk-w9eu',
+    // ~158 issued permits/day (Oct-Nov 2026), so a 14-day window is ~2,200.
+    // 5,000 leaves headroom; ingest warns if a run hits it.
+    maxPerRun: 5000,
     dateField: 'issue_date',
     defaultState: 'TX',
     fieldMap: {
@@ -174,6 +181,8 @@ const SOURCES = {
     label: 'Miami-Dade County, FL',
     type: 'arcgis',
     layerUrl: 'https://services.arcgis.com/8Pc9XBTAsYuxx9Ny/arcgis/rest/services/miamidade_permit_data/FeatureServer/0',
+    // --max=6000 failed live; ~1,500 is the tested-safe ceiling (see README).
+    maxPerRun: 1500,
     dateField: 'PermitIssuedDate',
     defaultState: 'FL',
     fieldMap: {
@@ -242,4 +251,9 @@ const SOURCES = {
   // arranged with the county.
 };
 
-module.exports = { SOURCES };
+// The markets the pilot runs on (docs/DECISIONS.md, ADR-9). These are what the
+// scheduler and a bare `npm run ingest` refresh. Oregon and Portland stay
+// available by naming them explicitly (ADR-5).
+const PILOT_AREAS = ['austin-tx', 'miami-dade-fl'];
+
+module.exports = { SOURCES, PILOT_AREAS };

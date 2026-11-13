@@ -11,16 +11,16 @@
 //
 // Deliberately dependency-free (no cron library). If you would rather use the
 // system scheduler, this is the equivalent crontab entry:
-//   0 */6 * * * cd /path/to/repo && node ingest/run.js --days=7 --max=300
+//   0 */6 * * * cd /path/to/repo && node ingest/run.js --days=7
 
 const { log } = require('apify');
 const { ingestArea } = require('./run.js');
+const { resolveScheduleConfig } = require('./config.js');
 const db = require('../db/index.js');
 
-const INTERVAL_MINUTES = Number(process.env.INGEST_INTERVAL_MINUTES || 360);
-const DAYS = Number(process.env.INGEST_DAYS || 7);
-const MAX = Number(process.env.INGEST_MAX || 300);
-const AREAS = (process.env.INGEST_AREAS || 'clackamas-county-or,oregon-statewide').split(',');
+// Defaults: every 6 hours, last 7 days, the pilot areas (Austin, Miami-Dade),
+// each capped by its own source's maxPerRun. See ingest/config.js.
+const CONFIG = resolveScheduleConfig(process.env);
 
 let running = false;
 
@@ -33,9 +33,9 @@ async function runOnce() {
   }
   running = true;
 
-  for (const area of AREAS) {
+  for (const { area, max } of CONFIG.runs) {
     try {
-      await ingestArea(area.trim(), { days: DAYS, max: MAX, allDetails: false });
+      await ingestArea(area, { days: CONFIG.days, max, allDetails: false });
     } catch (err) {
       // ingestArea already recorded the failure against ingest_runs, so the UI
       // can show it. One portal being down must not stop the others.
@@ -44,15 +44,16 @@ async function runOnce() {
   }
 
   running = false;
-  log.info(`Next refresh in ${INTERVAL_MINUTES} minutes.`);
+  log.info(`Next refresh in ${CONFIG.intervalMinutes} minutes.`);
 }
 
 async function main() {
   await db.applySchema();
-  log.info(`Scheduler started: every ${INTERVAL_MINUTES}m, last ${DAYS} days, areas: ${AREAS.join(', ')}`);
+  const areaList = CONFIG.runs.map((r) => `${r.area} (max ${r.max})`).join(', ');
+  log.info(`Scheduler started: every ${CONFIG.intervalMinutes}m, last ${CONFIG.days} days, areas: ${areaList}`);
 
   await runOnce();
-  const timer = setInterval(runOnce, INTERVAL_MINUTES * 60 * 1000);
+  const timer = setInterval(runOnce, CONFIG.intervalMinutes * 60 * 1000);
 
   const shutdown = async () => {
     clearInterval(timer);
