@@ -1,0 +1,70 @@
+{
+  "title": "Municipal Permit Leads Scraper Input",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "area": {
+      "title": "Area",
+      "type": "string",
+      "description": "Which permit data source to pull from. Add more areas in src/sources.js (and an adapter in src/adapters/ if it is a new kind of portal).",
+      "editor": "select",
+      "enum": [
+        "portland-or",
+        "clackamas-county-or",
+        "oregon-statewide"
+      ],
+      "enumTitles": [
+        "Portland, OR (City)",
+        "Clackamas County, OR",
+        "Oregon statewide (ePermitting)"
+      ],
+      "default": "portland-or"
+    },
+    "trade": {
+      "title": "Trade",
+      "type": "string",
+      "description": "Which trade to score leads for.",
+      "editor": "select",
+      "enum": [
+        "flooring",
+        "hvac",
+        "plumbing",
+        "electrical",
+        "painting",
+        "roofing"
+      ],
+      "default": "flooring"
+    },
+    "includeIssued": {
+      "title": "Include issued permits",
+      "type": "boolean",
+      "description": "If off, only pulls 'applied' permits (bids not yet locked — usually the better lead).",
+      "default": true
+    },
+    "minScore": {
+      "title": "Minimum score",
+      "type": "integer",
+      "description": "Drop any lead scoring below this (0-100+). Matches the Tier C floor by default.",
+      "default": 25,
+      "minimum": 0
+    },
+    "daysBack": {
+      "title": "Days back",
+      "type": "integer",
+      "description": "How far back to search. Applies to date-range sources (Accela, ArcGIS); the Portland CSV export ignores it.",
+      "default": 30,
+      "minimum": 1
+    },
+    "maxRecords": {
+      "title": "Max records",
+      "type": "integer",
+      "description": "Safety cap on how many permits to pull before scoring. Accela visits one detail page per record, so a high cap means a long, heavy run.",
+      "default": 200,
+      "minimum": 1
+    }
+  },
+  "required": [
+    "area",
+    "trade"
+  ]
+}

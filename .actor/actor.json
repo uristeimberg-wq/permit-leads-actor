@@ -1,0 +1,10 @@
+{
+  "actorSpecification": 1,
+  "name": "municipal-permit-leads",
+  "title": "Municipal Permit Leads Scraper",
+  "description": "Turns public building permit filings into trade-scored contractor leads (flooring, HVAC, plumbing, electrical, painting, roofing).",
+  "version": "0.1",
+  "buildTag": "latest",
+  "input": "./input_schema.json",
+  "dockerfile": "../Dockerfile"
+}

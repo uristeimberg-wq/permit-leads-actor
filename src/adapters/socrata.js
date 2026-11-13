@@ -1,0 +1,168 @@
+// Socrata Open Data adapter — for cities that publish permits as a queryable
+// dataset (Austin's `data.austintexas.gov` being the flagship).
+//
+// This is by far the cheapest source type we have: one HTTP request returns up
+// to 1,000 fully-populated records, versus Accela's one browser navigation per
+// permit. It also carries fields the scraped portals simply don't publish —
+// Austin includes `contractor_phone` directly.
+//
+// As with ArcGIS, the SoQL query interface is a stable public contract and safe
+// to implement generically; a given dataset's field NAMES are not, and must be
+// read off the live dataset and declared per source in `fieldMap`.
+
+const { createStatusNormalizer, normalizePermit } = require('../normalize.js');
+
+// Socrata's own per-request ceiling for the JSON endpoint.
+const PAGE_SIZE = 1000;
+
+/** SoQL wants a floating timestamp: `'YYYY-MM-DDTHH:MM:SS'`, no zone suffix. */
+function toSoqlTimestamp(date) {
+  return `'${date.toISOString().slice(0, 19)}'`;
+}
+
+function buildWhere(source, daysBack) {
+  const clauses = [];
+  if (source.dateField && daysBack) {
+    const since = new Date(Date.now() - daysBack * 86400000);
+    clauses.push(`${source.dateField} >= ${toSoqlTimestamp(since)}`);
+  }
+  if (source.where) clauses.push(`(${source.where})`);
+  return clauses.join(' AND ');
+}
+
+function buildQueryUrl(source, { daysBack, offset, pageSize }) {
+  const base = `https://${source.domain}/resource/${source.datasetId}.json`;
+  const params = new URLSearchParams({
+    $limit: String(pageSize),
+    $offset: String(offset),
+  });
+
+  const where = buildWhere(source, daysBack);
+  if (where) params.set('$where', where);
+  // Newest first, so a capped run returns the most recent permits rather than
+  // an arbitrary slice of a multi-million-row table.
+  params.set('$order', source.orderBy || `${source.dateField || ':id'} DESC`);
+
+  return `${base}?${params.toString()}`;
+}
+
+/**
+ * @param {object} source entry from sources.js (needs domain, datasetId, fieldMap)
+ * @param {{daysBack?: number, maxRecords?: number, includeIssued?: boolean,
+ *          log: object, fetchImpl?: Function}} options
+ */
+async function fetchSocrataSource(source, options) {
+  const { daysBack = 30, maxRecords = 2000, includeIssued = true, log, fetchImpl = fetch } = options;
+
+  if (!source.fieldMap) {
+    throw new Error(
+      `Source "${source.label}" has no fieldMap. Read the dataset's real field names ` +
+        `from https://${source.domain}/api/views/${source.datasetId}.json before enabling it — ` +
+        'do not guess them.',
+    );
+  }
+
+  const headers = {};
+  // An app token isn't required, but without one Socrata applies a stricter
+  // shared rate limit. Optional so the adapter works with no configuration.
+  if (process.env.SOCRATA_APP_TOKEN) headers['X-App-Token'] = process.env.SOCRATA_APP_TOKEN;
+
+  const rows = [];
+  for (let offset = 0; rows.length < maxRecords; offset += PAGE_SIZE) {
+    const pageSize = Math.min(PAGE_SIZE, maxRecords - rows.length);
+    const url = buildQueryUrl(source, { daysBack, offset, pageSize });
+    log.info(`Querying ${url.slice(0, 150)}`);
+
+    const response = await fetchImpl(url, { headers });
+    if (!response.ok) {
+      // Socrata puts the useful part of an error in the body, not the status.
+      const detail = await response.text().catch(() => '');
+      throw new Error(`Failed to query ${source.datasetId}: HTTP ${response.status} ${detail.slice(0, 200)}`);
+    }
+
+    const page = await response.json();
+    if (!Array.isArray(page)) {
+      throw new Error(`Socrata error from ${source.datasetId}: ${JSON.stringify(page).slice(0, 200)}`);
+    }
+
+    rows.push(...page);
+    log.info(`  -> ${page.length} rows (${rows.length} total)`);
+    if (page.length < pageSize) break; // last page
+  }
+
+  return mapRows(rows, source, { includeIssued, log });
+}
+
+/** Pure row -> permit mapping, unit tested offline. */
+function mapRows(rows, source, { includeIssued = true, log }) {
+  const map = source.fieldMap;
+  const status = createStatusNormalizer({ statusMap: source.statusMap, label: source.label });
+
+  // A fieldMap entry may name one column or several. Austin spreads valuation
+  // across a dozen columns (total_job_valuation, *_remodel, per-trade), none of
+  // which is populated on most rows, so the first meaningful one wins.
+  const isEmpty = (v) => v == null || v === '' || Number(v) === 0;
+  const pick = (row, key) => {
+    const spec = map[key];
+    if (!spec) return undefined;
+    if (!Array.isArray(spec)) return row[spec];
+    return spec.map((f) => row[f]).find((v) => !isEmpty(v));
+  };
+
+  const permits = rows.map((row) => {
+    const rawStatus = pick(row, 'status');
+
+    return normalizePermit({
+      address: buildAddress(row, map),
+      // Socrata datasets carry explicit city/zip columns, which are more
+      // reliable than parsing them back out of a concatenated address string.
+      city: pick(row, 'city'),
+      state: pick(row, 'state') ?? source.defaultState,
+      zip: pick(row, 'zip'),
+      jurisdiction: pick(row, 'jurisdiction') ?? source.label,
+      permitType: pick(row, 'permitType'),
+      workDescription: pick(row, 'workDescription'),
+      valuation: pick(row, 'valuation'),
+      status: status.normalize(rawStatus),
+      statusRaw: rawStatus,
+      permitUrl: pick(row, 'permitUrl'),
+      permitNumber: pick(row, 'permitNumber'),
+      filedDate: pick(row, 'filedDate'),
+
+      owner: pick(row, 'owner'),
+      contractorName: pick(row, 'contractorName'),
+      contractorPhone: pick(row, 'contractorPhone'),
+      contractorLicence: pick(row, 'contractorLicence'),
+      contractorTrade: pick(row, 'contractorTrade'),
+      contractorCity: pick(row, 'contractorCity'),
+      applicantName: pick(row, 'applicantName'),
+      applicantPhone: pick(row, 'applicantPhone'),
+    });
+  });
+
+  status.report(log);
+  return includeIssued ? permits : permits.filter((p) => p.status !== 'issued');
+}
+
+/**
+ * Socrata splits the address across columns. Rebuilt into the single display
+ * string the UI shows, matching how scraped sources present it.
+ */
+function buildAddress(row, map) {
+  const at = (key) => {
+    const spec = map[key];
+    if (!spec) return null;
+    return Array.isArray(spec) ? spec.map((f) => row[f]).find(Boolean) ?? null : row[spec] ?? null;
+  };
+  const street = at('street');
+  if (!street) return at('address');
+
+  const city = at('city');
+  const state = at('state');
+  const zip = at('zip');
+
+  const tail = [city, [state, zip].filter(Boolean).join(' ')].filter(Boolean).join(' ');
+  return tail ? `${street}, ${tail}` : String(street);
+}
+
+module.exports = { fetchSocrataSource, mapRows, buildAddress, buildQueryUrl, buildWhere };
