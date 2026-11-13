@@ -50,6 +50,26 @@
       ${loc.method === 'census' ? `<br>${L.esc(loc.provenance.attribution || '')}` : ''}</p>`;
   }
 
+  // How the job got here (ADR-16): the application behind the permit, with the
+  // source's own dates beside the day we first saw each filing.
+  const STAGE = { pre_application: 'Pre-application', submitted: 'Submitted', in_review: 'In review', corrections: 'Corrections',
+    approved: 'Approved, not issued', issued: 'Issued', inspections: 'Inspections', completed: 'Completed', expired: 'Expired',
+    withdrawn: 'Withdrawn', cancelled: 'Cancelled', denied: 'Denied', unknown: 'Stage not mapped' };
+  function lifecycleCard(lc) {
+    if (!lc) return '';
+    const hist = (h) => h.length ? `<ol class="sub">${h.map((x) => `<li>${L.esc(x.status || 'no status')} · ${L.esc(x.stage ? STAGE[x.stage] || x.stage : 'stage not recorded')}${x.stageSince ? ` · source date ${L.esc(L.date(x.stageSince))}` : ''} · seen ${L.esc(L.date(x.observedAt))}</li>`).join('')}</ol>` : '';
+    const apps = (lc.applications || []).map((a) => {
+      const url = window.safeHttpUrl ? window.safeHttpUrl(a.url) : null;
+      return `<div><p><strong>Application ${url ? `<a class="mono" href="${L.esc(url)}" rel="noopener noreferrer" target="_blank">${L.esc(a.permitNumber)}</a>` : `<span class="mono">${L.esc(a.permitNumber)}</span>`}</strong>
+        · ${L.esc(STAGE[a.stage] || a.stage)}</p>
+        <p class="sub">Submitted ${L.esc(a.submittedOn ? L.date(a.submittedOn) : 'date not published')} (the city's date) · first seen by us ${L.esc(L.date(a.firstSeenAt))}${a.firstSeenStage ? ` while ${L.esc((STAGE[a.firstSeenStage] || a.firstSeenStage).toLowerCase())}` : ''}.
+        Linked by ${L.esc(a.link && a.link.detail)} (the city's own reference).</p>${hist(a.history || [])}</div>`;
+    }).join('');
+    return `<div class="card"><h2>How this job started</h2>
+      ${apps || '<p class="sub">No earlier application on file for this permit.</p>'}
+      <p class="sub">This permit: ${L.esc(STAGE[lc.stage] || lc.stage)}${lc.submittedOn ? `, applied ${L.esc(L.date(lc.submittedOn))}` : ''}.</p>${hist(lc.history || [])}</div>`;
+  }
+
   function render(d) {
     const pm = d.permit;
     document.title = `${pm.permit_number} · ${L.TRADE[trade]} lead`;
@@ -70,7 +90,7 @@
         <p class="lede">${val(d, 'address', L.esc(pm.address || 'Address not published'))}${pm.zip && !String(pm.address || '').includes(pm.zip) ? ` ${L.esc(pm.zip)}` : ''}</p>
         ${place(d.location)}
         <p class="lede"><strong>${d.tradePermitIssued ? `A ${L.esc(trade)} permit has been issued on this job.` : `No ${L.esc(trade)} permit issued on this job yet.`}</strong>
-          <span class="sub">${d.tradePermitIssued ? '' : 'The source lists issued permits only, so one may be in review, and a sub may already be lined up.'}</span></p>
+          <span class="sub">${d.tradePermitIssued ? '' : (d.meta && (d.meta.earlySources || []).includes(d.meta.source) ? 'None is on file yet, issued or in review; a sub may still be lined up.' : 'The source lists issued permits only, so one may be in review, and a sub may already be lined up.')}</span></p>
       </div>
       ${L.freshness(d.meta)}
     </div>
@@ -113,8 +133,9 @@
       <h2>Trade permits on this job</h2>
       <table><thead><tr><th>Trade</th><th>Permit</th><th>Issued</th><th>Pulled by</th></tr></thead><tbody>${tradeRows}</tbody></table>
       ${others.length ? `<p class="note">Also on this job: ${others.map((r) => `<a class="mono" href="job.html?${L.qs({ id: r.id, trade })}">${L.esc(r.permit_number)}</a>`).join(', ')}</p>` : ''}
-      <p class="note">Linked by permit number. Austin creates trade permits with the building permit, so issue dates, not application dates, are what tell trades apart here.</p>
+      <p class="note">Linked by ${L.esc((d.meta && d.meta.jobLink) || 'permit number')}.${d.meta && d.meta.source === 'austin-tx' ? ' Austin creates trade permits with the building permit, so issue dates, not application dates, are what tell trades apart here.' : ''}</p>
     </div>
+    ${lifecycleCard(d.lifecycle)}
     </div>
     ${L.attribution(d.meta)}`;
   }

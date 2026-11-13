@@ -19,7 +19,11 @@
     const m = /^\+1(\d{3})(\d{3})(\d{4})$/.exec(e164 || '');
     return m ? `(${m[1]}) ${m[2]}-${m[3]}` : esc(e164);
   }
-  const AREA = { 'austin-tx': 'Austin, TX', 'miami-dade-fl': 'Miami-Dade, FL' };
+  // Every pilot market (db/pilot_queries.js SOURCES); the server ignores any other value.
+  const AREA = { 'austin-tx': 'Austin, TX', 'miami-dade-fl': 'Miami-Dade, FL', 'miami-city-fl': 'City of Miami, FL', 'raleigh-nc': 'Raleigh, NC' };
+  const areaOf = (v) => (Object.prototype.hasOwnProperty.call(AREA, v) ? v : 'austin-tx');
+  /** <option>s for a market picker, with `current` selected. */
+  const areaOptions = (current) => Object.entries(AREA).map(([k, label]) => `<option value="${k}"${k === current ? ' selected' : ''}>${esc(label)}</option>`).join('');
   const TRADE = { electrical: 'Electrical', mechanical: 'Mechanical', plumbing: 'Plumbing' };
   const TRADE_PERSON = { electrical: 'electricians', mechanical: 'HVAC contractors', plumbing: 'plumbers' };
 
@@ -54,7 +58,7 @@
   }
 
   // One shell for every screen. `current` is the page's own file name.
-  const NAV = [['index.html', 'Overview'], ['gcs.html', 'GC relationships'], ['digest.html', 'Weekly digest'], ['/search.html', 'Permit search']];
+  const NAV = [['index.html', 'Overview'], ['early.html', 'Early filings'], ['gcs.html', 'GC relationships'], ['digest.html', 'Weekly digest'], ['/search.html', 'Permit search']];
   function topBar(current) {
     const here = current || location.pathname.split('/').pop() || 'index.html';
     return `<header class="top"><div class="top-in">
@@ -68,7 +72,10 @@
     // No meta (a contractor profile spans sources): name every source we use.
     const AUSTIN = 'City of Austin, Texas – data.austintexas.gov, dataset 3syk-w9eu';
     const MIAMI = 'Miami-Dade County Open Data (ArcGIS building permits layer)';
-    const src = !meta || !meta.source ? `${AUSTIN}; ${MIAMI}`
+    // City of Miami is CC BY 4.0: this credit must appear wherever its data does.
+    const MIAMI_CITY = '© 2019 City of Miami, Department of Innovation and Technology, GIS Team. Licensed CC BY 4.0 (creativecommons.org/licenses/by/4.0); normalized by us';
+    const RALEIGH = 'City of Raleigh Open Data';
+    const src = !meta || !meta.source ? `${AUSTIN}; ${MIAMI}; ${MIAMI_CITY}; ${RALEIGH}`
       : meta.source === 'miami-dade-fl' ? MIAMI : meta.source === 'austin-tx' ? AUSTIN : (meta.attribution || meta.source);
     return `<div class="foot"><span>Source: ${esc(src)}. Contacts come from the public permit record; individuals are withheld.</span>
       <span>Not affiliated with or endorsed by these agencies. Data as published, may be incomplete. Wrong or want a listing removed? Tell your pilot contact.</span></div>`;
@@ -180,5 +187,5 @@
 
   const fail = (el, err) => { el.innerHTML = `<div class="state err">${esc(err.message)}</div>`; };
 
-  window.Live = { esc, params, qs, api, date, dateTime, money, pct, daysSince, phone, who, phoneCell, freshness, topBar, attribution, fail, propertyCard, registryList, labelTables, noHover, AREA, TRADE, TRADE_PERSON };
+  window.Live = { esc, params, qs, api, date, dateTime, money, pct, daysSince, phone, who, phoneCell, freshness, topBar, attribution, fail, propertyCard, registryList, labelTables, noHover, AREA, areaOf, areaOptions, TRADE, TRADE_PERSON };
 }());

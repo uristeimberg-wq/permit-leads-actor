@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Early filings · Contractos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500&amp;family=Archivo:wght@400;700&amp;family=Oswald:wght@700&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="live.css">
+</head>
+<body>
+<div id="top"></div>
+<main>
+  <div class="head">
+    <div>
+      <h1 id="title">Early filings</h1>
+      <span class="context" id="eyebrow">Before the permit is issued</span>
+      <p class="lede" id="lede">Loading…</p>
+    </div>
+  </div>
+  <form class="filters" id="filters">
+    <label>Area <select name="source"></select></label>
+    <label>Submitted in <select name="days"><option value="7">last 7 days</option><option value="14">last 14 days</option><option value="30">last 30 days</option><option value="90">last 90 days</option></select></label>
+    <label>ZIPs <input name="zips" placeholder="all" size="14"></label>
+    <button type="submit">Apply</button>
+  </form>
+  <div id="counts"></div>
+  <div id="list"><div class="state">Loading…</div></div>
+  <div id="foot"></div>
+</main>
+<script src="../../links.js"></script>
+<script src="live.js"></script>
+<script>
+// Filings not issued yet (ADR-16): Austin plan-review cases and Raleigh's
+// pre-issue rows. Dates shown are the source's own beside when we first saw
+// the filing. Third-party text goes through esc() (CLAUDE.md rule 8).
+(function () {
+  const L = window.Live;
+  const p = L.params();
+  const f = { source: L.areaOf(p.source), days: p.days || '30', zips: p.zips || '' };
+  const form = document.getElementById('filters');
+  form.elements.source.innerHTML = L.areaOptions(f.source);
+  for (const k of Object.keys(f)) form.elements[k].value = f[k];
+  form.addEventListener('submit', (e) => { e.preventDefault(); location.search = L.qs(Object.fromEntries(new FormData(form))); });
+  document.getElementById('top').innerHTML = L.topBar('early.html');
+  const $ = (id) => document.getElementById(id);
+  const STAGE = { pre_application: 'Pre-application', submitted: 'Submitted', in_review: 'In review', corrections: 'Corrections requested', approved: 'Approved, not issued' };
+
+  L.api(`/api/pilot/early?${L.qs(f)}`).then(render).catch((e) => L.fail($('list'), e));
+
+  function render(d) {
+    const area = L.AREA[f.source];
+    $('title').textContent = `Early filings in ${area}`;
+    if (!d.available) {
+      $('lede').innerHTML = `${L.esc(area)} publishes issued permits only, so there is nothing to list before issue. Austin and Raleigh publish filings while they are still in review.`;
+      $('list').innerHTML = '';
+      $('foot').innerHTML = L.attribution(d.meta);
+      return;
+    }
+    const n = d.filings.length;
+    const total = d.counts.reduce((a, c) => a + c.n, 0);
+    $('lede').innerHTML = `${total.toLocaleString('en-US')} filings submitted in the last ${d.days} days are not issued yet${n < total ? `; the newest ${n} are listed` : ''}.
+      <br><span class="sub">${d.sources.map((s) => `${L.esc(s.label)}: last sync ${L.esc(L.dateTime(s.lastSyncAt))}${s.lastSyncStatus === 'failed' ? ' (latest attempt failed)' : ''}`).join(' · ')}.
+      ${L.esc((d.meta && d.meta.earlyLag) || '')}. Austin's applications name no contractor yet; applicant names are never shown.</span>`;
+    $('counts').innerHTML = `<p class="sub">${d.counts.map((c) => `${L.esc(STAGE[c.stage] || c.stage)} ${c.n.toLocaleString('en-US')}`).join(' · ')}</p>`;
+    $('list').innerHTML = n ? `<div class="card"><table><thead><tr><th>Submitted</th><th>Stage</th><th>Address</th><th class="hide-sm">Type</th><th class="n hide-sm">Declared value</th><th>Contractor</th><th class="hide-sm">Filing</th></tr></thead><tbody>
+      ${d.filings.map((r) => {
+        const url = window.safeHttpUrl(r.permit_url);
+        const num = url ? `<a class="mono" href="${L.esc(url)}" rel="noopener noreferrer" target="_blank">${L.esc(r.permit_number)}</a>` : `<span class="mono">${L.esc(r.permit_number)}</span>`;
+        const seen = `First seen by us ${L.date(r.first_seen_at)}${r.firstSeenStage ? `, while ${(STAGE[r.firstSeenStage] || r.firstSeenStage).toLowerCase()}` : ''}`;
+        return `<tr>
+          <td class="mono"><span class="prov" title="${L.esc(seen)}">${L.esc(r.submittedOn ? L.date(r.submittedOn) : 'not published')}</span></td>
+          <td>${L.esc(STAGE[r.stage] || r.stage)}${r.stageSince ? `<div class="sub">since ${L.esc(L.date(r.stageSince))}</div>` : ''}${r.issuedPermitId ? `<div><a href="job.html?${L.qs({ id: r.issuedPermitId })}">permit issued</a></div>` : ''}</td>
+          <td>${L.esc(r.address || 'Address not published')}${r.zip && !String(r.address || '').includes(r.zip) ? `, ${L.esc(r.zip)}` : ''}<div class="sub">${L.esc((r.work_description || '').slice(0, 140))}${(r.work_description || '').length > 140 ? '…' : ''}</div></td>
+          <td class="hide-sm">${L.esc(r.permit_type || '')}</td>
+          <td class="n mono hide-sm">${L.esc(L.money(r.valuation))}</td>
+          <td>${r.contractor ? `${L.who(r.contractor)}${r.contractor.name ? `<div>${L.phoneCell(r.contractor.phone)}</div>` : ''}` : '<span class="sub">not named yet</span>'}</td>
+          <td class="hide-sm">${num}</td></tr>`;
+      }).join('')}</tbody></table></div>` : '<div class="card state">No filings in review in this window.</div>';
+    $('foot').innerHTML = L.attribution(d.sources[0] || d.meta)
+      + `<p class="note">"Submitted" is the city's own application date; hover it for when we first saw the filing. Stages come from each city's status wording, mapped in reviewed code; a status we have not mapped is left out of this list rather than guessed.</p>`;
+  }
+}());
+</script>
+</body>
+</html>

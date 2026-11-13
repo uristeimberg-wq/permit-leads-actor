@@ -52,4 +52,12 @@ router.get('/leads', route(async (req, res) => {
   res.json({ filters: f, days, minValuation, meta, leads });
 }));
 
+router.get('/early', route(async (req, res) => {
+  const f = pq.parseFilters(req.query);
+  const days = [7, 14, 30, 90].includes(Number(req.query.days)) ? Number(req.query.days) : 30;
+  const [early, meta] = await Promise.all([pq.listEarly(f, { days }), pq.sourceMeta(f.source)]);
+  const sources = await Promise.all((meta && meta.earlySources || []).map((s) => pq.sourceMeta(s)));
+  res.json({ filters: f, days, stages: pq.EARLY_STAGES, meta, sources: sources.filter(Boolean), ...early });
+}));
+
 module.exports = { router };

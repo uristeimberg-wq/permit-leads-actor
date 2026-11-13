@@ -4,9 +4,9 @@
 (function () {
   const L = window.Live;
   const p = L.params();
-  const source = p.source === 'miami-dade-fl' ? 'miami-dade-fl' : 'austin-tx';
+  const source = L.areaOf(p.source);
   const area = L.AREA[source];
-  const city = source === 'austin-tx' ? 'Austin' : 'Miami-Dade';
+  let city = area.replace(/, [A-Z]{2}$/, '');
   const n = (v) => (v == null ? '—' : Number(v).toLocaleString('en-US'));
   const $ = (id) => document.getElementById(id);
   const share = (a, b) => (b ? Math.round((a / b) * 100) : null);
@@ -26,6 +26,7 @@
 
   function render(d) {
     const t = d.totals;
+    if (d.meta && d.meta.city) city = d.meta.city;
     drawHero(d, t);
     drawFresh(d, t);
     drawFigures(d, t);
@@ -34,8 +35,8 @@
     drawGcs(d.topGcs, t);
     drawRecent(d.recent);
     $('foot').innerHTML = L.attribution(d.meta)
-      + `<p class="note">Counts are permits we hold for ${L.esc(area)}, by the source's issue date. A building permit and its trade permits are linked by permit number
-        (Austin: the same base number; Miami-Dade: the master permit). Company lists leave out contractors whose name looks like a person's (ADR-10).
+      + `<p class="note">Counts are permits we hold for ${L.esc(area)}, by the source's issue date. A building permit and its trade permits are linked by
+        ${L.esc((d.meta && d.meta.jobLink) || 'permit number')}. Company lists leave out contractors whose name looks like a person's (ADR-10).
         Map pins sit at each ZIP's centre, not at the job's address.</p>`;
   }
 

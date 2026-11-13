@@ -13,8 +13,14 @@ const { query } = require('./index.js');
 const { publicAliases } = require('../src/privacy.js');
 const { maskDescription } = require('../src/description_names.js');
 
+const { SOURCES: CONFIG, PILOT_AREAS } = require('../src/sources.js');
+
 const TRADES = ['electrical', 'mechanical', 'plumbing'];
-const SOURCES = ['austin-tx', 'miami-dade-fl'];
+// Every pilot market the screens can show: the synced permit feeds, not the
+// application feeds (those are listed through their market's Early screen).
+const SOURCES = PILOT_AREAS.filter((s) => CONFIG[s] && CONFIG[s].display);
+// Stages before issue (src/lifecycle.js): what the Early screen lists.
+const EARLY_STAGES = ['pre_application', 'submitted', 'in_review', 'corrections', 'approved'];
 
 // How recent a building permit must be to count as "open now" when no permit
 // for the trade has been issued on the job yet. Austin's median gap from BP to
@@ -251,6 +257,8 @@ async function marketBaseline(f) {
   };
 }
 
+const display = (slug) => (CONFIG[slug] && CONFIG[slug].display) || {};
+
 /** Freshness for a source: last good sync, last resolver run, history start. */
 async function sourceMeta(source) {
   const { rows: [m] } = await query(`
@@ -271,8 +279,12 @@ async function sourceMeta(source) {
     lastSyncAt: m.last_sync_at, lastSyncStatus: m.last_sync_status, lastResolveAt: m.last_resolve_at,
     historyFrom: m.history_from, historyTo: m.history_to,
     // Measured 2026-11-13 (docs/DATA_SOURCES.md). Not a live number.
-    publicationLag: m.slug === 'austin-tx' ? 'Austin publishes permits 2-3 days after issue'
-      : 'Miami-Dade refreshes this layer weekly',
+    publicationLag: (display(m.slug).publicationLag) || null,
+    city: display(m.slug).city || null,
+    jobLink: display(m.slug).jobLink || null,
+    earlySources: display(m.slug).early || [],
+    earlyLag: display(m.slug).earlyLag || null,
+    label: (CONFIG[m.slug] && CONFIG[m.slug].label) || m.slug,
   };
 }
 
@@ -549,7 +561,50 @@ async function listLeads(f, { days = 7, limit = 25, minValuation = null } = {}) 
   }));
 }
 
+/**
+ * The Early screen (ADR-16): filings in a market that are not issued yet,
+ * newest submission first. Austin's come from the plan-review feed, Raleigh's
+ * from its own layers; markets that publish issued permits only have none.
+ * Dates are the source's own (submitted_on, stage_since) beside when we first
+ * saw the filing. A contractor is shown only where the filing names one, under
+ * the same rule as every screen; applicants and owners are never selected.
+ */
+async function listEarly(f, { days = 30, limit = 100 } = {}) {
+  const areas = display(f.source).early || [];
+  if (!areas.length) return { available: false, filings: [], counts: [] };
+  const args = [areas, EARLY_STAGES, days, f.zips, limit];
+  const where = `p.source_area = ANY($1::text[]) AND p.lifecycle_stage = ANY($2::text[])
+       AND coalesce(p.submitted_on, p.first_seen_at::date) >= current_date - $3::int
+       AND ($4::text[] IS NULL OR p.zip = ANY($4))`;
+  const [{ rows }, { rows: counts }] = await Promise.all([
+    query(`
+      SELECT ${PERMIT_COLS}, p.lifecycle_stage, p.first_seen_stage, p.submitted_on, p.stage_since, p.filing_kind,
+             pp.contractor_id, pp.is_building, pp.trade,
+             (SELECT k.to_permit_id FROM permit_links k WHERE k.from_permit_id = p.id ORDER BY k.to_permit_id LIMIT 1) AS permit_id
+        FROM permits p LEFT JOIN permit_parties pp ON pp.permit_id = p.id AND pp.role = 'contractor'
+       WHERE ${where}
+       ORDER BY coalesce(p.submitted_on, p.first_seen_at::date) DESC, p.valuation DESC NULLS LAST, p.id
+       LIMIT $5`, args),
+    query(`SELECT p.lifecycle_stage AS stage, count(*)::int AS n FROM permits p WHERE ${where} GROUP BY 1 ORDER BY 2 DESC`, args.slice(0, 4)),
+  ]);
+  const people = await contractorsById([...new Set(rows.map((r) => r.contractor_id).filter(Boolean))]);
+  return {
+    available: true,
+    counts,
+    filings: rows.map((r) => {
+      const { lifecycle_stage: stage, first_seen_stage: firstSeenStage, submitted_on: submittedOn, stage_since: stageSince,
+        filing_kind: filingKind, permit_id: permitId, ...rest } = r;
+      return {
+        ...stripInternal(rest), stage, firstSeenStage, submittedOn, stageSince, filingKind,
+        trade: r.trade || null, isBuilding: r.is_building == null ? null : Boolean(r.is_building),
+        issuedPermitId: permitId == null ? null : Number(permitId),
+        contractor: publicContractor(people.get(String(r.contractor_id))),
+      };
+    }),
+  };
+}
+
 module.exports = {
-  TRADES, SOURCES, OPEN_WINDOW_DAYS,
+  TRADES, SOURCES, OPEN_WINDOW_DAYS, EARLY_STAGES, listEarly,
   parseFilters, publicContractor, listGcs, marketBaseline, sourceMeta, getJob, getContractor, listLeads, lifecycleFor,
 };

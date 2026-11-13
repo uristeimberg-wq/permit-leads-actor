@@ -66,6 +66,8 @@ function measure(minTarget) {
     const pages = [
       ['login', '/login'],
       ['overview', '/pilot/live/'],
+      ['early', '/pilot/live/early.html'],
+      ['early-raleigh', '/pilot/live/early.html?source=raleigh-nc'],
       ['gcs', '/pilot/live/gcs.html'],
       ['digest', '/pilot/live/digest.html'],
       ...(ids.job ? [['job', `/pilot/live/job.html?id=${ids.job}&trade=electrical`]] : []),

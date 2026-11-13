@@ -39,12 +39,26 @@ for (let i = 0; i < 1200; i++) {
     });
   }
 }
-const pages = [rows];
-global.fetch = async () => { const page = pages.shift() || []; return { ok: true, json: async () => page, text: async () => '' }; };
+// Plan-review cases for the Early screen: same synthetic naming, no people.
+const cases = Array.from({ length: 40 }, (_, i) => ({
+  permit_number: `2026-${200000 + i} PR`, permit_type: 'Plan Review', sub_type: pick(['R- 101 Single Family Houses', 'C-1000 Commercial Remodel']),
+  folder_description: pick(['New single family residence', 'Interior remodel of a sample retail shell with a long description that wraps on a phone']),
+  folderrsn: String(900000 + i), status_current: pick(['Pending', 'In Review', 'Awaiting Update', 'Approved']),
+  applied_date: daysAgo(Math.floor(rnd() * 28) + 1), status_date: daysAgo(1),
+  project_name: `${Math.floor(rnd() * 9000) + 100} ${pick(['OAK', 'ELM', 'LAMAR'])} ST`, total_job_valuation: String(Math.round(Math.exp(10 + rnd() * 3))),
+}));
+// Each dataset answers once; later pages and windows are empty.
+const pages = { '3syk-w9eu': [rows], 'n8ck-xkda': [cases] };
+global.fetch = async (url) => {
+  const id = Object.keys(pages).find((k) => String(url).includes(k));
+  const page = (id && pages[id].shift()) || [];
+  return { ok: true, json: async () => page, text: async () => '' };
+};
 
 (async () => {
   await db.applySchema();
   await ingestArea('austin-tx', { days: 200, max: 100000, allDetails: false });
+  await ingestArea('austin-plan-review-tx', { max: 1000, allDetails: false });
   await resolveAll();
   console.log(`seeded ${rows.length} sample permits`);
   await db.close();

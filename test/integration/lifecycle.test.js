@@ -129,6 +129,19 @@ async function main() {
       assert.deepStrictEqual(a.history.map((h) => h.stage), ['in_review', 'approved']);
       assert.ok(!JSON.stringify(l).match(/applicant|owner/i), 'a person field reached the API');
     });
+
+    await check('the Early screen lists Austin applications not issued yet, and nothing for issued-only markets', async () => {
+      const { listEarly, parseFilters, SOURCES } = require('../../db/pilot_queries.js');
+      assert.deepStrictEqual(SOURCES, ['austin-tx', 'miami-dade-fl', 'miami-city-fl', 'raleigh-nc']);
+      const e = await listEarly(parseFilters({ source: 'austin-tx' }), { days: 400 });
+      assert.strictEqual(e.available, true);
+      const one = e.filings.find((r) => r.permit_number === '2026-1 PR');
+      assert.deepStrictEqual([one.stage, one.submittedOn, one.contractor], ['approved', '2026-09-01', null]);
+      assert.ok(one.issuedPermitId, 'the linked permit is offered');
+      assert.ok(!e.filings.some((r) => r.permit_number.endsWith('BP')), 'an issued permit was listed');
+      assert.ok(!JSON.stringify(e).match(/applicant|owner/i));
+      assert.deepStrictEqual((await listEarly(parseFilters({ source: 'miami-dade-fl' }))).available, false);
+    });
   } finally {
     await db.close();
     await admin.query(`DROP DATABASE IF EXISTS ${DB_NAME}`);

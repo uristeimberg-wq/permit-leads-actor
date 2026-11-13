@@ -23,7 +23,7 @@
   </div>
 
   <form class="filters" id="filters">
-    <label>Area <select name="source"><option value="austin-tx">Austin, TX</option><option value="miami-dade-fl">Miami-Dade, FL</option></select></label>
+    <label>Area <select name="source"></select></label>
     <label>Trade <select name="trade"><option value="electrical">Electrical</option><option value="plumbing">Plumbing</option><option value="mechanical">Mechanical</option></select></label>
     <label>Building permits from <select name="months"><option value="3">last 3 months</option><option value="6">last 6 months</option><option value="12">last 12 months</option><option value="24">last 24 months</option></select></label>
     <label>ZIPs (comma separated) <input name="zips" placeholder="all" size="18" inputmode="numeric"></label>
@@ -47,8 +47,9 @@
 (function () {
   const L = window.Live;
   const p = L.params();
-  const f = { source: p.source || 'austin-tx', trade: p.trade || 'electrical', months: p.months || '12', zips: p.zips || '', seg: p.seg || 'all', me: p.me || '' };
+  const f = { source: L.areaOf(p.source), trade: p.trade || 'electrical', months: p.months || '12', zips: p.zips || '', seg: p.seg || 'all', me: p.me || '' };
   const form = document.getElementById('filters');
+  form.elements.source.innerHTML = L.areaOptions(f.source);
   for (const k of ['source', 'trade', 'months', 'zips']) form.elements[k].value = f[k];
   form.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -91,7 +92,7 @@
     drawChanged(d);
     drawMarket(d);
     document.getElementById('foot').innerHTML = L.attribution(d.meta)
-      + '<p class="note">Linking is by permit number (Austin: same base number; Miami-Dade: master permit). A job with two different GCs is left out as ambiguous. A GC doing its own trade work is not counted as a hire. Unchecked: a permit expediter filing for many GCs can make repeat hiring look higher.</p>';
+      + `<p class="note">A trade permit is linked to its building permit by ${L.esc((d.meta && d.meta.jobLink) || 'permit number')}. A job with two different GCs is left out as ambiguous. A GC doing its own trade work is not counted as a hire. Unchecked: a permit expediter filing for many GCs can make repeat hiring look higher.</p>`;
   }
 
   function drawTable(d) {

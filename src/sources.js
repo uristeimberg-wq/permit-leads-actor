@@ -112,6 +112,10 @@ const SOURCES = {
   // Uniquely among our sources, it publishes the CONTRACTOR'S PHONE directly.
   'austin-tx': {
     label: 'Austin, TX',
+    // Pilot screens (db/pilot_queries.js sourceMeta). Measured 2026-11-13.
+    // `early`: the feeds whose not-yet-issued filings the Early screen lists.
+    display: { city: 'Austin', publicationLag: 'Austin publishes permits 2-3 days after issue', jobLink: 'the same base permit number', early: ['austin-plan-review-tx'],
+      earlyLag: 'Plan-review cases are published the same day they are applied for' },
     type: 'socrata',
     domain: 'data.austintexas.gov',
     datasetId: '3syk-w9eu',
@@ -303,6 +307,8 @@ const SOURCES = {
   //      without one), so stage is derived from dates — see deriveStatus below.
   'miami-dade-fl': {
     label: 'Miami-Dade County, FL',
+    // Issued permits only: no early filings to list.
+    display: { city: 'Miami-Dade', publicationLag: 'Miami-Dade refreshes this layer weekly', jobLink: 'the master permit number', early: [] },
     type: 'arcgis',
     layerUrl: 'https://services.arcgis.com/8Pc9XBTAsYuxx9Ny/arcgis/rest/services/miamidade_permit_data/FeatureServer/0',
     // ~200 permits/day (106,070 in 18 months), published weekly with up to ~9
@@ -380,6 +386,8 @@ const SOURCES = {
   // licence files, never guessed.
   'miami-city-fl': {
     label: 'City of Miami, FL',
+    // Issued permits only (PR #43 scan); the layer has no contractor phone.
+    display: { city: 'City of Miami', publicationLag: 'The City of Miami edits this layer daily', jobLink: 'the application number', early: [] },
     type: 'arcgis',
     layerUrl: 'https://services1.arcgis.com/CvuPhqcTQpZPT9qY/arcgis/rest/services/Building_Permits_Since_2014/FeatureServer/0',
     // ~2,600 issued per 30 days (7,815 in 90 days, docs/DATA_SOURCES.md).
@@ -435,6 +443,8 @@ const SOURCES = {
   // raw_records by source (docs/CONNECTORS.md).
   'raleigh-nc': {
     label: 'Raleigh, NC',
+    display: { city: 'Raleigh', publicationLag: 'Raleigh updates its layers daily; new filings appear about 2 days after application', jobLink: 'the parcel (PIN)', early: ['raleigh-nc'],
+      earlyLag: 'New filings appear about 2 days after application' },
     type: 'arcgis',
     layerUrls: [
       'https://services.arcgis.com/v400IkDOw1ad7Yad/arcgis/rest/services/Building_Permits/FeatureServer/0',
@@ -488,9 +498,10 @@ const SOURCES = {
       workDescription: 'proposedworkdescription',
       valuation: 'estprojectcost',
       status: 'statuscurrent',
-      // The filing date where the layer has one (building), else the issue
-      // date (trade has no applieddate). An unissued trade filing has neither.
-      filedDate: ['applieddate', 'issueddate'],
+      // The issue date, as in every pilot market: the lead screens and the
+      // health check read filed_date as one. The filing date is submitted_on;
+      // an unissued filing has filed_date NULL and is listed by the Early screen.
+      filedDate: 'issueddate',
       submittedDate: 'applieddate',
       address: 'originaladdress1',
       city: 'originalcity',
