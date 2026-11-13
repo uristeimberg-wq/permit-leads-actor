@@ -4,18 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Weekly digest</title>
+<title>Weekly digest · Contractos</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500&amp;family=Archivo:wght@400;700&amp;family=Oswald:wght@700&amp;display=swap" rel="stylesheet">
 <link rel="stylesheet" href="live.css">
 </head>
 <body>
 <div id="top"></div>
-<main style="max-width:760px">
+<main class="narrow">
   <div class="head">
     <div>
-      <span class="eyebrow" id="eyebrow">Weekly digest preview</span>
       <h1 id="title">Leads</h1>
+      <span class="context" id="eyebrow">Weekly digest preview</span>
       <p class="lede" id="lede">Loading…</p>
     </div>
   </div>
@@ -52,19 +53,19 @@
       + `<br><span class="sub">Data as of ${L.esc(L.dateTime(d.meta && d.meta.lastSyncAt))}. ${L.esc(d.meta && d.meta.publicationLag)}; anything later goes in next week's list. No ${L.esc(f.trade)} permit issued does not mean no sub is hired.</span>`;
     const list = document.getElementById('list');
     list.innerHTML = n ? d.leads.map((l, i) => `
-      <div class="card" style="margin-bottom:12px">
-        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <article class="card lead">
+        <div class="lead-row">
           <div><span class="mono sub">${String(i + 1).padStart(2, '0')}</span> <strong>${L.esc(l.address || 'Address not published')}</strong>${l.zip && !String(l.address || '').includes(l.zip) ? `, ${L.esc(l.zip)}` : ''}
             <div class="sub">${L.esc(l.permit_type || '')} · issued ${L.esc(L.date(l.filed_date))} · ${L.esc(L.money(l.valuation))} · ${L.esc(l.status_raw || 'status unknown')}</div></div>
           <div class="mono sub" title="Trade fit score from the description's wording">fit ${l.score == null ? '—' : l.score}</div>
         </div>
-        <p style="font-size:13px;margin:8px 0">${L.esc((l.work_description || '').slice(0, 220))}${(l.work_description || '').length > 220 ? '…' : ''}</p>
-        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center">
+        <p class="body-sm">${L.esc((l.work_description || '').slice(0, 220))}${(l.work_description || '').length > 220 ? '…' : ''}</p>
+        <div class="lead-row lead-row--mid">
           <div>${L.who(l.gc)} <span class="sub">· GC on the building permit</span></div>
           <div>${l.gc && l.gc.name ? L.phoneCell(l.gc.phone) : ''}</div>
         </div>
-        <p class="note" style="margin-bottom:0"><a href="job.html?${L.qs({ id: l.id, trade: f.trade })}">Open lead</a> · permit <span class="mono">${L.esc(l.permit_number)}</span></p>
-      </div>`).join('') : '<div class="card state">No new building permits without a trade permit in this window.</div>';
+        <p class="note"><a href="job.html?${L.qs({ id: l.id, trade: f.trade })}">Open lead</a> · permit <span class="mono">${L.esc(l.permit_number)}</span></p>
+      </article>`).join('') : '<div class="card state">No new building permits without a trade permit in this window.</div>';
     document.getElementById('foot').innerHTML = L.attribution(d.meta);
   }
 }());

@@ -1,0 +1,45 @@
+/* Hallmark · overview screen, on live.css tokens. Signature: the 30-day building-permit count cast as a plate, read beside who pulled them. */
+.ov { gap: var(--space-xl); }
+.ov-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 360px); gap: var(--space-xl); align-items: stretch; }
+.ov-lead { display: flex; flex-direction: column; gap: var(--space-md); min-width: 0; }
+.ov-lead h1 { font-size: var(--text-xl); max-width: none; }
+.ov-area { display: inline-flex; width: fit-content; border: 2px solid var(--color-ink); }
+.ov-area a { display: flex; align-items: center; min-height: 32px; padding: 0 var(--space-md); text-decoration: none; font-size: var(--text-sm); color: var(--color-ink); background: var(--color-plate); }
+.ov-area a + a { border-left: 2px solid var(--color-ink); }
+.ov-area a:hover { background: var(--color-paper-2); color: var(--color-ink); }
+.ov-area a[aria-current="true"] { background: var(--color-ink); color: var(--color-plate); }
+.ov-figure { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-xl); align-items: center; }
+.ov-plate { padding: var(--space-md) var(--space-lg) var(--space-md); min-width: 280px; }
+.ov-plate b { display: block; font: 700 var(--text-hero)/0.92 var(--font-display); color: var(--color-ink); }
+.ov-plate b.skel { background: var(--color-paper-2); }
+.ov-plate span { display: block; max-width: 22ch; margin-top: var(--space-xs); font-size: var(--text-md); color: var(--color-ink-2); }
+.ov-copy .lede { margin-top: 0; font-size: var(--text-lg); line-height: 1.45; max-width: 46ch; }
+.ov-actions { display: flex; gap: var(--space-sm); flex-wrap: wrap; margin-top: var(--space-lg); }
+.ov-fresh { display: flex; flex-direction: column; gap: var(--space-xs); border-top: var(--rule-bar) solid var(--color-ink); }
+.ov-fresh h2 { font-size: var(--text-md); margin: 0; }
+.ov-dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-xs) var(--space-md); margin: 0; font-size: var(--text-sm); }
+.ov-dl dt { color: var(--color-muted); }
+.ov-dl dd { margin: 0; color: var(--color-ink); overflow-wrap: anywhere; }
+.ov-dl dd.err { color: var(--color-err); font-weight: 700; }
+.ov-pair { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: var(--space-xl); }
+.ov-map { height: 300px; background: var(--color-paper-2); border: 2px solid var(--color-ink); }
+.ov-map--off { display: grid; place-items: center; }
+.ov-tiles { filter: grayscale(1) contrast(0.9) brightness(1.04); }
+.leaflet-container { font: 400 var(--text-sm)/1.4 var(--font-body); background: var(--color-paper-2); }
+.leaflet-container a { color: var(--color-ink); }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { border-radius: 0; box-shadow: 4px 4px 0 var(--color-ink); border: 2px solid var(--color-ink); background: var(--color-plate); color: var(--color-ink); }
+.leaflet-bar a { border-radius: 0 !important; color: var(--color-ink); }
+.ov-pin { fill: var(--color-accent); fill-opacity: 0.55; stroke: var(--color-accent-deep); }
+.ov-pin--quiet { fill: var(--color-chart-2); stroke: var(--color-muted); }
+.ov-zips { list-style: none; margin: var(--space-sm) 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 var(--space-lg); font-size: var(--text-sm); }
+.ov-zips li { display: flex; gap: var(--space-sm); align-items: baseline; padding: var(--space-2xs) 0; border-bottom: var(--rule-hair) solid var(--color-rule); }
+.ov-zips li > span:first-child { min-width: 5ch; font-weight: 500; }
+.ov-zips li > a { margin-left: auto; font-size: var(--text-xs); }
+@media (max-width: 1080px) {
+  .ov-hero, .ov-pair { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .ov-figure { grid-template-columns: minmax(0, 1fr); gap: var(--space-md); }
+  .ov-plate { min-width: 0; }
+  .ov-zips { grid-template-columns: minmax(0, 1fr); }
+}

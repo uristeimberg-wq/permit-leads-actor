@@ -9,6 +9,7 @@ const express = require('express');
 const queries = require('../db/queries.js');
 const db = require('../db/index.js');
 const { router: pilotApi } = require('./pilot_api.js');
+const { router: overviewApi } = require('./overview_api.js');
 const { demoGate } = require('./access.js');
 
 const app = express();
@@ -183,7 +184,13 @@ app.get('/api/freshness', asyncRoute(async (_req, res) => {
   res.json({ sources: await queries.getFreshness() });
 }));
 
+app.use('/api/pilot', overviewApi);
 app.use('/api/pilot', pilotApi);
+
+// The overview is the front door; the original search tool stays reachable at
+// /search.html (and /index.html, so old links keep working).
+app.get('/', (_req, res) => res.redirect(302, '/pilot/live/'));
+app.get(['/search', '/search.html'], (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 app.use(express.static(path.join(__dirname, 'public')));
 

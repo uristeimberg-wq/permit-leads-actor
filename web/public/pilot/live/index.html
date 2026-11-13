@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Overview · Contractos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500&amp;family=Archivo:wght@400;700&amp;family=Oswald:wght@700&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<link rel="stylesheet" href="live.css">
+<link rel="stylesheet" href="overview.css">
+</head>
+<body>
+<div id="top"></div>
+<main class="ov">
+  <section class="ov-hero" aria-labelledby="ov-title">
+    <div class="ov-lead">
+      <div class="ov-area" id="area" role="group" aria-label="Area"></div>
+      <h1 id="ov-title">Permit activity</h1>
+      <div class="ov-figure">
+        <div class="ov-plate plate" id="hero-fig"><b class="skel" style="width:3ch;height:1em"></b><span>building permits issued in the last 30 days</span></div>
+        <div class="ov-copy">
+          <p class="lede" id="hero-line">Loading the latest permits…</p>
+          <div class="ov-actions">
+            <a class="btn btn--primary" id="cta-gcs" href="gcs.html">See which GCs hire new subs</a>
+            <a class="btn btn--secondary" id="cta-leads" href="digest.html">This week’s leads</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <aside class="ov-fresh well" id="fresh" aria-label="Data freshness">
+      <h2>Data freshness</h2>
+      <span class="skel"></span><span class="skel"></span><span class="skel"></span>
+    </aside>
+  </section>
+
+  <section class="figrow" id="figs" aria-label="Key figures">
+    <div><b class="skel" style="width:4ch"></b><span>&nbsp;</span></div><div><b class="skel" style="width:4ch"></b><span>&nbsp;</span></div>
+    <div><b class="skel" style="width:4ch"></b><span>&nbsp;</span></div><div><b class="skel" style="width:4ch"></b><span>&nbsp;</span></div>
+  </section>
+
+  <div class="ov-pair">
+    <section class="card chart" id="weekly" aria-labelledby="weekly-h">
+      <div class="sec-head"><h2 id="weekly-h">Permits issued per week</h2><span class="sub" id="weekly-sub"></span></div>
+      <div class="skel" style="height:240px"></div>
+    </section>
+    <section class="card" id="mapcard" aria-labelledby="map-h">
+      <div class="sec-head"><h2 id="map-h">Where the building permits are</h2><span class="sub" id="map-sub"></span></div>
+      <div class="ov-map" id="map" role="region" aria-label="Map of building permits by ZIP"></div>
+      <ol class="ov-zips" id="zips"></ol>
+    </section>
+  </div>
+
+  <section class="card" id="gcs" aria-labelledby="gcs-h">
+    <div class="sec-head"><h2 id="gcs-h">Most active general contractors</h2><span class="sub" id="gcs-sub"></span></div>
+    <div class="state">Loading…</div>
+  </section>
+
+  <section class="card" id="recent" aria-labelledby="recent-h">
+    <div class="sec-head"><h2 id="recent-h">Latest building permits</h2><span class="sub" id="recent-sub"></span></div>
+    <div class="state">Loading…</div>
+  </section>
+
+  <div id="foot"></div>
+</main>
+<noscript><p class="state">This screen loads live permit data and needs JavaScript.</p></noscript>
+<script src="../../links.js"></script>
+<script src="live.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="overview.js"></script>
+</body>
+</html>

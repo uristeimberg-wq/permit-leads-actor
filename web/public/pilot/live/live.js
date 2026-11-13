@@ -53,10 +53,15 @@
     </div>`;
   }
 
-  function topBar() {
-    return `<div class="top"><strong>Contractos Leads · pilot</strong>
-      <a href="gcs.html">GC relationships</a><a href="digest.html">Weekly digest</a>
-      <span style="margin-left:auto">Live data from public permit records</span></div>`;
+  // One shell for every screen. `current` is the page's own file name.
+  const NAV = [['index.html', 'Overview'], ['gcs.html', 'GC relationships'], ['digest.html', 'Weekly digest'], ['/search.html', 'Permit search']];
+  function topBar(current) {
+    const here = current || location.pathname.split('/').pop() || 'index.html';
+    return `<header class="top"><div class="top-in">
+      <a class="wordmark" href="index.html"><i aria-hidden="true"></i>Contractos<small>pilot</small></a>
+      <nav class="nav" aria-label="Screens">${NAV.map(([href, label]) => `<a href="${href}"${href === here ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>
+      <span class="top-meta">Live data from public permit records</span>
+    </div></header>`;
   }
 
   function attribution(meta) {

@@ -4,32 +4,39 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Pilot screens</title>
+<title>Pilot screens · Contractos</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
-<style>
-body{margin:0;background:#F5F4F0;color:#17191C;font:14px/1.5 'IBM Plex Sans',Helvetica,Arial,sans-serif}
-main{max-width:720px;margin:0 auto;padding:40px 16px}
-a{color:#1D4B8F}li{margin:6px 0}
-</style>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500&amp;family=Archivo:wght@400;700&amp;family=Oswald:wght@700&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="live/live.css">
 </head>
 <body>
-<main>
-<h1 style="font-weight:600;font-size:26px;margin:0 0 8px">Pilot screens</h1>
-<h2 style="font-size:16px;margin:24px 0 4px">Live (real permit data)</h2>
-<ul>
-<li><a href="live/gcs.html">GC relationships</a>: which GCs spread work, switched subs, or have jobs with no trade permit yet</li>
-<li><a href="live/digest.html">Weekly digest preview</a>: new building permits with no permit for your trade yet</li>
-<li>Lead and contractor pages open from those two.</li>
-</ul>
-<h2 style="font-size:16px;margin:24px 0 4px">Design templates (sample data)</h2>
-<p>Static templates the live screens follow. Nothing here reads the API. Spec: <code>docs/PILOT_UX.md</code>.</p>
-<ul>
-<li><a href="email.html">Weekly digest email</a></li>
-<li><a href="lead.html">Lead page</a> (opened from the email by signed link, no login)</li>
-<li><a href="relationships.html">GC relationships</a></li>
-<li><a href="states.html">Contact and freshness states</a></li>
-</ul>
+<header class="top"><div class="top-in">
+  <a class="wordmark" href="live/index.html"><i aria-hidden="true"></i>Contractos<small>pilot</small></a>
+  <nav class="nav" aria-label="Screens"><a href="live/index.html">Overview</a><a href="live/gcs.html">GC relationships</a><a href="live/digest.html">Weekly digest</a><a href="/search.html">Permit search</a></nav>
+</div></header>
+<main class="narrow">
+  <div class="head"><div><h1>Pilot screens</h1></div></div>
+  <section class="card">
+    <h2>Live, on real permit data</h2>
+    <table><tbody>
+      <tr><td><a href="live/index.html">Overview</a></td><td>Building permits in the last 30 days, weekly activity, a ZIP map, the busiest GCs and the latest permits</td></tr>
+      <tr><td><a href="live/gcs.html">GC relationships</a></td><td>Which GCs spread work, switched subs, or have jobs with no trade permit yet</td></tr>
+      <tr><td><a href="live/digest.html">Weekly digest preview</a></td><td>New building permits with no permit for your trade yet</td></tr>
+      <tr><td><a href="/search.html">Permit search</a></td><td>Every permit we hold, with filters and a map</td></tr>
+    </tbody></table>
+    <p class="note">Lead and contractor pages open from these screens.</p>
+  </section>
+  <section class="card">
+    <h2>Design templates, sample data</h2>
+    <p class="body-sm">Static templates the live screens grew from. Nothing here reads the API, and the names and numbers are made up. Spec: <span class="mono">docs/PILOT_UX.md</span>.</p>
+    <table><tbody>
+      <tr><td><a href="email.html">Weekly digest email</a></td><td>The email a sub receives</td></tr>
+      <tr><td><a href="lead.html">Lead page</a></td><td>Opened from the email by signed link, no login</td></tr>
+      <tr><td><a href="relationships.html">GC relationships</a></td><td>The first sketch of the GC view</td></tr>
+      <tr><td><a href="states.html">Contact and freshness states</a></td><td>How missing and stale data is shown</td></tr>
+    </tbody></table>
+  </section>
 </main>
 </body>
 </html>

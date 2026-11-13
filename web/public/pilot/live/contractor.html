@@ -4,9 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Contractor</title>
+<title>Contractor · Contractos</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500&amp;family=Archivo:wght@400;700&amp;family=Oswald:wght@700&amp;display=swap" rel="stylesheet">
 <link rel="stylesheet" href="live.css">
 </head>
 <body>
@@ -38,18 +39,18 @@
     main.innerHTML = `
     <div class="head">
       <div>
-        <span class="eyebrow">Contractor · ${L.esc(c.businessState || '')}${c.businessCity ? ` · ${L.esc(c.businessCity)}` : ''}</span>
         <h1>${L.esc(c.name)}</h1>
+        <span class="context">Contractor · ${L.esc(c.businessState || '')}${c.businessCity ? ` · ${L.esc(c.businessCity)}` : ''}</span>
         <p class="lede">${c.permitCount} permits in our data, issued ${L.esc(L.date(c.firstPermitOn))} to ${L.esc(L.date(c.lastPermitOn))}${c.primaryTrade ? ` · mostly ${L.esc(c.primaryTrade)}` : ''}.</p>
       </div>
     </div>
     <div class="grid2">
       <div class="card">
         <h2>Phones from permits</h2>
-        ${d.phones.length ? d.phones.map((ph) => `<div style="margin:6px 0">${L.phoneCell(ph)}</div>`).join('') : '<p class="sub">No phone we can show.</p>'}
-        <h2 style="margin-top:14px">Names on permits</h2>
-        <p style="font-size:13px;margin:0">${d.aliases.map((a) => `${L.esc(a.name)} <span class="sub mono">×${a.seen}</span>`).join(' · ')}</p>
-        ${d.licences.length ? `<h2 style="margin-top:14px">Licences on permits</h2><p class="mono" style="margin:0">${d.licences.map((l) => `${L.esc(l.state)} ${L.esc(l.number)}`).join(', ')}</p>
+        ${d.phones.length ? d.phones.map((ph) => `<div class="who-phone">${L.phoneCell(ph)}</div>`).join('') : '<p class="sub">No phone we can show.</p>'}
+        <h2 class="h-gap">Names on permits</h2>
+        <p class="body-sm">${d.aliases.map((a) => `${L.esc(a.name)} <span class="sub mono">×${a.seen}</span>`).join(' · ')}</p>
+        ${d.licences.length ? `<h2 class="h-gap">Licences on permits</h2><p class="mono body-sm">${d.licences.map((l) => `${L.esc(l.state)} ${L.esc(l.number)}`).join(', ')}</p>
           <p class="note">Read from the permit record, not yet checked against the state licence file.</p>` : ''}
         <p class="note">Merged by ${d.licences.length ? 'licence number' : 'exact business name within the state'} (${L.esc(c.resolverVersion)}). Phones are evidence, never used to merge companies.</p>
       </div>

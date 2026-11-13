@@ -11,22 +11,23 @@
 
 /* ============================================================ tokens ===== */
 
+/* Hallmark · checked: 2026-11-13 · restyle onto the pilot system (web/public/pilot/live/live.css): Formwork, drawing pour
+ * Same token names as before, so app.js and every rule below keep working; only the values changed.
+ * Dropped: the separate dark palette, so the whole demo is one system (the pilot screens are light only). */
 :root {
-  /* Warm neutral ramp, kept close to white at the light end so the canvas
-     reads bright rather than beige. */
-  --n-0:  #ffffff;
-  --n-25: #fffcf9;
-  --n-50: #fdf7f2;
-  --n-100:#f6ece5;
-  --n-200:#ebdcd2;
-  --n-300:#d6c3b6;
-  --n-400:#ab9788;
-  --n-500:#7e6c60;
-  --n-600:#5c4d44;
-  --n-700:#443831;
-  --n-800:#2a221d;
-  --n-900:#191512;
-  --n-950:#100d0b;
+  --n-0:  oklch(98.6% 0.005 85);
+  --n-25: oklch(96.4% 0.009 85);
+  --n-50: oklch(95% 0.01 85);
+  --n-100:oklch(93.2% 0.011 85);
+  --n-200:oklch(84% 0.012 85);
+  --n-300:oklch(74% 0.012 85);
+  --n-400:oklch(58% 0.014 260);
+  --n-500:oklch(44% 0.014 260);
+  --n-600:oklch(31% 0.018 260);
+  --n-700:oklch(27% 0.019 260);
+  --n-800:oklch(24% 0.02 260);
+  --n-900:oklch(22% 0.02 260);
+  --n-950:oklch(18% 0.02 260);
 
   --bg:           var(--n-25);
   --surface:      var(--n-0);
@@ -40,92 +41,46 @@
   --ink-3:     var(--n-500);
   --ink-faint: var(--n-400);
 
-  /* Vivid coral. Every colour here is checked for WCAG AA against the surface
-     it actually sits on — #e03214 is the brightest coral that still clears
-     4.5:1 with white button text on top of it. */
-  --accent:      #e03214;
-  --accent-hover:#c62910;
-  --accent-soft: #fff0ec;
-  --accent-ink:  #c62910;
-  --on-accent:   #ffffff;
+  /* The pilot's one signal: burnt orange. */
+  --accent:      oklch(52% 0.15 48);
+  --accent-hover:oklch(40% 0.12 48);
+  --accent-soft: oklch(94.5% 0.03 62);
+  --accent-ink:  oklch(40% 0.12 48);
+  --on-accent:   oklch(98.6% 0.005 85);
 
-  /* Lifecycle stages. Saturated dots against pale tinted backgrounds, so the
-     colour carries at a glance without the text dropping below AA. */
-  --pending:    #a05a00;  --pending-bg:   #fff3d6;  --pending-dot:  #ffa51f;
-  --approved:   #0b7a45;  --approved-bg:  #dcfbe9;  --approved-dot: #12b866;
-  --finished:   #6b5c52;  --finished-bg:  #f3ece7;  --finished-dot: #ab9788;
-  --cancelled:  #c0271f;  --cancelled-bg: #ffe9e6;  --cancelled-dot:#ff5a4d;
-  --unknown:    #6b5c52;  --unknown-bg:   #f3ece7;  --unknown-dot:  #c9b8ab;
+  /* Lifecycle stages: ink-family text on pale tints; the dot carries the hue. */
+  --pending:    oklch(42% 0.1 70);   --pending-bg:   oklch(94% 0.04 85);  --pending-dot:  oklch(70% 0.14 75);
+  --approved:   oklch(40% 0.09 150); --approved-bg:  oklch(94% 0.03 150); --approved-dot: oklch(58% 0.12 150);
+  --finished:   oklch(44% 0.014 260);--finished-bg:  oklch(93.2% 0.011 85); --finished-dot: oklch(70% 0.012 260);
+  --cancelled:  oklch(46% 0.16 25);  --cancelled-bg: oklch(94% 0.03 25);  --cancelled-dot:oklch(58% 0.18 25);
+  --unknown:    oklch(44% 0.014 260);--unknown-bg:   oklch(93.2% 0.011 85); --unknown-dot:  oklch(80% 0.01 260);
 
-  --ok:    #12b866;
-  --warn:  #ffa51f;
-  --stale: #ff4d3d;
+  --ok:    oklch(58% 0.12 150);
+  --warn:  oklch(70% 0.14 75);
+  --stale: oklch(58% 0.18 25);
 
-  /* Spacing — 4px base */
   --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
   --sp-5: 20px; --sp-6: 24px; --sp-7: 32px; --sp-8: 48px;
 
-  /* Type scale — larger and airier than a dense dashboard. */
-  --t-xs: 11.5px; --t-sm: 12.5px; --t-base: 14px;
+  --t-xs: 12px; --t-sm: 13px; --t-base: 14px;
   --t-md: 15.5px; --t-lg: 18px;   --t-xl: 23px;  --t-2xl: 30px;
 
-  /* Radius + elevation. Warm-tinted shadows; grey shadows look dirty on sand. */
-  --r-sm: 8px; --r-md: 12px; --r-lg: 18px; --r-xl: 24px; --r-pill: 999px;
-  --e-1: 0 1px 2px rgba(63, 48, 30, .06);
-  --e-2: 0 2px 6px rgba(63, 48, 30, .07), 0 1px 2px rgba(63, 48, 30, .05);
-  --e-3: 0 16px 40px rgba(63, 48, 30, .14), 0 3px 10px rgba(63, 48, 30, .07);
+  /* Cast edges: square corners, no soft shadows. Overlays take the hard ink offset. */
+  --r-sm: 0; --r-md: 0; --r-lg: 0; --r-xl: 0; --r-pill: 0;
+  --e-1: none;
+  --e-2: 3px 3px 0 var(--n-900);
+  --e-3: 6px 6px 0 var(--n-900);
 
   --topbar-h:  68px;
   --sidebar-w: 288px;
-  /* A fraction, not a clamp: when the filter panel collapses, the feed and the
-     map should share the width it gave back rather than the feed taking all of
-     it. The minimum keeps the map usable before the pane stacks. */
   --map-w:     minmax(380px, 0.9fr);
   --drawer-w:  520px;
 
-  --font: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI",
-          Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --font: "Archivo", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Oswald", "Arial Narrow", ui-sans-serif, sans-serif;
 
   color-scheme: light;
 }
-
-/* Dark mode. :not([data-theme="light"]) so an explicit light choice can win. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { color-scheme: dark; }
-  :root:not([data-theme="light"]) {
-    --bg:           #141110;
-    --surface:      #1e1a18;
-    --surface-2:    #262120;
-    --surface-sunk: #2e2826;
-    --line:         #37302c;
-    --line-strong:  #4c423d;
-
-    --ink:       #fbf7f3;
-    --ink-2:     #cdc3b9;
-    --ink-3:     #a59a8f;
-    --ink-faint: #82766b;
-
-    --accent:      #ff7554;
-    --accent-hover:#ff9377;
-    --accent-soft: #41211a;
-    --accent-ink:  #ffab94;
-    --on-accent:   #191512;
-
-    --pending:   #ffc663;  --pending-bg:   #40300f;  --pending-dot:  #ffa51f;
-    --approved:  #63e3a4;  --approved-bg:  #0f3826;  --approved-dot: #12b866;
-    --finished:  #b3a89d;  --finished-bg:  #2e2826;  --finished-dot: #82766b;
-    --cancelled: #ff9b8c;  --cancelled-bg: #43201c;  --cancelled-dot:#ff5a4d;
-    --unknown:   #b3a89d;  --unknown-bg:   #2e2826;  --unknown-dot:  #756a60;
-
-    --ok: #2fd47f; --warn: #ffb545; --stale: #ff6b58;
-
-    --e-1: 0 1px 2px rgba(0,0,0,.4);
-    --e-2: 0 2px 6px rgba(0,0,0,.45), 0 1px 2px rgba(0,0,0,.3);
-    --e-3: 0 16px 40px rgba(0,0,0,.6), 0 3px 10px rgba(0,0,0,.4);
-  }
-}
-:root[data-theme="dark"] { color-scheme: dark; }
 
 /* ============================================================== base ===== */
 
@@ -322,21 +277,22 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
   display: flex; align-items: center; gap: var(--sp-4);
   padding: 0 var(--sp-5);
   background: var(--surface);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 3px solid var(--ink);
   z-index: 40;
 }
 
-.brand { display: flex; align-items: center; gap: 9px; flex: none; }
+.brand { display: flex; align-items: center; gap: 9px; flex: none; color: var(--ink); text-decoration: none; }
+.brand:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .brand-mark {
   display: grid; place-items: center;
   width: 32px; height: 32px;
   color: var(--on-accent); background: var(--accent);
-  border-radius: 10px;
+  border-radius: 0;
 }
 .brand-mark svg { width: 18px; height: 18px; }
 .brand-name {
   font-family: var(--font-display);
-  font-size: var(--t-lg); font-weight: 600; letter-spacing: -.015em;
+  font-size: var(--t-lg); font-weight: 700; letter-spacing: .01em; text-transform: uppercase;
 }
 
 .search {
@@ -435,9 +391,9 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
 .group:last-child { border-bottom: 0; }
 .group h3 {
   margin-bottom: var(--sp-3);
-  font-size: var(--t-xs); font-weight: 700;
-  letter-spacing: .08em; text-transform: uppercase;
-  color: var(--ink-faint);
+  font-family: var(--font-display); font-size: var(--t-md); font-weight: 700;
+  letter-spacing: 0; text-transform: uppercase;
+  color: var(--ink);
 }
 .group-stack { display: flex; flex-direction: column; gap: var(--sp-3); }
 .group-rows  { display: flex; flex-direction: column; gap: 1px; }
@@ -470,10 +426,10 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
 .result-count {
   flex: 1; min-width: 0;
   font-family: var(--font-display);
-  font-size: var(--t-xl); font-weight: 600; letter-spacing: -.02em;
+  font-size: var(--t-xl); font-weight: 700; letter-spacing: 0; text-transform: uppercase;
 }
 .result-count .sub {
-  font-family: var(--font);
+  font-family: var(--font); text-transform: none;
   font-size: var(--t-sm); font-weight: 500; color: var(--ink-3);
   letter-spacing: 0;
 }
@@ -498,7 +454,7 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
   color: inherit; background: none; border: 0; border-radius: 50%;
   cursor: pointer; opacity: .65;
 }
-.fchip button:hover { opacity: 1; background: rgba(0,0,0,.08); }
+.fchip button:hover { opacity: 1; background: color-mix(in oklab, var(--ink) 8%, transparent); }
 
 .cards { display: flex; flex-direction: column; gap: var(--sp-3); }
 
@@ -622,7 +578,7 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
 .leaflet-container { font: inherit; background: var(--surface-sunk); }
 .leaflet-control-attribution {
   font-size: 10px;
-  background: rgba(255,255,255,.82) !important;
+  background: color-mix(in oklab, var(--surface) 82%, transparent) !important;
   color: var(--ink-3);
 }
 .leaflet-control-attribution a { color: var(--ink-2); }
@@ -632,10 +588,6 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
 .leaflet-bar a:hover { background: var(--surface-2); }
 /* The OSM raster is a light-mode image; take the edge off it in dark mode
    rather than pretending we have a dark tile set. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.9); }
-  :root:not([data-theme="light"]) .leaflet-control-attribution { background: rgba(28,26,24,.82) !important; }
-}
 
 /* Count pills. Airbnb's price-pill pattern: the number is the marker. */
 .pin-wrap { background: none; border: 0; overflow: visible; }
@@ -701,13 +653,10 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
   padding: 7px 13px;
   font-size: var(--t-sm); font-weight: 600;
   color: var(--ink-2);
-  background: rgba(255,255,255,.94);
+  background: color-mix(in oklab, var(--surface) 94%, transparent);
   border: 1px solid var(--line);
   border-radius: var(--r-pill);
   box-shadow: var(--e-1);
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .map-note { background: rgba(28,26,24,.94); }
 }
 .map-note:empty { display: none; }
 
@@ -729,7 +678,7 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
   border-left: 1px solid var(--line);
   box-shadow: var(--e-3);
 }
-.drawer::backdrop { background: rgba(26, 25, 23, .38); backdrop-filter: blur(2px); }
+.drawer::backdrop { background: color-mix(in oklab, var(--ink) 38%, transparent); backdrop-filter: blur(2px); }
 /* See the note on .sidebar[open]: a closed <dialog> must keep the UA's
    display:none, so the flex layout is scoped to the open state. */
 .drawer[open] {
@@ -749,7 +698,7 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
 }
 .drawer-head .addr {
   font-family: var(--font-display);
-  font-size: var(--t-lg); font-weight: 600; letter-spacing: -.015em;
+  font-size: var(--t-lg); font-weight: 700; letter-spacing: 0; text-transform: uppercase;
 }
 .drawer-head .type { margin-top: 2px; font-size: var(--t-sm); color: var(--ink-3); font-weight: 600; }
 .drawer-head #dStage { margin-top: var(--sp-2); }
@@ -883,7 +832,7 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
   /* A closed sidebar is hidden by the UA; an open one must show even when the
      desktop filters toggle last left data-filters="closed". */
   .app[data-filters="closed"] .sidebar[open] { display: flex; }
-  .sidebar::backdrop { background: rgba(26, 25, 23, .38); }
+  .sidebar::backdrop { background: color-mix(in oklab, var(--ink) 38%, transparent); }
   .sidebar[open] { animation: sheet-up .22s cubic-bezier(.22,.8,.3,1); }
   @keyframes sheet-up { from { transform: translateY(16px); opacity: 0; } }
 

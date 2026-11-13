@@ -4,9 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>GC relationships</title>
+<title>GC relationships · Contractos</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500&amp;family=Archivo:wght@400;700&amp;family=Oswald:wght@700&amp;display=swap" rel="stylesheet">
 <link rel="stylesheet" href="live.css">
 </head>
 <body>
@@ -14,8 +15,8 @@
 <main>
   <div class="head">
     <div>
-      <span class="eyebrow" id="eyebrow">GC relationships</span>
       <h1 id="title">Which GCs hire new subs</h1>
+      <span class="context" id="eyebrow">GC relationships</span>
       <p class="lede" id="lede">Loading…</p>
     </div>
     <div id="fresh"></div>
@@ -117,7 +118,7 @@
   function drawChanged(d) {
     const ch = d.gcs.filter((g) => g.segments.changed).slice(0, 12);
     document.getElementById('changed').innerHTML = `<h2>Changed ${L.esc(L.TRADE_PERSON[f.trade])} recently</h2>
-      ${ch.length ? ch.map((g) => `<div style="padding:8px 0;border-bottom:1px solid var(--line);font-size:13px">
+      ${ch.length ? ch.map((g) => `<div class="row-line">
         <strong>${L.who(g.gc)}</strong> used ${L.who(g.change.usual)} on ${g.change.usualJobs} of ${g.change.beforeJobs} earlier jobs,
         then ${L.who(g.change.latest)} on ${L.esc(L.date(g.change.latestOn))} (<span class="mono">${L.esc(g.change.latestPermit)}</span>).</div>`).join('')
         : '<p class="sub">None in this window. A switch needs 3+ earlier jobs with one sub on 75%+ of them.</p>'}
@@ -128,7 +129,7 @@
     const top = d.baseline.topSubs.slice(0, 12);
     document.getElementById('market').innerHTML = `<h2>Most active ${L.esc(L.TRADE_PERSON[f.trade])} and their top GC</h2>
       ${top.length ? `<table><thead><tr><th>${L.esc(L.TRADE[f.trade])}</th><th class="n">Jobs</th><th class="n">GCs</th><th>Top GC (jobs)</th></tr></thead><tbody>
-      ${top.map((t) => `<tr${t.isMe ? ' style="background:var(--bar)"' : ''}><td>${L.who(t.sub)}${t.isMe ? ' <span class="pill">you</span>' : ''}</td><td class="n mono">${t.jobs}</td><td class="n mono">${t.gcs}</td><td>${L.who(t.topGc)} <span class="mono sub">${t.topGcJobs}</span></td></tr>`).join('')}
+      ${top.map((t) => `<tr${t.isMe ? ' class="me"' : ''}><td>${L.who(t.sub)}${t.isMe ? ' <span class="pill">you</span>' : ''}</td><td class="n mono">${t.jobs}</td><td class="n mono">${t.gcs}</td><td>${L.who(t.topGc)} <span class="mono sub">${t.topGcJobs}</span></td></tr>`).join('')}
       </tbody></table>` : '<p class="sub">No linked jobs in this window.</p>'}
       <p class="note">Counts are ${L.esc(f.trade)} permits on GC building jobs in this window. Individuals are withheld.</p>`;
   }
