@@ -105,7 +105,7 @@ jobs:
           AREA: ${{ inputs.backfill_area }}
         run: |
           [[ "$DAYS" =~ ^[0-9]{1,4}$ ]] || { echo "::error::backfill_days must be a number"; exit 1; }
-          [[ "$AREA" =~ ^(austin-tx|austin-plan-review-tx|miami-dade-fl|miami-city-fl|raleigh-nc|austin-site-plans-tx|austin-subdivisions-tx|raleigh-plan-areas-nc|raleigh-devplans-nc|miami-derm-sewer-fl)$ ]] || { echo "::error::unknown backfill_area"; exit 1; }
+          [[ "$AREA" =~ ^(austin-tx|austin-plan-review-tx|miami-dade-fl|miami-city-fl|raleigh-nc|austin-site-plans-tx|austin-subdivisions-tx|raleigh-plan-areas-nc|raleigh-devplans-nc|miami-derm-sewer-fl|miami-city-trees-fl|miami-dade-zoning-hearings-fl)$ ]] || { echo "::error::unknown backfill_area"; exit 1; }
           node ingest/run.js --strict --kind=backfill --area="$AREA" --days="$DAYS"
       # Contractors, contact points and GC -> sub links, rebuilt from the
       # latest raw records (ADR-12). Runs even if one area failed, on what we have.

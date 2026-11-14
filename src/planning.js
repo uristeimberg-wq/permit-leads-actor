@@ -98,6 +98,13 @@ function mapCase(source, row) {
     const parts = p.caseNumberParts.map((k) => clean(row[k]));
     out.caseNumber = parts[0] ? parts.map((x) => x || '-').join(' | ') : null;
   }
+  // A column that holds a longer key than the target's (City of Miami tree
+  // reviews: plan BD25023768001 -> application BD25023768): the pattern's
+  // first group is kept, a value it does not match is NULL, never kept whole.
+  for (const [a, rx] of Object.entries(p.fieldPatterns || {})) {
+    const m = out[a] == null ? null : String(out[a]).match(new RegExp(rx));
+    out[a] = m && m[1] ? m[1] : null;
+  }
   if (!out.caseNumber) return null;
   if (p.addressMustStartWithNumber && out.address && !/^\d/.test(out.address)) out.address = null;
   if (p.recordUrlTemplate && out.caseNumber && !out.recordUrl) out.recordUrl = p.recordUrlTemplate.replace('{id}', encodeURIComponent(out.caseNumber));
@@ -125,6 +132,10 @@ function validatePlanning(slug, source) {
     if (l.kind === 'parcel_window' && l.enabled !== false && !(l.measured && l.measured.read > 0)) problems.push(`${slug}: a parcel_window link needs a measured hand check before it is enabled`);
   }
   for (const k of Object.keys(p.fields)) if (!ATTRIBUTES.includes(k)) problems.push(`${slug}: unknown planning field "${k}"`);
+  for (const [k, rx] of Object.entries(p.fieldPatterns || {})) {
+    if (!TEXT.includes(k)) problems.push(`${slug}: fieldPatterns "${k}" is not a text field`);
+    else if (!/\(/.test(rx)) problems.push(`${slug}: fieldPatterns "${k}" needs a capture group`);
+  }
   if (p.caseKind && !CASE_KINDS.includes(p.caseKind)) problems.push(`${slug}: unknown caseKind "${p.caseKind}"`);
   for (const [raw, kind] of Object.entries(p.caseKinds || {})) {
     if (!CASE_KINDS.includes(kind)) problems.push(`${slug}: caseKinds "${raw}" -> unknown "${kind}"`);

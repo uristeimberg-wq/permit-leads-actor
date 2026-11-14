@@ -28,7 +28,14 @@ const feeds = {
   'mavg-96ck': [site('1'), site('2', { propertyrsn: '0' }), site('3', { status: 'Closed' })],
   'n8ck-xkda': [pr(1, 'P1'), pr(2, 'P1', { applied_date: '2020-01-01T00:00:00.000' })],
 };
+// Miami-Dade zoning hearings: an ArcGIS layer with no date field, read whole.
+const hearings = require('../fixtures/sources/miami-dade-zoning-hearings-fl.json').rows;
 global.fetch = async (url) => {
+  if (String(url).includes('LandManagementHearingView')) {
+    const first = String(url).includes('resultOffset=0');
+    assert.ok(String(url).includes('where=1%3D1'), 'no date window on an undated layer');
+    return { ok: true, status: 200, json: async () => ({ features: first ? hearings.map((attributes) => ({ attributes })) : [] }), text: async () => '' };
+  }
   const id = Object.keys(feeds).find((k) => String(url).includes(k));
   // Window queries ask for the same rows again; offset paging ends on a short page.
   return { ok: true, status: 200, json: async () => (String(url).includes('%24offset=0') || String(url).includes('$offset=0') ? feeds[id] : []), text: async () => '' };
@@ -130,6 +137,34 @@ async function main() {
       const rows = await q(`SELECT p.permit_number, k.confidence::float AS confidence FROM planning_case_links k
         JOIN planning_cases c ON c.id = k.case_id JOIN permits p ON p.id = k.permit_id WHERE c.case_number = 'SR-1'`);
       assert.deepStrictEqual(rows.map((r) => [r.permit_number, r.confidence]), [['R-NEW', 0.8]]);
+    });
+    await check('City of Miami tree review links officially to every permit on its application', async () => {
+      await q(`INSERT INTO planning_cases (source_area, case_number, case_kind, lifecycle_stage, first_seen_stage, content_hash, official_ref)
+        VALUES ('miami-city-trees-fl', 'BD26019593001 | 6599', 'other', 'unknown', 'unknown', 'x', 'BD26019593')`);
+      const [{ id: srcId }] = await q("SELECT id FROM sources WHERE slug = 'miami-city-fl'");
+      const [{ id: runId }] = await q('SELECT id FROM sync_runs ORDER BY id LIMIT 1');
+      for (const [num, app] of [['BD26019593001B001', 'BD26019593'], ['BD26019593001E001', 'BD26019593'], ['BD26000001001B001', 'BD26000001']]) {
+        await q(`INSERT INTO permits (source_area, permit_number, filed_date) VALUES ('miami-city-fl', $1, '2026-11-20')`, [num]);
+        await q(`INSERT INTO raw_records (source_id, source_key, payload_hash, payload, sync_run_id) VALUES ($1, $2, $3, $4, $5)`,
+          [srcId, num, num, JSON.stringify({ PermitNumber: num, ApplicationNumber: app }), runId]);
+      }
+      await db.withTransaction(rebuildLinks);
+      const again = await db.withTransaction(rebuildLinks);
+      const detail = 'permit ApplicationNumber = tree review PlanNumber without its 3-digit suffix';
+      assert.strictEqual(again[`miami-city-trees-fl -> miami-city-fl (${detail})`], 2);
+      const rows = await q(`SELECT p.permit_number, k.link_basis, k.confidence::float AS confidence FROM planning_case_links k
+        JOIN planning_cases c ON c.id = k.case_id JOIN permits p ON p.id = k.permit_id
+        WHERE c.source_area = 'miami-city-trees-fl' ORDER BY 1`);
+      assert.deepStrictEqual(rows.map((r) => [r.permit_number, r.link_basis, r.confidence]),
+        [['BD26019593001B001', 'official_reference', 1], ['BD26019593001E001', 'official_reference', 1]]);
+    });
+    await check('an undated layer is read whole: zoning hearings upsert once, re-run adds nothing', async () => {
+      await run('miami-dade-zoning-hearings-fl');
+      await run('miami-dade-zoning-hearings-fl');
+      const [{ n, filed, parties }] = await q(`SELECT count(*)::int AS n, count(filed_on)::int AS filed,
+        (SELECT count(*)::int FROM planning_case_parties pp JOIN planning_cases c ON c.id = pp.case_id WHERE c.source_area = 'miami-dade-zoning-hearings-fl') AS parties
+        FROM planning_cases WHERE source_area = 'miami-dade-zoning-hearings-fl'`);
+      assert.deepStrictEqual([n, filed, parties], [20, 0, 0]);
     });
   } finally {
     await db.close();

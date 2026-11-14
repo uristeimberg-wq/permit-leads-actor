@@ -1,0 +1,221 @@
+{
+ "source": "miami-city-trees-fl",
+ "capturedAt": "2026-11-14T21:08:54.194Z",
+ "layer": "https://services1.arcgis.com/CvuPhqcTQpZPT9qY/arcgis/rest/services/Tree_Permits/FeatureServer/0",
+ "layerName": "Tree_Permits",
+ "editedAt": "2026-11-14T14:02:30.434Z",
+ "licenseInfo": null,
+ "declaredFields": [
+  "ID:Integer",
+  "PlanNumber:String",
+  "PropertyAddress:String",
+  "ReviewStatus:String",
+  "Latitude:Double",
+  "Longitude:Double",
+  "ReviewStatusChangedDate:Date",
+  "ObjectId:OID"
+ ],
+ "capture": "fixture.yml run 43641200443, newest 20 by ReviewStatusChangedDate; no names on this layer",
+ "rows": [
+  {
+   "ID": 6599,
+   "PlanNumber": "BD26019593001",
+   "PropertyAddress": "1045 NE 84 ST",
+   "ReviewStatus": "Intended decision",
+   "Latitude": 25.853227226375,
+   "Longitude": -80.175744003086,
+   "ReviewStatusChangedDate": 1794582960000,
+   "ObjectId": 6570
+  },
+  {
+   "ID": 6479,
+   "PlanNumber": "BD26007057001",
+   "PropertyAddress": "1852 SW 2 AV",
+   "ReviewStatus": "Intended decision",
+   "Latitude": 25.7581880435884,
+   "Longitude": -80.2005343263651,
+   "ReviewStatusChangedDate": 1794577320000,
+   "ObjectId": 6501
+  },
+  {
+   "ID": 6556,
+   "PlanNumber": "BD26012868001",
+   "PropertyAddress": "180 SE 32 RD",
+   "ReviewStatus": "Corrections Required",
+   "Latitude": 25.7474656177499,
+   "Longitude": -80.2097217182962,
+   "ReviewStatusChangedDate": 1794575400000,
+   "ObjectId": 6439
+  },
+  {
+   "ID": 4425,
+   "PlanNumber": "BD23017769001",
+   "PropertyAddress": "2010 NW 7 ST",
+   "ReviewStatus": "Approved",
+   "Latitude": 25.7796837713124,
+   "Longitude": -80.2284621747638,
+   "ReviewStatusChangedDate": 1794569820000,
+   "ObjectId": 4175
+  },
+  {
+   "ID": 6576,
+   "PlanNumber": "BD26015047001",
+   "PropertyAddress": "1800 NW 1 AV",
+   "ReviewStatus": "Intended decision",
+   "Latitude": 25.7930015272069,
+   "Longitude": -80.1969014458612,
+   "ReviewStatusChangedDate": 1794563340000,
+   "ObjectId": 6500
+  },
+  {
+   "ID": 6616,
+   "PlanNumber": "BD26023805001",
+   "PropertyAddress": "736 NW 22 PL",
+   "ReviewStatus": "Intended decision",
+   "Latitude": 25.7803287165068,
+   "Longitude": -80.2326833861708,
+   "ReviewStatusChangedDate": 1794557460000,
+   "ObjectId": 6616
+  },
+  {
+   "ID": 2247,
+   "PlanNumber": "BD20025171001",
+   "PropertyAddress": "120 SW 28 RD",
+   "ReviewStatus": "Approved",
+   "Latitude": 25.75252684,
+   "Longitude": -80.20867849,
+   "ReviewStatusChangedDate": 1794488280000,
+   "ObjectId": 2049
+  },
+  {
+   "ID": 6609,
+   "PlanNumber": "BD26022640001",
+   "PropertyAddress": "243 NE 62 ST",
+   "ReviewStatus": "Corrections Required",
+   "Latitude": 25.833236769573,
+   "Longitude": -80.1912933008986,
+   "ReviewStatusChangedDate": 1794488040000,
+   "ObjectId": 6600
+  },
+  {
+   "ID": 6484,
+   "PlanNumber": "BD26007326001",
+   "PropertyAddress": "4481 SW 5 ST",
+   "ReviewStatus": "Corrections Required",
+   "Latitude": 25.7672534429913,
+   "Longitude": -80.269160630923,
+   "ReviewStatusChangedDate": 1794480240000,
+   "ObjectId": 6514
+  },
+  {
+   "ID": 6593,
+   "PlanNumber": "BD26017621001",
+   "PropertyAddress": "3620 OAK AV",
+   "ReviewStatus": "Intended decision",
+   "Latitude": 25.729719279828,
+   "Longitude": -80.251828791012,
+   "ReviewStatusChangedDate": 1794475080000,
+   "ObjectId": 6552
+  },
+  {
+   "ID": 6435,
+   "PlanNumber": "BD26005109001",
+   "PropertyAddress": "567 NE 57 ST",
+   "ReviewStatus": "Approved",
+   "Latitude": 25.8285854238325,
+   "Longitude": -80.1836080646116,
+   "ReviewStatusChangedDate": 1794473100000,
+   "ObjectId": 6285
+  },
+  {
+   "ID": 4723,
+   "PlanNumber": "BD23028583001",
+   "PropertyAddress": "7950 NE 3 AV",
+   "ReviewStatus": "Approved with Conditions",
+   "Latitude": 25.8480850846903,
+   "Longitude": -80.191073202075,
+   "ReviewStatusChangedDate": 1794467820000,
+   "ObjectId": 4454
+  },
+  {
+   "ID": 3468,
+   "PlanNumber": "BD22014961001",
+   "PropertyAddress": "3095 PLAZA ST",
+   "ReviewStatus": "Corrections Required",
+   "Latitude": 25.7334739814088,
+   "Longitude": -80.2517887968213,
+   "ReviewStatusChangedDate": 1794313380000,
+   "ObjectId": 3796
+  },
+  {
+   "ID": 5665,
+   "PlanNumber": "BD25004937001",
+   "PropertyAddress": "350 SW 34 AV",
+   "ReviewStatus": "Intended decision",
+   "Latitude": 25.7685809061929,
+   "Longitude": -80.2513448629049,
+   "ReviewStatusChangedDate": 1794311640000,
+   "ObjectId": 5355
+  },
+  {
+   "ID": 6572,
+   "PlanNumber": "BD26014821001",
+   "PropertyAddress": "3161 GIFFORD LN",
+   "ReviewStatus": "Approved",
+   "Latitude": 25.7324968704864,
+   "Longitude": -80.2446131133611,
+   "ReviewStatusChangedDate": 1794311340000,
+   "ObjectId": 6487
+  },
+  {
+   "ID": 5173,
+   "PlanNumber": "BD24015821001",
+   "PropertyAddress": "200 NW 55 ST",
+   "ReviewStatus": "Approved",
+   "Latitude": 25.8259587579527,
+   "Longitude": -80.2008617884606,
+   "ReviewStatusChangedDate": 1794302100000,
+   "ObjectId": 5259
+  },
+  {
+   "ID": 5437,
+   "PlanNumber": "BD24027148001",
+   "PropertyAddress": "4141 NW 5 AV",
+   "ReviewStatus": "Approved",
+   "Latitude": 25.8145178930055,
+   "Longitude": -80.2035555141395,
+   "ReviewStatusChangedDate": 1794240780000,
+   "ObjectId": 5624
+  },
+  {
+   "ID": 5456,
+   "PlanNumber": "BD24027933001",
+   "PropertyAddress": "2664 SW 17 AV",
+   "ReviewStatus": "Approved",
+   "Latitude": 25.743934884182,
+   "Longitude": -80.221803241817,
+   "ReviewStatusChangedDate": 1794240000000,
+   "ObjectId": 5791
+  },
+  {
+   "ID": 6567,
+   "PlanNumber": "BD26014033001",
+   "PropertyAddress": "1885 NW 32 ST",
+   "ReviewStatus": "Intended decision",
+   "Latitude": 25.8058335769941,
+   "Longitude": -80.2275215774468,
+   "ReviewStatusChangedDate": 1794238860000,
+   "ObjectId": 6472
+  },
+  {
+   "ID": 6596,
+   "PlanNumber": "BD26018563001",
+   "PropertyAddress": "2508 SW 19 TER",
+   "ReviewStatus": "Approved",
+   "Latitude": 25.7533050423778,
+   "Longitude": -80.2366286687988,
+   "ReviewStatusChangedDate": 1794234780000,
+   "ObjectId": 6561
+  }
+ ]
+}

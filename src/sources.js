@@ -32,6 +32,22 @@ const DERM_SEWER_STATUSES = {
   pen: 'submitted', app: 'approved', den: 'denied', exp: 'expired', bpexp: 'expired', withdrawn: 'withdrawn',
 };
 
+// City of Miami tree reviews (Tree_Permits ReviewStatus, read 2026-11-14 on
+// 1,231 rows changed in a year). 'intended decision' (571) is the posted
+// notice before the decision is final; whether it ends in approval is not in
+// the word, so it stays unknown and reported, like 'appeal' and 'review
+// unnecessary'.
+const MIAMI_TREE_STATUSES = {
+  approved: 'approved', 'approved with conditions': 'approved', 'corrections required': 'corrections', denied: 'denied',
+};
+
+// Miami-Dade zoning hearing applications (APPL_STATUS, 951 open cases read
+// 2026-11-14). 'payment pending' (22) can be an intake or a final fee, so it
+// stays unknown.
+const MIAMI_HEARING_STATUSES = {
+  'under review': 'in_review', 'corrections required': 'corrections', 'pending corrections': 'corrections',
+};
+
 const RALEIGH_PLAN_STATUSES = {
   submitted: 'submitted', 'submitted - online': 'submitted',
   'in review': 'in_review', 'review in progress': 'in_review',
@@ -845,6 +861,88 @@ const SOURCES = {
     lifecycle: { statuses: DERM_SEWER_STATUSES },
   },
 
+  // City of Miami tree permit reviews (Tree_Permits, probe 2026-11-14). A tree
+  // review is part of a building application: PlanNumber is the City's
+  // application number plus a 3-digit suffix (BD26019593001 -> application
+  // BD26019593), the same ApplicationNumber the City's permit layer carries.
+  // 1,231 rows changed in the year to 2026-11-14; 313 had no issued City
+  // permit yet, and where one was issued it came a median 18 days after the
+  // tree status change (p25 1, p75 45). The City's permit layer is issued-only,
+  // so this is its first pre-issue signal. Edited daily. No names on the
+  // layer. The item licence field is blank: redistribution unknown.
+  'miami-city-trees-fl': {
+    label: 'City of Miami, FL (tree permit reviews)',
+    kind: 'planning',
+    type: 'arcgis',
+    layerUrl: 'https://services1.arcgis.com/CvuPhqcTQpZPT9qY/arcgis/rest/services/Tree_Permits/FeatureServer/0',
+    syncWindows: [{ field: 'ReviewStatusChangedDate', days: 30 }],
+    orderByFields: 'ReviewStatusChangedDate DESC, ObjectId',
+    maxPerRun: 3000,
+    backfillMaxPerRun: 10000,
+    registry: {
+      jurisdiction: 'miami-fl', syncMode: 'date_window', expectedInterval: '1 day',
+      terms: { url: null, reviewedOn: '2026-11-14', automatedAccess: 'unknown', redistribution: 'unknown' },
+      fixture: 'test/fixtures/sources/miami-city-trees-fl.json',
+    },
+    dateField: 'ReviewStatusChangedDate',
+    defaultState: 'FL',
+    fieldMap: { permitNumber: 'ID', filedDate: 'ReviewStatusChangedDate' },
+    planning: {
+      caseKind: 'other',
+      // ID is the row key; one plan can hold more than one tree review.
+      caseNumberParts: ['PlanNumber', 'ID'],
+      // The layer has no filing date; the status date is the only date, so
+      // filed_on stays NULL rather than borrowing it.
+      undated: 'the layer publishes only the review status date',
+      fields: {
+        caseRef: 'PlanNumber', officialRef: 'PlanNumber', status: 'ReviewStatus', statusDate: 'ReviewStatusChangedDate',
+        address: 'PropertyAddress', lat: 'Latitude', lng: 'Longitude',
+      },
+      fieldPatterns: { officialRef: '^([A-Z]{2}\\d{8})\\d{3}$' },
+      links: [{ kind: 'official', to: 'miami-city-fl', caseColumn: 'official_ref', permitField: 'ApplicationNumber',
+        detail: 'permit ApplicationNumber = tree review PlanNumber without its 3-digit suffix' }],
+    },
+    lifecycle: { statuses: MIAMI_TREE_STATUSES },
+  },
+
+  // Miami-Dade zoning hearing applications (LandManagementHearingView, probe
+  // 2026-11-14): open public-hearing, district-boundary (DIC) and government
+  // facility cases in the county's EnerGov system, with folio, address,
+  // status and a link to the county's case page. 951 open cases; the layer
+  // has no date field, so it is read whole each day and a closed case simply
+  // stops being seen (last_seen_at). APPL_DESC mixes applicant names (often
+  // people) and staff notes ("Rezoning", "Application Withdrawn - Re-filed
+  // under Z25-228"), so it is neither a party nor a description: not mapped.
+  'miami-dade-zoning-hearings-fl': {
+    label: 'Miami-Dade, FL (zoning hearing applications)',
+    kind: 'planning',
+    type: 'arcgis',
+    layerUrl: 'https://services.arcgis.com/8Pc9XBTAsYuxx9Ny/arcgis/rest/services/LandManagementHearingView/FeatureServer/0',
+    orderByFields: 'OBJECTID',
+    maxPerRun: 3000,
+    backfillMaxPerRun: 3000,
+    registry: {
+      jurisdiction: 'miami-dade-county-fl', syncMode: 'snapshot', expectedInterval: '1 day',
+      terms: { url: 'https://www.miamidade.gov/global/disclaimer/disclaimer.page', reviewedOn: '2026-11-14', automatedAccess: 'unknown', redistribution: 'unknown' },
+      fixture: 'test/fixtures/sources/miami-dade-zoning-hearings-fl.json',
+    },
+    defaultState: 'FL',
+    fieldMap: { permitNumber: 'PROC_NUM' },
+    planning: {
+      caseKind: 'zoning',
+      undated: 'the layer publishes no date field',
+      fields: {
+        caseNumber: 'PROC_NUM', caseRef: 'CASE_NUM', caseType: 'WORK_TYPE', status: 'APPL_STATUS',
+        parcel: 'FOLIO', address: 'LOC_ADDR', recordUrl: 'APPL_LINK',
+      },
+      // No link yet. 282 of 907 folios have some county permit (probe
+      // 2026-11-14), but with no filing date there is no time window to tell
+      // the hearing's project from any other job on the lot, and no pair has
+      // been read by hand. The folio is stored for that check.
+    },
+    lifecycle: { statuses: MIAMI_HEARING_STATUSES },
+  },
+
   // --- Not yet implemented -------------------------------------------------
   //
   // Clark County WA publishes a real ArcGIS feature layer — structurally the
@@ -885,6 +983,7 @@ const SOURCES = {
 // Planning cases joined 2026-11-14 (kind 'planning', migration 025): they
 // write planning_cases, never permits, so no lead screen lists them.
 const PILOT_AREAS = ['austin-tx', 'austin-plan-review-tx', 'miami-dade-fl', 'miami-city-fl', 'raleigh-nc',
-  'austin-site-plans-tx', 'austin-subdivisions-tx', 'raleigh-plan-areas-nc', 'raleigh-devplans-nc', 'miami-derm-sewer-fl'];
+  'austin-site-plans-tx', 'austin-subdivisions-tx', 'raleigh-plan-areas-nc', 'raleigh-devplans-nc', 'miami-derm-sewer-fl',
+  'miami-city-trees-fl', 'miami-dade-zoning-hearings-fl'];
 
 module.exports = { SOURCES, PILOT_AREAS };

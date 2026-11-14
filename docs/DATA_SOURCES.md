@@ -942,6 +942,84 @@ status only, so this history is ours).
   permits we already ingest. **Not connected.** `PROJNAME` is usually the
   owner's own name (rule 5).
 
+### City of Miami, FL: Tree permit reviews (`miami-city-trees-fl`, connected 2026-11-14)
+
+- **Layer:** `services1.arcgis.com/CvuPhqcTQpZPT9qY/.../Tree_Permits/FeatureServer/0`
+  (City of Miami org; edited daily, last edit 2026-11-14). 6,617 rows; 1,231
+  changed status in the year to 2026-11-14. Fields: `ID`, `PlanNumber`,
+  `PropertyAddress`, `ReviewStatus`, `ReviewStatusChangedDate`, `Latitude`,
+  `Longitude`, `ObjectId`. No filing date, no names. Item licence blank, so
+  redistribution is unknown. Fixture `test/fixtures/sources/miami-city-trees-fl.json`.
+- **Key into permits (measured 2026-11-14, recon/discovery_checks.js
+  miami-tree):** `PlanNumber` is the City's application number plus a
+  3-digit suffix (`BD26019593001` -> `BD26019593`); 1,229 of 1,231 rows have
+  that shape. 522 of 723 application numbers match a City permit's
+  `ApplicationNumber`, and on every joined row the house number and street
+  agree (920 agree, 0 differ). Connected as an **official reference**
+  (confidence 1.00) to every `miami-city-fl` permit on the application.
+- **Lead:** 313 of 1,231 rows had no issued City permit on the application
+  yet. Where one was issued, it came a median 18 days after the tree status
+  change (p25 1, p75 45; 690 of 918 before). Caveat: the first issued permit
+  is sometimes the tree permit itself (`...L001`, "TREE PERMIT"), not the
+  building permit, so the lead over the building permit is not yet measured
+  separately. The City permit layer is issued-only, so this is the City's
+  first pre-issue signal.
+- **Statuses** (a year): Approved 585, Intended decision 571, Corrections
+  Required 47, Appeal 11, Review Unnecessary 9, Approved with Conditions 7,
+  Denied 1. Intended decision, Appeal and Review Unnecessary stay `unknown`.
+
+### Miami-Dade, FL: Zoning hearing applications (`miami-dade-zoning-hearings-fl`, connected 2026-11-14)
+
+- **Layer:** `services.arcgis.com/8Pc9XBTAsYuxx9Ny/.../LandManagementHearingView/FeatureServer/0`
+  (edited 2026-11-14). 951 open cases in the county's EnerGov system:
+  public hearings for use 676, district boundary (DIC) 217, government
+  facilities 58. Fields: `PROC_NUM` (Z2026000209 / G...), `CASE_NUM`,
+  `CASE_TYPE`, `WORK_TYPE`, `FOLIO`, `LOC_ADDR`, `APPL_LINK` (county case
+  page), `APPL_DESC`, `APPL_STATUS`. **No date field**, so it is read whole
+  daily (`snapshot`) and `filed_on` is NULL. County "as is" terms;
+  redistribution unknown. Fixture
+  `test/fixtures/sources/miami-dade-zoning-hearings-fl.json` (people's names
+  in `APPL_DESC` replaced with REDACTED).
+- `APPL_DESC` holds applicant names (often people) and staff notes
+  ("Rezoning", "Application Withdrawn - Re-filed under Z25-228") in one
+  column. It is not stored as a party or a description.
+- **Statuses:** Corrections Required 486, Under Review 254, Pending
+  Corrections 189, Payment Pending 22 (`unknown`).
+- **No link yet:** 282 of 907 folios have some county permit, but with no
+  filing date there is no window to separate the hearing's project from
+  other jobs on the lot, and no pair has been read by hand.
+
+### Discovery scan, 2026-11-14: checked and not connected
+
+recon/discovery_scan.js listed 2,485 services across the four markets' ArcGIS
+orgs, Socrata catalogs and 24 nearby places; 21 layers were measured.
+
+- **Raleigh `Building_Permits_Pending`:** 381 of 381 are already in
+  `Building_Permits`. Duplicate.
+- **Raleigh right-of-way occupancy permits:** 1,865 a year (156 in 30 days),
+  mostly gas service installs, a median 105 days *after* the building
+  permit. Not early. About 100 a year are "retire gas service to demolish",
+  a possible small demolition signal.
+- **Miami-Dade WASD notices of required connection (NORC):** 0 of 858 folios
+  matched a county permit; mostly septic-to-sewer enforcement.
+- **Miami-Dade `DermPlanReview`:** last edited 2025-05. Stale.
+- **Miami-Dade Certificate of Use** (145 issued in 30 days) and
+  **certificates of occupancy** (with owner names): end-of-job signals, not
+  early.
+- **Austin zoning cases (`edir-dcnf`):** Public Domain, 6,960 cases, about 10
+  applied a month, many disannexations and historic cases; `propertyrsn`
+  shared with plan review 103 of 200, with issued permits 0 of 200. Low
+  value; not connected.
+- **Wake Forest Active Developments:** needs a token. Excluded (rule 4).
+
+**Nearby jurisdictions that publish applications or development cases
+(open layers, read 2026-11-14; none connected):** Durham, NC (Permits and
+Planning services, ODbL, plus demolition permits); Round Rock, TX (Current
+Developments, 130 rows with zoning case ids); Apex, NC (nonresidential
+developments, special use permits); Wake County, NC (subdivisions);
+Pflugerville, TX (subdivisions, specific use permits); Williamson County, TX
+(subdivisions); Fort Lauderdale, FL (building permits).
+
 ## Corrections and new finds (2026-11-14)
 
 From the early-signal research (`docs/DATA_STRATEGY.md`; worker reports in

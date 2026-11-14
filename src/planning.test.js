@@ -101,6 +101,44 @@ check('one DERM allocation over several lots is one case per lot, each with its 
   assert.strictEqual(mapCase(src, { FOLIO: '1', ADDRESS: 'x' }), null, 'no allocation number: no case');
 });
 
+check('City of Miami tree review: application number from the plan number, no filing date, stage from the word', () => {
+  const src = SOURCES['miami-city-trees-fl'];
+  const rows = fixture('miami-city-trees-fl');
+  const c = mapCase(src, rows[0]);
+  assert.strictEqual(c.caseNumber, 'BD26019593001 | 6599');
+  assert.strictEqual(c.caseRef, 'BD26019593001');
+  assert.strictEqual(c.officialRef, 'BD26019593', 'the 3-digit suffix is dropped to match ApplicationNumber');
+  assert.strictEqual(c.filedOn, null, 'no filing date on the layer: NULL, not the status date');
+  assert.match(String(c.statusDate), /^2026-11-1\d$/);
+  assert.strictEqual(c.lifecycleStage, 'unknown', "'Intended decision' is not mapped");
+  assert.strictEqual(c.caseKind, 'other');
+  assert.ok(c.lat > 25 && c.lng < -80);
+  const stages = Object.fromEntries(rows.map((r) => [r.ReviewStatus, mapCase(src, r).lifecycleStage]));
+  assert.deepStrictEqual([stages.Approved, stages['Approved with Conditions'], stages['Corrections Required']], ['approved', 'approved', 'corrections']);
+  // A plan number of another shape keeps no official reference rather than a wrong one.
+  assert.strictEqual(mapCase(src, { ...rows[0], PlanNumber: 'TREE-2026-1' }).officialRef, null);
+  assert.strictEqual(mapCase(src, { ...rows[0], PlanNumber: 'BD260195930011' }).officialRef, null, 'anchored: a longer number is not cut to fit');
+});
+
+check('fieldPatterns: must name a text field and hold a capture group', () => {
+  const base = { fields: { caseNumber: 'a' } };
+  assert.deepStrictEqual(validatePlanning('x', { planning: { ...base, fieldPatterns: { filedOn: '^(\\d+)' } } }), ['x: fieldPatterns "filedOn" is not a text field']);
+  assert.deepStrictEqual(validatePlanning('x', { planning: { ...base, fieldPatterns: { officialRef: '^\\d+' } } }), ['x: fieldPatterns "officialRef" needs a capture group']);
+});
+
+check('Miami-Dade zoning hearings: proc number key, folio, case page; APPL_DESC is not stored as a party', () => {
+  const src = SOURCES['miami-dade-zoning-hearings-fl'];
+  const rows = fixture('miami-dade-zoning-hearings-fl');
+  const cases = rows.map((r) => mapCase(src, r));
+  const c = cases[0];
+  assert.deepStrictEqual([c.caseNumber, c.caseRef, c.parcel, c.caseKind, c.lifecycleStage], ['Z2025000117', '121903', '3060060340025', 'zoning', 'corrections']);
+  assert.match(c.recordUrl, /^https:\/\/energov\.miamidade\.gov\//);
+  assert.strictEqual(cases[1].address, null, "'NA' address is a placeholder");
+  assert.ok(cases.every((x) => x.parties.length === 0 && x.name == null && x.description == null), 'applicant text mixes people and notes');
+  assert.strictEqual(cases.find((x) => x.status === 'Payment Pending').lifecycleStage, 'unknown');
+  assert.deepStrictEqual(src.planning.links, undefined, 'no link until there is a time window and a hand check');
+});
+
 check('links: a parcel rule needs a hand check to be on, and a rule that failed one is off with its reason', () => {
   for (const [slug, s] of Object.entries(SOURCES).filter(([, x]) => x.kind === 'planning')) {
     for (const l of s.planning.links || []) {

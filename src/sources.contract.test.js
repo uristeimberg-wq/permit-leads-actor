@@ -41,11 +41,15 @@ for (const [slug, src] of Object.entries(SOURCES).filter(([, s]) => s.registry))
     // A planning source (kind 'planning') writes planning_cases, not permits:
     // no contractor and no "newest permit" age check.
     const planning = src.kind === 'planning';
-    for (const k of ['label', 'type', 'fieldMap', 'maxPerRun', 'dateField', 'defaultState', ...(planning ? ['planning'] : ['maxDataAgeDays']), ...(src.filingKind || planning ? [] : ['parties'])]) {
+    // A snapshot source is read whole each run (Miami-Dade zoning hearings
+    // publish no date at all), so it has no window field and no row date.
+    const snapshot = planning && reg.syncMode === 'snapshot' && !src.dateField;
+    for (const k of ['label', 'type', 'fieldMap', 'maxPerRun', ...(snapshot ? [] : ['dateField']), 'defaultState', ...(planning ? ['planning'] : ['maxDataAgeDays']), ...(src.filingKind || planning ? [] : ['parties'])]) {
       assert.ok(src[k] != null, `missing ${k}`);
     }
     assert.ok(MAPPERS[src.type], `type ${src.type} has no offline mapper; connectors must use socrata or arcgis, or add one here`);
-    assert.ok(src.fieldMap.permitNumber && src.fieldMap.filedDate, 'fieldMap must map permitNumber and filedDate');
+    assert.ok(src.fieldMap.permitNumber && (src.fieldMap.filedDate || snapshot), 'fieldMap must map permitNumber and filedDate');
+    if (snapshot) assert.ok(src.planning && src.planning.undated, 'a snapshot source must say why it has no date (planning.undated)');
     assert.ok(SYNC_MODES.includes(reg.syncMode), `syncMode ${reg.syncMode}`);
     assert.ok(reg.jurisdiction && reg.expectedInterval, 'registry needs jurisdiction and expectedInterval');
     assert.ok(src.backfillMaxPerRun == null || src.backfillMaxPerRun >= src.maxPerRun, 'backfillMaxPerRun below maxPerRun');
@@ -86,7 +90,8 @@ for (const [slug, src] of Object.entries(SOURCES).filter(([, s]) => s.registry))
     }
 
     const permits = MAPPERS[src.type](fx.rows, src);
-    const usable = permits.filter((p) => p.permitNumber && /^\d{4}-\d{2}-\d{2}/.test(String(p.filedDate || '')));
+    const dated = (p) => (src.kind === 'planning' && reg.syncMode === 'snapshot' && !src.dateField) || /^\d{4}-\d{2}-\d{2}/.test(String(p.filedDate || ''));
+    const usable = permits.filter((p) => p.permitNumber && dated(p));
     assert.ok(usable.length / fx.rows.length >= MIN_MAPPED, `only ${usable.length}/${fx.rows.length} rows map to a permit with a number and date`);
   });
 
@@ -100,7 +105,12 @@ for (const [slug, src] of Object.entries(SOURCES).filter(([, s]) => s.registry))
     const named = [...Object.values(src.planning.fields).flat(), ...(src.planning.addressParts || []), ...(src.planning.parties || []).map((p) => p.field)];
     assert.deepStrictEqual(named.filter((f) => !seen.has(f)), [], 'planning fields missing from the fixture (guessed?)');
     const cases = fx.rows.map((r) => mapCase(src, r)).filter(Boolean);
-    const usable = cases.filter((c) => c.caseNumber && /^\d{4}-\d{2}-\d{2}$/.test(String(c.filedOn || '')));
+    // A source with no filing date says why (planning.undated); its cases
+    // still need a number, and its status date where it maps one.
+    const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
+    const p = src.planning;
+    const dated = (c) => (p.undated ? (!p.fields.statusDate || isDate(c.statusDate)) : isDate(c.filedOn));
+    const usable = cases.filter((c) => c.caseNumber && dated(c));
     assert.ok(usable.length / fx.rows.length >= MIN_MAPPED, `only ${usable.length}/${fx.rows.length} rows map to a case with a number and filing date`);
     assert.strictEqual(new Set(cases.map((c) => c.caseNumber)).size, cases.length, 'case numbers repeat within the fixture');
   });

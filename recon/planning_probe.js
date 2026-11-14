@@ -6,6 +6,7 @@
 //   Raleigh Development_Plans (ArcGIS)           -> raleigh-devplans
 //   Austin Site Plan Cases mavg-96ck (Socrata)   -> austin-site-plans
 //   Austin Subdivision Cases s7gx-9m54 (Socrata) -> austin-subdivisions
+//   Austin Zoning Cases edir-dcnf (Socrata)      -> austin-zoning
 //   Miami-Dade DERM Sewer Allocation (ArcGIS)    -> miami-derm-sewer
 //   Miami-Dade Permits Requiring Allocation      -> miami-wasd-allocation
 //
@@ -255,7 +256,7 @@ async function raleigh() {
 }
 
 async function austin() {
-  for (const [key, id] of [['austin-site-plans', 'mavg-96ck'], ['austin-subdivisions', 's7gx-9m54']]) {
+  for (const [key, id] of [['austin-site-plans', 'mavg-96ck'], ['austin-subdivisions', 's7gx-9m54'], ['austin-zoning', 'edir-dcnf']]) {
     if (!want(key)) continue;
     section(key);
     let p;
@@ -474,7 +475,7 @@ async function wasd() {
 (async () => {
   const runs = [];
   if (want('raleigh-devplans')) runs.push(['raleigh-devplans', raleigh]);
-  if (want('austin-site-plans') || want('austin-subdivisions')) runs.push(['austin', austin]);
+  if (want('austin-site-plans') || want('austin-subdivisions') || want('austin-zoning')) runs.push(['austin', austin]);
   if (want('raleigh-plan-areas')) runs.push(['raleigh-plan-areas', raleighAreas]);
   if (want('miami-derm-sewer')) runs.push(['miami', miami]);
   if (want('miami-derm-lead')) runs.push(['miami-derm-lead', dermLead]);
