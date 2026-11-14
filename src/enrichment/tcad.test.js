@@ -55,6 +55,14 @@ check('only floor rows count; the main building is the most valuable improvement
   assert.deepStrictEqual(T.summarize([], rows), { improvementType: null, yearBuilt: null, livingSqft: null });
 });
 
+check('a land segment gives whole square feet; empty or short lines give nothing', () => {
+  const L = T.LAND_DET;
+  const land = (id, sqft) => line(199, [[L.propId, id.padStart(12, '0')], [[70, 83], '00000000005423'], [L.sqft, sqft]], ' ');
+  assert.deepStrictEqual(T.mapLand(land('123456', '00000000023623')), { propId: '123456', sqft: 23623 });
+  assert.strictEqual(T.mapLand(land('123456', '00000000000000')), null);
+  assert.strictEqual(T.mapLand('short'), null);
+});
+
 check('the newest supplemental export link is found; JSON and layout files are not', () => {
   const html = `<a href="/wp-content/largefiles/travis_SUPP%20336_2026_WEBSITE%20EXPORT_Renamed.zip">x</a>
     <a href='https://traviscad.org/wp-content/largefiles/travis_SUPP%20341_2026_WEBSITE%20EXPORT.zip'>y</a>

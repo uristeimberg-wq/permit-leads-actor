@@ -3,7 +3,8 @@
 //
 // Use rules (docs/COMPLIANCE.md, "Travis CAD use rules"):
 //   1. Only these facts are read: parcel ids, roll year, year built, living
-//      area, land and improvement value, state codes, improvement type.
+//      area, land and improvement value, state codes, improvement type, and
+//      lot size (LAND_DET square feet).
 //   2. Never read: owner name or id, owner or mailing address, deed fields,
 //      any exemption flag or amount, sale price, renditions, sketches. The
 //      positions below are an allowlist; nothing else is sliced from a line.
@@ -56,6 +57,12 @@ const IMP_DET = { minLength: 108, propId: [1, 12], imprvId: [17, 28], typeCd: [4
 // Living area is the sum of the floor rows (1ST, 2ND, ...); porches, garages
 // and decks have their own codes and are left out.
 const FLOOR = /^\d(?:ST|ND|RD|TH)$/;
+
+// LAND_DET.TXT (layout "LandDetail", run 43622711795): one row per land
+// segment. size_square_feet is whole square feet (run 43622800074: 99.9%
+// filled, and sqft / size_acres = 4.356 because acres carry 4 implied
+// decimals). A lot is the sum of its segments.
+const LAND_DET = { minLength: 97, propId: [1, 12], sqft: [84, 97] };
 
 const cut = (line, [a, b]) => line.slice(a - 1, b).trim();
 const num = (v) => (v === '' || !/^-?\d+(\.\d+)?$/.test(v) ? null : Number(v));
@@ -123,6 +130,14 @@ function mapFloor(line) {
   };
 }
 
+/** One LAND_DET.TXT line -> { propId, sqft } (a land segment), or null. */
+function mapLand(line) {
+  if (line.length < LAND_DET.minLength) return null;
+  const sqft = num(cut(line, LAND_DET.sqft));
+  if (!sqft || sqft <= 0) return null;
+  return { propId: cut(line, LAND_DET.propId).replace(/^0+/, ''), sqft };
+}
+
 /**
  * Folds one property's improvements and floor rows into its facts. The main
  * building is the improvement with the highest value; year built is its
@@ -151,4 +166,4 @@ function findExportLink(html, base = PROVIDER.page) {
   return supp.length ? supp[0].u : null;
 }
 
-module.exports = { PROVIDER, PROP, IMP_INFO, IMP_DET, FLOOR, permitKey, mapProp, mapImprovement, mapFloor, summarize, findExportLink };
+module.exports = { PROVIDER, PROP, IMP_INFO, IMP_DET, LAND_DET, FLOOR, permitKey, mapProp, mapImprovement, mapFloor, mapLand, summarize, findExportLink };

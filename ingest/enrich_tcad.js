@@ -104,10 +104,22 @@ async function enrichTcad({ fetchImpl = fetch, files = null, kind = 'scheduled',
       if (f && props.has(f.propId)) { props.get(f.propId).floors.push(f); stats.floors += 1; }
     }
 
+    // 3. Lot size: the sum of each property's land segments. An export
+    // without the land file still loads, with lot size missing (NULL).
+    const landName = src.names.find((x) => /(^|\/)LAND_DET\.TXT$/i.test(x));
+    stats.landSegments = 0;
+    if (landName) {
+      for await (const line of src.lines(landName)) {
+        const l = line && T.mapLand(line);
+        if (l && props.has(l.propId)) { const p = props.get(l.propId); p.lotSqft = (p.lotSqft || 0) + l.sqft; stats.landSegments += 1; }
+      }
+    }
+
     const rows = [...props.values()].map((p) => ({ ...p, ...T.summarize(p.improvements, p.floors) }));
     const linked = await write(rows, permits, byGeo, runId, src.fileDate);
     const out = { ...stats, stored: rows.length, ...linked, url: src.url, fileDate: src.fileDate,
-      withYear: rows.filter((r) => r.yearBuilt).length, withArea: rows.filter((r) => r.livingSqft).length };
+      withYear: rows.filter((r) => r.yearBuilt).length, withArea: rows.filter((r) => r.livingSqft).length,
+      withLot: rows.filter((r) => r.lotSqft).length };
     await db.finishSyncRun(runId, { status: 'succeeded', requests: files ? 0 : 2, fetched: stats.propRows, newCount: rows.length, changed: linked.linked });
     return out;
   } catch (err) {
@@ -132,17 +144,18 @@ async function write(rows, permits, byGeo, runId, fileDate) {
       state_cd: r.stateCode, improvement_type: r.improvementType, land_value: r.landValue, improvement_value: r.improvementValue }));
     await client.query(`
       INSERT INTO parcels (provider, parcel_key, found, land_use_code, year_built, heated_sqft, assessment_year, site_city, site_zip,
-                           land_value, improvement_value, improvement_type, payload, source_edited_at, fetched_at, sync_run_id)
-      SELECT $1, t.k, true, t.code, t.yr, t.sqft, t.roll, t.city, t.zip, t.land, t.imprv, t.itype, t.payload, $13, now(), $14
+                           land_value, improvement_value, improvement_type, payload, source_edited_at, fetched_at, sync_run_id, lot_sqft)
+      SELECT $1, t.k, true, t.code, t.yr, t.sqft, t.roll, t.city, t.zip, t.land, t.imprv, t.itype, t.payload, $13, now(), $14, t.lot
         FROM unnest($2::text[], $3::text[], $4::int[], $5::numeric[], $6::int[], $7::text[], $8::text[], $9::numeric[], $10::numeric[],
-                    $11::text[], $12::jsonb[]) AS t(k, code, yr, sqft, roll, city, zip, land, imprv, itype, payload)
+                    $11::text[], $12::jsonb[], $15::numeric[]) AS t(k, code, yr, sqft, roll, city, zip, land, imprv, itype, payload, lot)
       ON CONFLICT (provider, parcel_key) DO UPDATE SET
         found = true, land_use_code = EXCLUDED.land_use_code, year_built = EXCLUDED.year_built, heated_sqft = EXCLUDED.heated_sqft,
+        lot_sqft = EXCLUDED.lot_sqft,
         assessment_year = EXCLUDED.assessment_year, site_city = EXCLUDED.site_city, site_zip = EXCLUDED.site_zip,
         land_value = EXCLUDED.land_value, improvement_value = EXCLUDED.improvement_value, improvement_type = EXCLUDED.improvement_type,
         payload = EXCLUDED.payload, source_edited_at = EXCLUDED.source_edited_at, fetched_at = now(), sync_run_id = EXCLUDED.sync_run_id`,
     [SLUG, col('propId'), col('stateCode'), col('yearBuilt'), col('livingSqft'), col('rollYear'), col('siteCity'), col('siteZip'),
-      col('landValue'), col('improvementValue'), col('improvementType'), payload, fileDate, runId]);
+      col('landValue'), col('improvementValue'), col('improvementType'), payload, fileDate, runId, col('lotSqft')]);
     const { rowCount: removed } = await client.query('DELETE FROM parcels WHERE provider = $1 AND sync_run_id <> $2', [SLUG, runId]);
 
     await client.query('DELETE FROM permit_parcels WHERE provider = $1', [SLUG]);
@@ -184,7 +197,7 @@ async function main() {
   const pct = (a, b) => (b ? `${((100 * a) / b).toFixed(1)}%` : 'n/a');
   console.log(`Travis CAD: ${s.propRows} properties read from ${s.url} (file dated ${s.fileDate ? s.fileDate.toISOString().slice(0, 10) : 'unknown'}). `
     + `${s.wanted} named by Austin permits; ${s.confidential} confidential and skipped; ${s.stored} stored `
-    + `(year built ${pct(s.withYear, s.stored)}, living area ${pct(s.withArea, s.stored)}), ${s.removed} removed. `
+    + `(year built ${pct(s.withYear, s.stored)}, living area ${pct(s.withArea, s.stored)}, lot size ${pct(s.withLot, s.stored)}), ${s.removed} removed. `
     + `${s.linked} of ${s.permitsWithKey} permits with a tcad_id linked (${pct(s.linked, s.permitsWithKey)}); ${s.ambiguous} ambiguous.`);
   await db.close();
 }

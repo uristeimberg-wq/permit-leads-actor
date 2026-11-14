@@ -708,6 +708,74 @@ sections.wake = async () => {
   log('join: permit pins found as parcels', `${found} of ${pins.length} (${pct(found, pins.length)}); pins with >1 parcel row: ${[...multi.values()].filter((n) => n > 1).length}`);
 };
 
+// Austin unlocated permits (coverage plan item 4). About 10,000 Austin permits
+// have no source point and miss the Census, mostly "plain" street shapes
+// (new subdivisions are a likely cause). Travis CAD's export has no
+// coordinates, so this looks for a public address-point or parcel layer from
+// the City of Austin or Travis County: ArcGIS Online and the Austin Socrata
+// catalog, each candidate's owner, licence, fields, count and edit date. It
+// then takes recent Austin permits without a source point and counts how many
+// of their house-number + street pairs one candidate layer knows. Only counts
+// and field names are printed, never an address.
+sections.austinPoints = async () => {
+  const candidates = [];
+  for (const q of ['address points Austin', 'Austin addresses', 'TCAD parcels', 'Travis County parcels', 'Austin parcels']) {
+    const s = await http(`https://www.arcgis.com/sharing/rest/search?${new URLSearchParams({ f: 'json', q: `${q} type:"Feature Service"`, num: 25 })}`);
+    for (const r of s.results || []) {
+      if (!/austin|travis|tcad/i.test(`${r.owner} ${r.title} ${r.orgId}`) || candidates.some((c) => c.id === r.id)) continue;
+      candidates.push({ id: r.id, title: r.title, owner: r.owner, url: r.url, access: r.access, modified: r.modified && new Date(r.modified).toISOString().slice(0, 10), licence: String(r.licenseInfo || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 160) });
+    }
+  }
+  log('ArcGIS candidates', candidates.length);
+  table(candidates.map((c) => [c.title, c.owner, c.access, c.modified, c.url, c.licence]));
+  try {
+    const cat = await http(`https://api.us.socrata.com/api/catalog/v1?${new URLSearchParams({ domains: 'data.austintexas.gov', q: 'address', limit: 20 })}`);
+    log('Austin Socrata "address" datasets', (cat.results || []).map((r) => `${r.resource.id} | ${r.resource.name} | ${r.resource.type} | updated ${String(r.resource.data_updated_at || '').slice(0, 10)}`));
+  } catch (err) { log('Socrata catalog failed', err.message); }
+
+  // Layer details for each candidate that looks like points or parcels.
+  const layers = [];
+  for (const c of candidates.filter((x) => /address|parcel/i.test(x.title)).slice(0, 8)) {
+    try {
+      let url = c.url;
+      if (!/\/\d+$/.test(url)) {
+        const svc = await http(`${url}?f=json`);
+        url = `${url}/${((svc.layers || [])[0] || { id: 0 }).id}`;
+      }
+      const layer = await http(`${url}?f=json`);
+      const count = await arcgis(url, { where: '1=1', returnCountOnly: true });
+      const fields = layer.fields.map((f) => f.name);
+      log(`layer ${c.title}`, `${url} | ${layer.geometryType} | rows ${count.count} | edited ${layer.editingInfo && new Date(layer.editingInfo.lastEditDate || layer.editingInfo.dataLastEditDate || 0).toISOString().slice(0, 10)} | copyright ${String(layer.copyrightText || '').slice(0, 120)}`);
+      log('  fields', fields);
+      const num = fields.find((f) => /^(ADDRESS_?NUM|ADDR_?NUM|HOUSE_?N|STREET_?NUM|ST_?NUM|SITUS_?NUM|ADD_?NUM)/i.test(f));
+      const street = fields.find((f) => /^(STREET_?NAME|ST_?NAME|SITUS_?STREET|FULL_?STREET|STR_?NAME)/i.test(f));
+      const full = fields.find((f) => /^(FULL_?ADDRESS|ADDRESS|SITUS_?ADDRESS|SITE_?ADDR|FULLADDR)/i.test(f));
+      const numIsText = num && /String/.test(layer.fields.find((f) => f.name === num).type);
+      layers.push({ ...c, layerUrl: url, num, numIsText, street, full, rows: count.count });
+    } catch (err) { log(`layer ${c.title} failed`, err.message); }
+  }
+
+  // Recent Austin permits without a source point: their house number + first street word.
+  const since = new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10);
+  const rows = await soql(AUSTIN, { $select: 'original_address1', $where: `issue_date >= '${since}' AND latitude IS NULL`, $limit: 5000 });
+  const keys = [...new Set(rows.map((r) => String(r.original_address1 || '').toUpperCase().match(/^(\d+)\s+(?:[NSEW]\s+)?([A-Z0-9]+)/)).filter(Boolean).map((m) => `${m[1]}|${m[2]}`))];
+  log('Austin permits issued in 90 days without a source point', `${rows.length} rows, ${keys.length} distinct number+street keys`);
+  const sample = keys.slice(0, 200);
+  for (const l of layers.filter((x) => x.num && x.street)) {
+    let hit = 0;
+    for (let i = 0; i < sample.length; i += 25) {
+      const where = sample.slice(i, i + 25).map((k) => { const [n, s] = k.split('|'); return `(${l.num} = ${l.numIsText ? `'${n}'` : n} AND UPPER(${l.street}) LIKE '${s.replace(/'/g, "''")}%')`; }).join(' OR ');
+      try {
+        const r = await http(`${l.layerUrl}/query`, { method: 'POST', body: new URLSearchParams({ f: 'json', where, outFields: `${l.num},${l.street}`, returnGeometry: 'false' }) });
+        const got = new Set((r.features || []).map((f) => `${String(f.attributes[l.num]).trim()}|${String(f.attributes[l.street] || '').toUpperCase().split(/\s+/)[0]}`));
+        hit += sample.slice(i, i + 25).filter((k) => got.has(k)).length;
+      } catch (err) { log(`join ${l.title} failed`, err.message.slice(0, 160)); break; }
+    }
+    log(`join: ${l.title}`, `${hit} of ${sample.length} unlocated keys found (${pct(hit, sample.length)}%) via ${l.num} + ${l.street}`);
+  }
+  for (const l of layers.filter((x) => !(x.num && x.street))) log(`join skipped: ${l.title}`, `no separate number/street fields (full-address field: ${l.full || 'none'})`);
+};
+
 // Texas Comptroller public-data API (ADR-23 sprint 2; owner registered the
 // key 2026-11-14 as TX_COMPTROLLER_API_KEY). Franchise-tax search by the most
 // frequent Austin contractor business names, then one detail call per exact

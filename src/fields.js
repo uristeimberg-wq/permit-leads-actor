@@ -55,7 +55,7 @@ const FIELDS = {
 // (no observation), not unknown.
 const PUBLISHES = {
   'miami-dade-pa': ['year_built', 'heated_sqft', 'lot_sqft', 'units', 'floors', 'land_use', 'assessed_value'],
-  'travis-cad': ['year_built', 'heated_sqft', 'land_value', 'improvement_value'],
+  'travis-cad': ['year_built', 'heated_sqft', 'lot_sqft', 'land_value', 'improvement_value'],
   'wake-parcels': ['year_built', 'heated_sqft', 'lot_sqft', 'units', 'land_use', 'assessed_value', 'land_value', 'improvement_value'],
 };
 

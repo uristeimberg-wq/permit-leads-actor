@@ -114,7 +114,8 @@ These apply to the property-data join (ADR-14 step 3). The pipeline enforces
 them at load time, not at display.
 
 1. **Load only property facts**: parcel ID, year built, living area, land and
-   improvement value, land use or state code, and improvement type and class.
+   improvement value, land use or state code, improvement type and class, and
+   lot size (land-segment square feet, added 2026-11-14).
 2. **Never load** owner name, owner ID, owner or mailing address, deed fields,
    exemption flags or amounts (homestead, over-65, disabled, veteran and the
    rest), sale prices, renditions, or any photo, sketch or floor plan.

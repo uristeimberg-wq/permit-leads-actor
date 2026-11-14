@@ -32,16 +32,19 @@ const prop = (id, geo, o = []) => line(9922, [[P.propId, id.padStart(12, '0')], 
   [[609, 678], 'SECRET OWNER'], [P.situsCity, 'AUSTIN'], [P.situsZip, '78701'], [P.landHstd, '100000'], [P.imprvNonHstd, '250000'],
   [P.imprvStateCd, 'A1'], ...o]);
 const imp = (id, imprv, desc, v) => line(114, [[T.IMP_INFO.propId, id.padStart(12, '0')], [T.IMP_INFO.imprvId, imprv], [T.IMP_INFO.typeDesc, desc], [T.IMP_INFO.value, String(v)]]);
+const land = (id, sqft) => line(199, [[T.LAND_DET.propId, id.padStart(12, '0')], [T.LAND_DET.sqft, String(sqft).padStart(14, '0')]]);
 const det = (id, imprv, code, yr, area) => line(622, [[T.IMP_DET.propId, id.padStart(12, '0')], [T.IMP_DET.imprvId, imprv], [T.IMP_DET.typeCd, code], [T.IMP_DET.yearBuilt, yr], [T.IMP_DET.area, String(area)]]);
 
 const files = (props) => ({
   url: 'test://export.zip', fileDate: new Date('2026-11-10T15:30:00Z'),
-  names: ['APPR_HDR.TXT', 'PROP.TXT', 'IMP_INFO.TXT', 'IMP_DET.TXT', 'PROP_ENT.TXT'],
+  names: ['APPR_HDR.TXT', 'PROP.TXT', 'IMP_INFO.TXT', 'IMP_DET.TXT', 'LAND_DET.TXT', 'PROP_ENT.TXT'],
   lines: (name) => ({
     'PROP.TXT': props,
     'IMP_INFO.TXT': [imp('111', '1', '1 FAM DWELLING', 250000), imp('222', '9', 'COMMERCIAL', 900000)],
     'IMP_DET.TXT': [det('111', '1', '1ST', '1998', 1500), det('111', '1', '2ND', '2004', 600), det('111', '1', '041', '1998', 400),
       det('222', '9', '1ST', '1985', 8000)],
+    // Two land segments on 111 make one lot; 900 is not wanted.
+    'LAND_DET.TXT': [land('111', 7000), land('111', 1250), land('900', 99999)],
   })[name] || [],
 });
 const baseProps = [
@@ -83,6 +86,9 @@ async function main() {
       const [p] = await q("SELECT * FROM parcels WHERE provider = 'travis-cad' AND parcel_key = '111'");
       assert.deepStrictEqual([p.year_built, Number(p.heated_sqft), Number(p.land_value), Number(p.improvement_value), p.improvement_type, p.land_use_code, p.assessment_year],
         [1998, 2100, 100000, 250000, '1 FAM DWELLING', 'A1', 2026]);
+      assert.strictEqual(Number(p.lot_sqft), 8250, 'lot = the sum of its land segments');
+      const [q2] = await q("SELECT lot_sqft FROM parcels WHERE provider = 'travis-cad' AND parcel_key = '222'");
+      assert.strictEqual(q2.lot_sqft, null, 'no land segment: lot size missing, not 0');
       const all = JSON.stringify(await q("SELECT * FROM parcels WHERE provider = 'travis-cad'"));
       assert.ok(!/SECRET OWNER/.test(all));
     });
