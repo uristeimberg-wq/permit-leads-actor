@@ -497,6 +497,26 @@ the earliest year among those floors. The flags it skips on are at positions
 **Recommendation: use**, joined on folio, through the public layer (no paid
 files).
 
+### Wake County, NC parcels (`wake-parcels`, connected 2026-11-14)
+
+| Field | Value |
+| --- | --- |
+| Endpoint | `https://maps.wake.gov/arcgis/rest/services/Property/Parcels/MapServer/0` (ArcGIS item `f5ed009c66e844ec82f29064edd95017`, owner `WakeCountyGovernment`, public) |
+| Reachable | From Actions, yes (feasibility runs 43593964325 and 43594319991, 2026-11-14) |
+| Type | Polygon map layer, `maxRecordCount` 2000; no `lastEditDate` on the layer, item modified 2026-11-13 |
+| Volume | 439,550 parcels |
+| Key | `PIN_NUM`, 10 digits as a string (leading zeros kept). Raleigh building permits carry the same 10-digit `pin`. **283 of 300 (94.3%) distinct permit pins from the last 90 days match**, none to more than one parcel |
+| Fill (2,000-row sample, 0 counts as empty) | `PIN_NUM` 100%, `DEED_ACRES` 100%, `LAND_VAL` / `TOTAL_VALUE_ASSD` 97.7%, `BLDG_VAL` 80.4%, `HEATEDAREA` 80%, `YEAR_BUILT` 80.2%, `TYPE_AND_USE` 80.2%, `UNITS` / `TOTUNITS` 78.4%, `ZIPNUM` 98.2%, `CITY_DECODE` 82.3% |
+| Loaded | `PIN_NUM`, `REID`, `CALC_AREA`, `DEED_ACRES` (lot size; 1 acre = 43,560 sq ft), `BLDG_VAL` (improvement value), `LAND_VAL`, `TOTAL_VALUE_ASSD`, `HEATEDAREA`, `YEAR_BUILT`, `TYPE_AND_USE` / `TYPE_USE_DECODE` (land use), `DESIGN_STYLE_DECODE`, `UNITS`, `TOTUNITS`, `TOTSTRUCTS`, `LAND_CLASS_DECODE`, `CITY_DECODE`, `PLANNING_JURISDICTION`, `ZIPNUM`; the polygon's area centroid is the parcel point |
+| Never loaded | `OWNER`, `ADDR1-3` (owner mailing), `OWNERSHIP`, `BILLCLASS` / `BILLING_CLASS_DECODE` (they say whether the owner is a person), `DEED_BOOK`, `DEED_PAGE`, `DEED_DATE`, `TOTSALPRICE`, `SALE_DATE`, `EXEMPTDESC`, `EXEMPTSTAT`. `buildParcelQuery` refuses a field list naming any of them |
+| Not published | Bedrooms, bathrooms, floors, the roll year of the values (so `assessment_year` stays NULL) |
+| Caveats | `CALC_AREA` (GIS acres) and `DEED_ACRES` can differ a lot (23.4 vs 18.5 on one fixture parcel); lot size uses the deeded figure and keeps both in the payload. `UNITS` is 0 on non-residential parcels, stored as NULL. A centroid can fall outside an L-shaped lot; it is a parcel point, not a building point |
+| Terms | ArcGIS Hub dataset licence: **CC BY 4.0**, source Wake County (read 2026-11-14). The item's own licence text is a liability disclaimer: not a legal document, verify with primary sources. Attribution stored on the source row |
+| Fixture | `test/fixtures/enrichment/wake-parcels.json` (three parcels, allowlisted fields) |
+
+**Recommendation: use**, joined on pin. Closes the audit's Raleigh gap
+(0% parcel linked) and gives unlocated Raleigh permits a parcel point.
+
 ### US Census Geocoder, batch
 
 | Field | Value |
@@ -618,7 +638,7 @@ rows.
 | City of Miami, FL | Legistar `miamifl` | Yes | API answers, but **0 events in 45 days**: not used for current agendas | | | | | | |
 | **Miami-Dade, FL** | County permit layer (what we ingest) | Yes | Issued only: 0% pre-issue (0 of 2,761) | Weekly | Contractor 100%, **architect 100%**, owner 99.6% | n/a | Master permit | 2008- | Disclaimer only |
 | Miami-Dade, FL | Certificate of Occupancy daily layer `certif_of_occupancy_daily_data` | Yes | After construction (CO) | Daily-ish (latest 2026-11-06) | Owner 89% (hidden), permit-holder number | n/a | `PERMIT_NUMBER`, `FOLIO` | 2002- | Unread |
-| Miami-Dade, FL | Land Management Hearing view, Permits Requiring Allocation | Found, **not probed** | Hearings (zoning) | | | | | | |
+| Miami-Dade, FL | Land Management Hearing view, Permits Requiring Allocation | Found, **not probed** | Hearings (zoning); *corrected 2026-11-14:* Permits Requiring Allocation is a WASD water/sewer **allocation** layer, not a hearing view (docs/research/2026-11-14-data-engine/sources-and-contractors.md) | | | | | | |
 | Miami-Dade, FL | Legistar `miamidade` | Yes (negative) | API answers, latest matter 2018: not used | | | | | | |
 
 **Answer for the pilot markets:** Austin and Raleigh **do** publish
@@ -663,7 +683,7 @@ not a fact: each part says what it rests on.
 | New Orleans | 25 | 18 | 16 | 10 | 10 | 10 | **89** | Contractor 70% at application; CC0; no phone |
 | Orlando | 30 | 18 | 18 | 7 | 10 | 4 | **87** | Coarse status; terms unread |
 | New York City | 25 | 18 | 20 | 10 | 10 | 4 | **87** | Best participants (licensed professionals, owner businesses); crowded; terms unread |
-| Raleigh | 25 | 17 | 18 | 9 | 10 | 6 | **85** | Contractor at application; city may order us to stop; no planning feed |
+| Raleigh | 25 | 17 | 18 | 9 | 10 | 6 | **85** | Contractor at application; city may order us to stop; ~~no planning feed~~ *corrected 2026-11-14:* `Development_Plans` (developer, units, sq ft; edited daily) exists, and building permits carry `devplanid` |
 | Seattle | 30 | 17 | 2 | 10 | 10 | 10 | **79** | Great lifecycle, no names |
 | Norfolk | 25 | 18 | 0 | 8 | 10 | 4 | 65 | |
 | City of Miami | 0 | 18 | 0 | 3 | 10 | 10 | **41** | Issued only |

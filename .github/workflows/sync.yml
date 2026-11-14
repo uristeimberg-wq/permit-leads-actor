@@ -112,6 +112,15 @@ jobs:
         env:
           DATABASE_URL: ${{ env.DB_URL }}
         run: set -o pipefail; node ingest/lifecycle.js | tee -a "$GITHUB_STEP_SUMMARY"
+      # Building facts the sources publish but permits never mapped (units,
+      # floors, square feet, class, zoning, plan-review days, official record
+      # link), from each permit's latest raw record (ADR-23, migration 020).
+      # Incremental: only permits whose raw record changed are rewritten.
+      - name: Building facts
+        if: always() && steps.secret.outputs.ready == 'true'
+        env:
+          DATABASE_URL: ${{ env.DB_URL }}
+        run: set -o pipefail; node ingest/facts.js | tee -a "$GITHUB_STEP_SUMMARY"
       # Who filed each Austin application, builder or permit expediter, from
       # the two organisation fields and the linked building permits (ADR-19).
       # After resolve and lifecycle: it reads contractors and permit_links.
@@ -128,6 +137,12 @@ jobs:
         env:
           DATABASE_URL: ${{ env.DB_URL }}
         run: set -o pipefail; node ingest/enrich_parcels.js | tee -a "$GITHUB_STEP_SUMMARY"
+      # Wake County parcels for Raleigh (ADR-23 sprint 1), joined on the permit's pin.
+      - name: Enrich Wake parcels
+        if: always() && steps.secret.outputs.ready == 'true'
+        env:
+          DATABASE_URL: ${{ env.DB_URL }}
+        run: set -o pipefail; node ingest/enrich_parcels.js --provider=wake-parcels | tee -a "$GITHUB_STEP_SUMMARY"
       # Travis CAD property facts for Austin (ADR-15 step 3b; use rules in
       # docs/COMPLIANCE.md). Downloads a ~510 MB zip and streams it.
       - name: Enrich Travis CAD
@@ -194,6 +209,13 @@ jobs:
         env:
           DATABASE_URL: ${{ env.DB_URL }}
         run: node ingest/prune.js
+      # Data-quality scorecard (ADR-23): today's value per market and metric,
+      # with the day-30 and day-90 targets, into scorecard_snapshots.
+      - name: Scorecard
+        if: always() && steps.secret.outputs.ready == 'true'
+        env:
+          DATABASE_URL: ${{ env.DB_URL }}
+        run: set -o pipefail; node ingest/scorecard.js | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Summary from sync_runs
         if: always() && steps.secret.outputs.ready == 'true'
         env:

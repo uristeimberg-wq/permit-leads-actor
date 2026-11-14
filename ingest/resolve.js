@@ -108,11 +108,14 @@ function summarize(parties, contractors, relationships, partiesWritten) {
   for (const p of parties) byRule[p.rule] = (byRule[p.rule] || 0) + 1;
   const byKind = {};
   for (const c of contractors) byKind[c.partyKind] = (byKind[c.partyKind] || 0) + 1;
-  const phones = contractors.flatMap((c) => c.contacts);
+  const phones = contractors.flatMap((c) => c.contacts.filter((p) => p.kind === 'phone'));
+  const emails = contractors.flatMap((c) => c.contacts.filter((p) => p.kind === 'email'));
   return {
     rawPermits: parties.length, partiesWritten, byRule, contractors: contractors.length, contractorsByKind: byKind,
     phones: phones.length, phonesShown: phones.filter((p) => p.displayPolicy === 'show').length,
     phonesCorroborated: phones.filter((p) => p.verification === 'corroborated').length,
+    emails: emails.length, emailsBusiness: emails.filter((p) => p.displayPolicy === 'show').length,
+    contractorsWithEmail: contractors.filter((c) => c.contacts.some((p) => p.kind === 'email')).length,
     relationships: relationships.length,
   };
 }

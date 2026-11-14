@@ -14,7 +14,7 @@
 
 const { SOURCES } = require('./sources.js');
 
-const RESOLVER_VERSION = 'contractors-v3';
+const RESOLVER_VERSION = 'contractors-v4';
 
 const NON_CONTRACTORS = new Set(['owner', 'owner builder', 'self', 'homeowner', 'na', 'n a', 'none', 'tbd', 'unknown', 'owner owner']);
 
@@ -95,6 +95,23 @@ function toE164(raw) {
   return `+1${d}`;
 }
 
+// Reserved example domains (RFC 2606) and placeholders some portals type in.
+const EMAIL_PLACEHOLDER_DOMAINS = /(^|\.)(example\.(com|org|net)|test|invalid|localhost)$/;
+const EMAIL_PLACEHOLDER_LOCALS = new Set(['none', 'na', 'n/a', 'noemail', 'no', 'unknown', 'test', 'nobody']);
+
+/**
+ * A business email as published, lower-cased, or null. Only the shape is
+ * checked: a well-formed address is not a verified one (contactability is a
+ * separate measurement, docs/DATA_ENGINE_PLAN.md section 7).
+ */
+function normalizeEmail(raw) {
+  const v = String(raw ?? '').trim().toLowerCase();
+  const m = v.match(/^([^\s@,;]+)@([a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,})$/);
+  if (!m) return null;
+  if (EMAIL_PLACEHOLDER_LOCALS.has(m[1]) || EMAIL_PLACEHOLDER_DOMAINS.test(m[2])) return null;
+  return v;
+}
+
 function cleanLicence(raw) {
   const v = String(raw ?? '').trim().toUpperCase().replace(/\s+/g, '');
   if (!v || /^0+$/.test(v) || v === 'NA' || v === 'N/A' || v === 'NONE') return null;
@@ -167,6 +184,7 @@ function extractorFor(spec) {
       issuedOn: day(p[spec.issued]),
       name: field(spec.name),
       phone: field(spec.phone),
+      email: field(spec.email),
       licence: field(spec.licence),
       rawTrade: field(spec.rawTrade),
       city: field(spec.city),
@@ -198,7 +216,7 @@ function resolveParties(parties) {
     if (!id) { resolved.push({ ...party, identityKey: null, rule: 'unresolved', confidence: null }); continue; }
     let c = contractors.get(id.key);
     if (!c) {
-      c = { identityKey: id.key, names: new Map(), phones: new Map(), licences: new Set(), trades: new Map(), cities: new Map(),
+      c = { identityKey: id.key, names: new Map(), phones: new Map(), emails: new Map(), licences: new Set(), trades: new Map(), cities: new Map(),
         state: party.state, first: null, last: null, permits: 0 };
       contractors.set(id.key, c);
     }
@@ -209,6 +227,16 @@ function resolveParties(parties) {
     if (phone) {
       const prev = c.phones.get(phone);
       if (!prev) c.phones.set(phone, { count: 1, lastOn: party.issuedOn, lastRef: party.permitNumber, source: party.sourceSlug });
+      else {
+        prev.count += 1;
+        if (party.issuedOn && (!prev.lastOn || party.issuedOn > prev.lastOn)) Object.assign(prev, { lastOn: party.issuedOn, lastRef: party.permitNumber });
+      }
+    }
+    // contractors-v4: emails are evidence like phones, never a merge key.
+    const email = normalizeEmail(party.email);
+    if (email) {
+      const prev = c.emails.get(email);
+      if (!prev) c.emails.set(email, { count: 1, lastOn: party.issuedOn, lastRef: party.permitNumber, source: party.sourceSlug });
       else {
         prev.count += 1;
         if (party.issuedOn && (!prev.lastOn || party.issuedOn > prev.lastOn)) Object.assign(prev, { lastOn: party.issuedOn, lastRef: party.permitNumber });
@@ -230,6 +258,8 @@ function resolveParties(parties) {
   // weaker contact (an expediter's or a shared office line).
   const phoneOwners = new Map();
   for (const c of contractors.values()) for (const p of c.phones.keys()) phoneOwners.set(p, (phoneOwners.get(p) || 0) + 1);
+  const emailOwners = new Map();
+  for (const c of contractors.values()) for (const e of c.emails.keys()) emailOwners.set(e, (emailOwners.get(e) || 0) + 1);
 
   const top = (m) => [...m.entries()].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])))[0]?.[0] ?? null;
   const out = [];
@@ -249,14 +279,24 @@ function resolveParties(parties) {
       permitCount: c.permits,
       aliases: [...c.names].map(([k, n]) => { const [source, raw] = k.split('\u0000'); return { source, raw, n }; }),
       licences: [...c.licences],
-      contacts: [...c.phones].map(([value, p]) => ({
-        kind: 'phone', value, partyKind: kind, displayPolicy: displayPolicy(kind), source: `permit:${p.source}`,
-        sourceRef: p.lastRef, seenOnPermits: p.count, lastSeenOn: p.lastOn,
-        sharedWithOtherContractors: phoneOwners.get(value) - 1,
-        // "Corroborated" needs independent support (DATA_MODEL.md): 3+ permits
-        // for this contractor and not shared with another firm.
-        verification: p.count >= 3 && phoneOwners.get(value) === 1 ? 'corroborated' : 'unverified',
-      })),
+      contacts: [
+        ...[...c.phones].map(([value, p]) => ({
+          kind: 'phone', value, partyKind: kind, displayPolicy: displayPolicy(kind), source: `permit:${p.source}`,
+          sourceRef: p.lastRef, seenOnPermits: p.count, lastSeenOn: p.lastOn,
+          sharedWithOtherContractors: phoneOwners.get(value) - 1,
+          // "Corroborated" needs independent support (DATA_MODEL.md): 3+ permits
+          // for this contractor and not shared with another firm.
+          verification: p.count >= 3 && phoneOwners.get(value) === 1 ? 'corroborated' : 'unverified',
+        })),
+        // Same rules for emails. Stored for the data engine; no screen shows
+        // them yet (UI freeze, ADR-23), and an individual's stays hidden (rule 5).
+        ...[...c.emails].map(([value, e]) => ({
+          kind: 'email', value, partyKind: kind, displayPolicy: displayPolicy(kind), source: `permit:${e.source}`,
+          sourceRef: e.lastRef, seenOnPermits: e.count, lastSeenOn: e.lastOn,
+          sharedWithOtherContractors: emailOwners.get(value) - 1,
+          verification: e.count >= 3 && emailOwners.get(value) === 1 ? 'corroborated' : 'unverified',
+        })),
+      ],
     });
   }
   return { contractors: out, parties: resolved };
@@ -302,6 +342,6 @@ function buildRelationships(parties) {
 
 module.exports = {
   RESOLVER_VERSION, EXTRACTORS, extractorFor,
-  normalizeName, isOwnerBuilder, partyKind, displayPolicy, toE164, cleanLicence, identityFor,
+  normalizeName, isOwnerBuilder, partyKind, displayPolicy, toE164, normalizeEmail, cleanLicence, identityFor,
   resolveParties, buildRelationships,
 };

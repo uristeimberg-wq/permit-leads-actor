@@ -46,3 +46,50 @@ check('an impossible year built is missing, not a fact', () => {
 check('every provider maps at least one permit source', () => {
   for (const p of Object.values(PROVIDERS)) assert.ok(Object.keys(p.permitKeyFields).length);
 });
+
+const WAKE = PROVIDERS['wake-parcels'];
+const wakeFx = require('../../test/fixtures/enrichment/wake-parcels.json');
+const { normalizePin, polygonCentroid, OWNER_FIELD } = require('./parcels.js');
+
+check('Wake PINs: 10 digits kept with the leading zero, anything else is null', () => {
+  assert.deepStrictEqual(
+    [normalizePin('0796972836'), normalizePin(1703290757), normalizePin('0796-97-2836'), normalizePin('0000000000'), normalizePin('123'), normalizePin(null)],
+    ['0796972836', '1703290757', '0796972836', null, null, null],
+  );
+});
+
+check('Wake: the allowlist names no owner, mailing, deed, sale, exemption or billing field', () => {
+  for (const f of ['OWNER', 'ADDR1', 'ADDR3', 'DEED_BOOK', 'DEED_PAGE', 'DEED_DATE', 'TOTSALPRICE', 'SALE_DATE', 'EXEMPTDESC', 'EXEMPTSTAT', 'BILLCLASS', 'BILLING_CLASS_DECODE', 'OWNERSHIP']) {
+    assert.ok(OWNER_FIELD.test(f), `${f} must be forbidden`);
+  }
+  for (const f of WAKE.outFields) assert.ok(!OWNER_FIELD.test(f), `${f} is allowlisted`);
+  assert.ok(!OWNER_FIELD.test('DEED_ACRES'), 'the deeded lot size is a property fact');
+  const params = new URLSearchParams(buildParcelQuery(WAKE, ['0796972836']).body);
+  assert.strictEqual(params.get('where'), "PIN_NUM IN ('0796972836')");
+  assert.ok(params.get('maxAllowableOffset'), 'polygons are generalised');
+});
+
+check('Wake fixture: an apartment parcel maps to facts, a point inside it, and zero units as missing', () => {
+  const byPin = new Map(wakeFx.features.map((f) => [f.attributes.PIN_NUM, mapParcel(f, WAKE)]));
+  const apt = byPin.get('1703290757');
+  assert.deepStrictEqual(
+    [apt.landUseCode, apt.landUse, apt.yearBuilt, apt.heatedSqft, apt.units, apt.lotSqft, apt.assessedValue, apt.landValue, apt.improvementValue, apt.assessmentYear, apt.siteZip],
+    ['09', 'ELEV APT', 2013, 126760, 115, Math.round(1.77 * 43560), 27164937, 8448900, 18716037, null, '27603'],
+  );
+  const xs = wakeFx.features[1].geometry.rings[0].map((p) => p[0]);
+  const ys = wakeFx.features[1].geometry.rings[0].map((p) => p[1]);
+  assert.ok(apt.lng > Math.min(...xs) && apt.lng < Math.max(...xs) && apt.lat > Math.min(...ys) && apt.lat < Math.max(...ys));
+  assert.strictEqual(byPin.get('1703734710').units, null, 'a church with UNITS 0 has no unit count, not zero units');
+  for (const p of byPin.values()) assert.ok(!Object.keys(p.payload).some((k) => OWNER_FIELD.test(k)));
+});
+
+check('a polygon centroid: a unit square, with or without a hole, and nothing for no shape', () => {
+  // ArcGIS rings: outer clockwise, hole counter-clockwise.
+  const sq = { rings: [[[0, 0], [0, 2], [2, 2], [2, 0], [0, 0]]] };
+  assert.deepStrictEqual(polygonCentroid(sq), { lng: 1, lat: 1 });
+  const holed = { rings: [...sq.rings, [[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]] };
+  const c = polygonCentroid(holed);
+  assert.ok(c.lng > 1 && c.lat > 1, 'a hole in one corner pulls the centroid away from it');
+  assert.strictEqual(polygonCentroid(null), null);
+  assert.strictEqual(polygonCentroid({ rings: [[[0, 0], [1, 1], [0, 0]]] }), null);
+});

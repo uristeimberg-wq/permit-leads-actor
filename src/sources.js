@@ -487,6 +487,8 @@ const SOURCES = {
       tradeByPattern: [['electrical', 'electrical'], ['mechanical', 'mechanical'], ['plumbing', 'plumbing']],
       job: { kind: 'masterField', field: 'pin' }, issued: 'issueddate',
       name: 'contractorcompanyname', phone: 'contractorphone', licence: 'contractorlicnum',
+      // On 92.3% of the newest 2,000 raw rows (data audit 2026-11-14).
+      email: 'contractoremail',
       rawTrade: 'contractortype', city: 'contractorcity', state: 'NC',
     },
     dateField: 'issueddate',

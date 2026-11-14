@@ -10,7 +10,7 @@
 // built-ins; the TCAD section shells out to `unzip` (present on GitHub
 // runners). It prints field names, counts, fill rates, code values and ID
 // *shapes* (letters -> A, digits -> 9) only: never a name, phone or address.
-//   node recon/enrichment_sources.js [--only=tdlr,tsbpe,dbpr,tcad,mdpa,census,coords]
+//   node recon/enrichment_sources.js [--only=tdlr,tsbpe,dbpr,tcad,mdpa,wake,census,coords]
 // CI runs it via .github/workflows/feasibility.yml with only=enrichment.
 
 const fs = require('node:fs');
@@ -600,6 +600,82 @@ sections.census = async () => {
   log('output columns per row', [...new Set(out.map((r) => r.length))]);
   const bm = await http('https://geocoding.geo.census.gov/geocoder/benchmarks');
   log('benchmarks', (bm.benchmarks || []).map((b) => `${b.id}:${b.benchmarkName}`));
+};
+
+// Wake County parcels (ADR-23 sprint 1, docs/research/2026-11-14-data-engine/
+// property-and-imagery.md): resolve the open-data item to its layer, print
+// its licence, fields, row count and fill rates, and test the join from
+// Raleigh permit `pin` to the parcel PIN. Owner, mailing and sale fields get a
+// fill rate only (never values): they are never loaded (DATA_ENGINE_PLAN 6.4).
+const WAKE_ITEM = 'f5ed009c66e844ec82f29064edd95017';
+const RALEIGH_BP = 'https://services.arcgis.com/v400IkDOw1ad7Yad/arcgis/rest/services/Building_Permits/FeatureServer/0';
+sections.wake = async () => {
+  const item = await http(`https://www.arcgis.com/sharing/rest/content/items/${WAKE_ITEM}?f=json`);
+  log('item', `${item.title} | type ${item.type} | owner ${item.owner} | modified ${item.modified && new Date(item.modified).toISOString()}`);
+  log('item licence', String(item.licenseInfo || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 400));
+  log('item access / url', `${item.access} | ${item.url}`);
+  for (const u of [`https://hub.arcgis.com/api/v3/datasets/${WAKE_ITEM}_0`, `https://catalog.data.gov/api/3/action/package_search?q=${encodeURIComponent('Wake County parcels')}&rows=5`]) {
+    try {
+      const h = await http(u);
+      if (h.data) log('hub licence', JSON.stringify({ license: h.data.attributes.license, structuredLicense: h.data.attributes.structuredLicense, source: h.data.attributes.source, orgName: h.data.attributes.orgName }).slice(0, 600));
+      if (h.result) log('data.gov', h.result.results.map((r) => `${r.title} | ${r.organization && r.organization.title} | ${r.license_id || ''} ${r.license_title || ''} | ${(r.resources || []).map((x) => x.url).find((x) => /wake|arcgis/i.test(x)) || ''}`));
+    } catch (err) { log('licence lookup failed', `${u.slice(0, 60)}: ${err.message}`); }
+  }
+  let layerUrl = item.url;
+  if (!/\/\d+$/.test(layerUrl)) {
+    const svc = await http(`${layerUrl}?f=json`);
+    log('layers', (svc.layers || []).map((l) => `${l.id}:${l.name}`));
+    layerUrl = `${layerUrl}/${(svc.layers || [])[0].id}`;
+  }
+  const layer = await http(`${layerUrl}?f=json`);
+  log('layer', `${layerUrl} | ${layer.name} ${layer.geometryType} maxRecordCount=${layer.maxRecordCount}`);
+  log('lastEditDate', layer.editingInfo && new Date(layer.editingInfo.lastEditDate || layer.editingInfo.dataLastEditDate).toISOString());
+  log('copyright', String(layer.copyrightText || '').slice(0, 200));
+  log('fields', layer.fields.map((f) => `${f.name}:${f.type.replace('esriFieldType', '')}`));
+  const count = await arcgis(layerUrl, { where: '1=1', returnCountOnly: true });
+  log('rows', count.count);
+  // Fill from a sample: a string `<> ''` filter returned 0 on this MapServer
+  // (run 43593964325), so counts come from the rows themselves. Values are
+  // only counted here, never printed.
+  const fills = {};
+  const sampleRows = (await arcgis(layerUrl, { where: '1=1', outFields: '*', resultRecordCount: 2000, returnGeometry: false })).features.map((f) => f.attributes);
+  for (const f of layer.fields.filter((x) => !/^(OBJECTID|Shape|GlobalID)/i.test(x.name) && !/Geometry|OID/.test(x.type))) {
+    const n = sampleRows.filter((a) => a[f.name] != null && String(a[f.name]).trim() !== '' && !/^0+(\.0+)?$/.test(String(a[f.name]).trim())).length;
+    fills[f.name] = pct(n, sampleRows.length);
+  }
+  log('fill sample rows', sampleRows.length);
+  log('fill % (non-empty)', fills);
+  const useField = layer.fields.find((f) => /TYPE_AND_USE|TYPE_USE|LAND_CLASS|PROPDESC|USE/i.test(f.name) && /String/.test(f.type));
+  if (useField) {
+    const g = await arcgis(layerUrl, { where: '1=1', groupByFieldsForStatistics: useField.name, outStatistics: JSON.stringify([{ statisticType: 'count', onStatisticField: layer.objectIdField || 'OBJECTID', outStatisticFieldName: 'n' }]), orderByFields: 'n DESC', resultRecordCount: 15 });
+    log(`top ${useField.name}`, (g.features || []).slice(0, 15).map((x) => `${x.attributes[useField.name]}:${x.attributes.n}`));
+  }
+  // Join test: Raleigh building-permit pins from the last 90 days.
+  const pinField = layer.fields.find((f) => /^PIN_NUM$/i.test(f.name)) || layer.fields.find((f) => /^PIN/i.test(f.name));
+  const since = new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10);
+  const page = await arcgis(RALEIGH_BP, { where: `issueddate >= TIMESTAMP '${since} 00:00:00'`, outFields: 'pin', resultRecordCount: 1000, returnGeometry: false });
+  const pins = [...new Set(page.features.map((f) => String(f.attributes.pin || '').trim()).filter(Boolean))].slice(0, 300);
+  const p = profile();
+  pins.forEach((x) => p.add([x]));
+  log('permit pin shapes', p.report(pins.length, { shapes: [0] })[0].shapes);
+  const sample = await arcgis(layerUrl, { where: '1=1', outFields: pinField.name, resultRecordCount: 500, returnGeometry: false });
+  const p2 = profile();
+  sample.features.forEach((f) => p2.add([f.attributes[pinField.name]]));
+  log(`parcel ${pinField.name} shapes`, p2.report(sample.features.length, { shapes: [0] })[0].shapes);
+  let found = 0;
+  const multi = new Map();
+  for (let i = 0; i < pins.length; i += 50) {
+    const chunk = pins.slice(i, i + 50);
+    const r = await http(`${layerUrl}/query`, { method: 'POST', body: new URLSearchParams({ f: 'json', where: `${pinField.name} IN (${chunk.map((x) => `'${x.replace(/'/g, "''")}'`).join(',')})`, outFields: pinField.name, returnGeometry: 'false' }) });
+    for (const f of r.features || []) multi.set(f.attributes[pinField.name], (multi.get(f.attributes[pinField.name]) || 0) + 1);
+  }
+  // Fixture (hard rule 10): three joined parcels, allowlisted fields only.
+  const allow = ['PIN_NUM', 'REID', 'CALC_AREA', 'DEED_ACRES', 'BLDG_VAL', 'LAND_VAL', 'TOTAL_VALUE_ASSD', 'HEATEDAREA', 'YEAR_BUILT', 'TYPE_AND_USE', 'TYPE_USE_DECODE', 'DESIGN_STYLE_DECODE', 'UNITS', 'TOTUNITS', 'TOTSTRUCTS', 'LAND_CLASS_DECODE', 'SITE_ADDRESS', 'CITY_DECODE', 'PLANNING_JURISDICTION', 'ZIPNUM'];
+  const fxPins = pins.filter((x) => multi.has(x)).slice(0, 3);
+  const fxr = await http(`${layerUrl}/query`, { method: 'POST', body: new URLSearchParams({ f: 'json', where: `${pinField.name} IN (${fxPins.map((x) => `'${x}'`).join(',')})`, outFields: allow.filter((a) => layer.fields.some((f) => f.name === a)).join(','), returnGeometry: 'true', outSR: '4326', maxAllowableOffset: '0.00002', geometryPrecision: '6' }) });
+  console.log(`  FIXTURE ${JSON.stringify({ fields: layer.fields.filter((f) => allow.includes(f.name)).map((f) => ({ name: f.name, type: f.type })), features: fxr.features })}`);
+  found = pins.filter((x) => multi.has(x)).length;
+  log('join: permit pins found as parcels', `${found} of ${pins.length} (${pct(found, pins.length)}); pins with >1 parcel row: ${[...multi.values()].filter((n) => n > 1).length}`);
 };
 
 async function main() {

@@ -750,3 +750,25 @@ and never alerted as a participant.
 5. `project_members` replaces `project_permits` once a second member kind
    exists; `business_relationships` replaces `contractor_relationships` once a
    second role pair exists.
+
+## Building facts (migration 020, ADR-23)
+
+`permit_facts` holds one row per permit with the building facts its source
+publishes but `permits` never mapped: units, floors, building / new / remodel
+square feet, residential or commercial class, proposed use, construction
+type, zoning, plan-review days, completion and last-inspection dates, the
+source's own planning, property and project keys (Raleigh `devplanid`,
+Austin `propertyrsn` and `project_id`), and `record_url`, the record on the
+source's own ArcGIS service where the portal has no stable permit page.
+
+It is rebuilt incrementally by `ingest/facts.js` from the latest raw record
+(`raw_record_id` is the evidence) using the field maps in `src/facts.js`.
+Placeholders (0 or 1 sq ft, 0 floors) are NULL, and a class word no
+vocabulary maps is NULL and reported. Single-source filing facts keep this
+row-level provenance; field-level observations are for attributes several
+sources supply (`docs/DATA_ENGINE_PLAN.md` section 6.3).
+
+Contractor emails (contractors-v4) are `contact_points` rows of kind
+`email`, under the same display policy and corroboration rules as phones.
+Raleigh is the only source that publishes them today.
+

@@ -149,3 +149,31 @@ check('Raleigh: trade from the permit-type text, job from the parcel pin', () =>
   assert.deepStrictEqual([b.isBuilding, m.trade, r.trade, r.isBuilding], [true, 'mechanical', null, false]);
   assert.strictEqual(b.groupKey, m.groupKey);
 });
+
+check('emails: lower-cased, shape-checked; placeholders and example domains rejected', () => {
+  assert.strictEqual(C.normalizeEmail(' Office@AcmeBuilders.com '), 'office@acmebuilders.com');
+  for (const bad of ['', null, 'none', 'none@acme.com', 'redacted@example.com', 'a@b', 'two@x.com, three@y.com', 'x@y.test']) {
+    assert.strictEqual(C.normalizeEmail(bad), null, String(bad));
+  }
+});
+
+check('emails become contact points beside phones, never merge firms, hidden for a person', () => {
+  const rows = [
+    party({ sourceSlug: 'raleigh-nc', state: 'NC', permitNumber: 'A', name: 'Alpha Plumbing LLC', email: 'office@alpha.com' }),
+    party({ sourceSlug: 'raleigh-nc', state: 'NC', permitNumber: 'B', name: 'Alpha Plumbing LLC', email: 'OFFICE@alpha.com' }),
+    party({ sourceSlug: 'raleigh-nc', state: 'NC', permitNumber: 'C', name: 'Beta Electric', email: 'office@alpha.com' }),
+    party({ sourceSlug: 'raleigh-nc', state: 'NC', permitNumber: 'D', name: 'Jane Doe', email: 'jane@home.net' }),
+  ];
+  const { contractors } = C.resolveParties(rows);
+  const by = Object.fromEntries(contractors.map((c) => [c.displayName, c]));
+  assert.strictEqual(contractors.length, 3);
+  const a = by['Alpha Plumbing LLC'].contacts.filter((p) => p.kind === 'email');
+  assert.deepStrictEqual(a.map((p) => [p.value, p.seenOnPermits, p.sharedWithOtherContractors, p.displayPolicy]),
+    [['office@alpha.com', 2, 1, 'show']]);
+  assert.strictEqual(by['Jane Doe'].contacts[0].displayPolicy, 'hide');
+});
+
+check('Raleigh extractor reads the contractor email', () => {
+  const x = C.EXTRACTORS['raleigh-nc'];
+  assert.strictEqual(x({ permitnum: 'BLDR-1-2026', permittype: 'Building', contractoremail: 'a@b.co' }).email, 'a@b.co');
+});

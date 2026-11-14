@@ -219,6 +219,20 @@ async function main() {
       lic.map((r) => [r.provider, r.n, pct(r.phone, r.n), pct(r.biz, r.n), r.file_date, r.fetched]));
   });
 
+  await section('Building facts (permit_facts, migration 020)', async () => {
+    const has = (await q("SELECT to_regclass('public.permit_facts') AS t"))[0].t;
+    if (!has) { out('permit_facts not created yet.'); out(); return; }
+    const cols = ['units', 'floors', 'building_sqft', 'new_sqft', 'use_class', 'proposed_use', 'zoning', 'plan_review_days',
+      'completed_on', 'last_inspection_on', 'planning_ref', 'property_ref', 'project_ref', 'record_url'];
+    const rows = await q(`SELECT p.source_area, count(*)::int AS n, ${cols.map((c, i) => `count(f.${c})::int AS c${i}`).join(', ')}
+                            FROM permits p LEFT JOIN permit_facts f ON f.permit_id = p.id GROUP BY 1 ORDER BY 2 DESC`);
+    table(['fact', ...rows.map((r) => r.source_area)], cols.map((c, i) => [c, ...rows.map((r) => pct(r[`c${i}`], r.n))]));
+    const link = await q(`SELECT p.source_area, count(*)::int AS n,
+                                 count(*) FILTER (WHERE nullif(p.permit_url, '') IS NOT NULL OR f.record_url IS NOT NULL)::int AS linked
+                            FROM permits p LEFT JOIN permit_facts f ON f.permit_id = p.id GROUP BY 1 ORDER BY 2 DESC`);
+    table(['market', 'official record link (permit_url or record_url)'], link.map((r) => [r.source_area, pct(r.linked, r.n)]));
+  });
+
   await section('Cross-record links (application → permit, building → trade)', async () => {
     const links = await q(`
       SELECT f.source_area AS from_m, t.source_area AS to_m, pl.link_basis, count(*)::int AS n, round(avg(pl.confidence), 2) AS conf

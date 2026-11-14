@@ -1,0 +1,361 @@
+{
+ "_recorded": "2026-11-14, feasibility run 43594319991 (recon/enrichment_sources.js --only=wake): https://maps.wake.gov/arcgis/rest/services/Property/Parcels/MapServer/0, three Raleigh permit pins, allowlisted fields only (BILLING_CLASS_DECODE was in the probe allowlist and is dropped here: it says whether the owner is an individual). Licence CC BY 4.0 (ArcGIS Hub item f5ed009c66e844ec82f29064edd95017).",
+ "fields": [
+  {
+   "name": "PIN_NUM",
+   "type": "esriFieldTypeString"
+  },
+  {
+   "name": "CALC_AREA",
+   "type": "esriFieldTypeDouble"
+  },
+  {
+   "name": "REID",
+   "type": "esriFieldTypeString"
+  },
+  {
+   "name": "DEED_ACRES",
+   "type": "esriFieldTypeDouble"
+  },
+  {
+   "name": "BLDG_VAL",
+   "type": "esriFieldTypeDouble"
+  },
+  {
+   "name": "LAND_VAL",
+   "type": "esriFieldTypeDouble"
+  },
+  {
+   "name": "TOTAL_VALUE_ASSD",
+   "type": "esriFieldTypeDouble"
+  },
+  {
+   "name": "HEATEDAREA",
+   "type": "esriFieldTypeDouble"
+  },
+  {
+   "name": "SITE_ADDRESS",
+   "type": "esriFieldTypeString"
+  },
+  {
+   "name": "CITY_DECODE",
+   "type": "esriFieldTypeString"
+  },
+  {
+   "name": "PLANNING_JURISDICTION",
+   "type": "esriFieldTypeString"
+  },
+  {
+   "name": "YEAR_BUILT",
+   "type": "esriFieldTypeSmallInteger"
+  },
+  {
+   "name": "TYPE_AND_USE",
+   "type": "esriFieldTypeString"
+  },
+  {
+   "name": "TYPE_USE_DECODE",
+   "type": "esriFieldTypeString"
+  },
+  {
+   "name": "DESIGN_STYLE_DECODE",
+   "type": "esriFieldTypeString"
+  },
+  {
+   "name": "UNITS",
+   "type": "esriFieldTypeDouble"
+  },
+  {
+   "name": "LAND_CLASS_DECODE",
+   "type": "esriFieldTypeString"
+  },
+  {
+   "name": "TOTSTRUCTS",
+   "type": "esriFieldTypeSmallInteger"
+  },
+  {
+   "name": "TOTUNITS",
+   "type": "esriFieldTypeSmallInteger"
+  },
+  {
+   "name": "ZIPNUM",
+   "type": "esriFieldTypeString"
+  }
+ ],
+ "features": [
+  {
+   "attributes": {
+    "PIN_NUM": "0796972836",
+    "REID": "0038760",
+    "CALC_AREA": 23.44794219,
+    "DEED_ACRES": 18.47,
+    "BLDG_VAL": 442930,
+    "LAND_VAL": 4869100,
+    "TOTAL_VALUE_ASSD": 5312030,
+    "HEATEDAREA": 13296,
+    "YEAR_BUILT": 1978,
+    "TYPE_AND_USE": "34",
+    "TYPE_USE_DECODE": "OFC GROSS",
+    "DESIGN_STYLE_DECODE": "Conventional",
+    "UNITS": 0,
+    "TOTUNITS": 0,
+    "TOTSTRUCTS": 1,
+    "LAND_CLASS_DECODE": "EXEMPT",
+    "SITE_ADDRESS": "1400 W MILLBROOK RD",
+    "CITY_DECODE": "RALEIGH",
+    "PLANNING_JURISDICTION": "RA",
+    "ZIPNUM": "27612"
+   },
+   "geometry": {
+    "rings": [
+     [
+      [
+       -78.664758,
+       35.860827
+      ],
+      [
+       -78.664384,
+       35.860476
+      ],
+      [
+       -78.664326,
+       35.860269
+      ],
+      [
+       -78.664116,
+       35.860389
+      ],
+      [
+       -78.663723,
+       35.86011
+      ],
+      [
+       -78.663457,
+       35.859963
+      ],
+      [
+       -78.663373,
+       35.859651
+      ],
+      [
+       -78.663446,
+       35.859206
+      ],
+      [
+       -78.663531,
+       35.858991
+      ],
+      [
+       -78.663459,
+       35.858912
+      ],
+      [
+       -78.663471,
+       35.858745
+      ],
+      [
+       -78.663543,
+       35.858628
+      ],
+      [
+       -78.663513,
+       35.858563
+      ],
+      [
+       -78.6635,
+       35.858206
+      ],
+      [
+       -78.663417,
+       35.857769
+      ],
+      [
+       -78.663422,
+       35.857653
+      ],
+      [
+       -78.663763,
+       35.857581
+      ],
+      [
+       -78.663787,
+       35.857471
+      ],
+      [
+       -78.664594,
+       35.857667
+      ],
+      [
+       -78.665167,
+       35.85758
+      ],
+      [
+       -78.666411,
+       35.857876
+      ],
+      [
+       -78.666985,
+       35.857946
+      ],
+      [
+       -78.666979,
+       35.859933
+      ],
+      [
+       -78.667709,
+       35.860036
+      ],
+      [
+       -78.66738,
+       35.860063
+      ],
+      [
+       -78.666835,
+       35.859992
+      ],
+      [
+       -78.666188,
+       35.860103
+      ],
+      [
+       -78.665984,
+       35.860173
+      ],
+      [
+       -78.665336,
+       35.860772
+      ],
+      [
+       -78.665102,
+       35.860848
+      ],
+      [
+       -78.664758,
+       35.860827
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "attributes": {
+    "PIN_NUM": "1703290757",
+    "REID": "0006896",
+    "CALC_AREA": 1.76619709,
+    "DEED_ACRES": 1.77,
+    "BLDG_VAL": 18716037,
+    "LAND_VAL": 8448900,
+    "TOTAL_VALUE_ASSD": 27164937,
+    "HEATEDAREA": 126760,
+    "YEAR_BUILT": 2013,
+    "TYPE_AND_USE": "09",
+    "TYPE_USE_DECODE": "ELEV APT",
+    "DESIGN_STYLE_DECODE": "Conventional",
+    "UNITS": 115,
+    "TOTUNITS": 115,
+    "TOTSTRUCTS": 4,
+    "LAND_CLASS_DECODE": "Apartment",
+    "SITE_ADDRESS": "927 W MORGAN ST",
+    "CITY_DECODE": "RALEIGH",
+    "PLANNING_JURISDICTION": "RA",
+    "ZIPNUM": "27603"
+   },
+   "geometry": {
+    "rings": [
+     [
+      [
+       -78.655562,
+       35.782009
+      ],
+      [
+       -78.655704,
+       35.781611
+      ],
+      [
+       -78.65619,
+       35.781727
+      ],
+      [
+       -78.656178,
+       35.781758
+      ],
+      [
+       -78.6564,
+       35.781811
+      ],
+      [
+       -78.65629,
+       35.782114
+      ],
+      [
+       -78.656459,
+       35.782236
+      ],
+      [
+       -78.655919,
+       35.782747
+      ],
+      [
+       -78.655413,
+       35.782386
+      ],
+      [
+       -78.655562,
+       35.782009
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "attributes": {
+    "PIN_NUM": "1703734710",
+    "REID": "0011668",
+    "CALC_AREA": 0.99231422,
+    "DEED_ACRES": 0.99,
+    "BLDG_VAL": 534720,
+    "LAND_VAL": 1293720,
+    "TOTAL_VALUE_ASSD": 1828440,
+    "HEATEDAREA": 4240,
+    "YEAR_BUILT": 1946,
+    "TYPE_AND_USE": "66",
+    "TYPE_USE_DECODE": "CHURCH",
+    "DESIGN_STYLE_DECODE": "Conventional",
+    "UNITS": 0,
+    "TOTUNITS": 0,
+    "TOTSTRUCTS": 1,
+    "LAND_CLASS_DECODE": "EXEMPT",
+    "SITE_ADDRESS": "1200 S BLOUNT ST",
+    "CITY_DECODE": "RALEIGH",
+    "PLANNING_JURISDICTION": "RA",
+    "ZIPNUM": "27601"
+   },
+   "geometry": {
+    "rings": [
+     [
+      [
+       -78.637335,
+       35.765639
+      ],
+      [
+       -78.637375,
+       35.76519
+      ],
+      [
+       -78.638056,
+       35.76517
+      ],
+      [
+       -78.638332,
+       35.765677
+      ],
+      [
+       -78.637335,
+       35.765639
+      ]
+     ]
+    ]
+   }
+  }
+ ]
+}
