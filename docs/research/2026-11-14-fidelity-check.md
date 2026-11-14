@@ -126,3 +126,24 @@ were seen in one day. With about one day of exposure, that is weak evidence.
      value, consistent with dollars. Neither is mapped until the unit is
      confirmed against the county's or city's own permit page (rule 1).
      City of Miami and Austin publish no fee.
+
+## Re-check after the fixes (2026-11-14, fidelity run 43646867966)
+
+Same method and seed, after migration 030 and the 21:25 UTC sync (run
+43642763277; the first with the `Statusdate` window and the re-read step).
+
+| Check | Before (run 43636656233) | After |
+|---|---|---|
+| Austin `permit_url` matches the source | 192 of 300 (64.0%) | 300 of 300 (100%, CI 98.7-100%) |
+| City of Miami `status_raw` matches the source | 186 of 189 (98.4%) | 300 of 300 (100%, CI 98.7-100%) |
+| City of Miami older permits sampled | 39 (all we held) | 150 (the status window loaded older permits) |
+| City of Miami edits no window catches | 2 of 39 older | 0 of 150 older; 1 of 150 recent (a contractor-name edit with no new `Statusdate`) |
+| Every other source and field | 100% | 100% |
+
+The re-read itself asked for nothing in its first run: every stored permit
+had been seen by a sync within its two-day skip, since all were first loaded
+on 2026-11-13. It starts working through the store from the next run; the
+contractor-name edit above is the kind it exists to catch. Scorecard v5 on
+the same sync: exact duplicates (identical on every published fact but the
+permit number) are Austin 0.4%, Miami-Dade 1.0%, City of Miami 1.4%,
+Raleigh 2.2%; 0 permits are gone from their source.
