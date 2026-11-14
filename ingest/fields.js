@@ -193,9 +193,11 @@ async function runFields() {
         role: o.role === 'enrichment' ? 'appraiser' : 'permit', confidence: o.confidence, sourceSlug: o.slug, sourceRef: o.source_ref });
     }
     const conflicts = [];
+    const permitsDiffer = {};
     for (const obs of groups.values()) {
       const r = F.resolve(obs[0].field, obs);
       if (r.conflict) conflicts.push({ entityId: obs[0].entityId, field: obs[0].field, ...r.conflict });
+      if (r.permitsDiffer) permitsDiffer[obs[0].field] = (permitsDiffer[obs[0].field] || 0) + 1;
     }
     const cleared = await writeConflicts(client, conflicts);
     const byField = {};
@@ -203,7 +205,8 @@ async function runFields() {
       const b = (byField[c.field] ||= { open: 0, auto_resolved: 0 });
       b[c.status] += 1;
     }
-    return { properties, parcels, permits, multiFields: groups.size, conflicts: byField, cleared };
+    for (const f of Object.keys(permitsDiffer)) byField[f] ||= { open: 0, auto_resolved: 0 };
+    return { properties, parcels, permits, multiFields: groups.size, conflicts: byField, permitsDiffer, cleared };
   } finally {
     client.release();
   }
@@ -216,8 +219,8 @@ async function main() {
     `New properties: ${s.properties}. Parcels read ${s.parcels.read}, observations written ${s.parcels.written}. `
     + `Permits with units/floors read ${s.permits.read}, observations written ${s.permits.written}.`,
     `Multi-source fields: ${s.multiFields}. Conflicts cleared: ${s.cleared}.`, '',
-    '| field | open | auto-resolved |', '|---|---|---|',
-    ...Object.entries(s.conflicts).map(([f, b]) => `| ${f} | ${b.open} | ${b.auto_resolved} |`)];
+    '| field | open | auto-resolved | permits differ, no appraiser value (unresolved, not a conflict) |', '|---|---|---|---|',
+    ...Object.entries(s.conflicts).map(([f, b]) => `| ${f} | ${b.open} | ${b.auto_resolved} | ${s.permitsDiffer[f] || 0} |`)];
   console.log(lines.join('\n'));
   await db.close();
 }

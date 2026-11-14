@@ -47,9 +47,14 @@ check('appraiser beats permit: auto-resolved, the permit value kept visible', ()
   assert.ok(/miami-dade-fl r2 says 3/.test(r.conflict.resolution));
 });
 
-check('two permits that disagree, with no appraiser value: unresolved, open, nothing picked', () => {
+check('two permits that disagree, with no appraiser value: unresolved, nothing picked, and not a conflict', () => {
   const r = F.resolve('units', [ob(5, 'permit', 1), ob(6, 'permit', 115)]);
-  assert.deepStrictEqual([r.value, r.winnerId, r.conflict.status], [null, null, 'open']);
+  assert.deepStrictEqual([r.value, r.winnerId, r.conflict, r.permitsDiffer], [null, null, null, true]);
+});
+
+check('two appraisers that disagree are still an open conflict', () => {
+  const r = F.resolve('units', [ob(1, 'appraiser', 2), ob(2, 'appraiser', 3), ob(3, 'permit', 2)]);
+  assert.deepStrictEqual([r.value, r.conflict.status], [null, 'open']);
 });
 
 check('low confidence and unknown values never vote', () => {

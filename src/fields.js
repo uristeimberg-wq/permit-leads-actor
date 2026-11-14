@@ -12,14 +12,20 @@
 //   - Confidence is a tier (official, high, medium, low), never a decimal.
 //   - Resolution is deterministic: source precedence, then tolerance. Two
 //     observations of the same precedence that disagree leave the value
-//     unresolved (NULL) with an open conflict. We do not pick one (rule 1).
+//     unresolved (NULL). We do not pick one (rule 1). Two appraisers that
+//     disagree are an open conflict; permits alone that disagree are not (v3).
 
 const crypto = require('node:crypto');
 
 // v2 (2026-11-14): only building permits observe a property's units and
 // floors. Under v1, trade permits (which state their own job's scope, mostly
 // "1") made 97% of the 2,465 open conflicts on the first live run.
-const RULE_VERSION = 'fields-v2';
+// v3 (2026-11-14): permits alone that disagree are not a conflict. On the
+// v2 run every one of the 1,106 open conflicts had no appraiser value for the
+// field, with 4-7 building permits behind each (data audit run 43628490918):
+// a house, its garage and its addition each state their own floors. The value
+// stays unresolved and the count is reported, but no conflict row is opened.
+const RULE_VERSION = 'fields-v3';
 
 // Appraiser providers (parcels.provider) and the county whose parcel keys
 // they publish. One appraiser per county today.
@@ -138,7 +144,8 @@ function agree(field, a, b) {
  * Resolve one field of one entity from its current observations
  * ({ id, value, role: 'appraiser'|'permit', confidence, sourceSlug, sourceRef }).
  * Returns { value, winnerId, conflict } where conflict is null or
- * { kind, status, observationIds, resolution }.
+ * { kind, status, observationIds, resolution }; permitsDiffer is true when
+ * only permits spoke and they disagree (unresolved, not a conflict).
  */
 function resolve(field, observations) {
   const usable = observations.filter((o) => o.confidence !== 'low' && o.value != null);
@@ -149,6 +156,8 @@ function resolve(field, observations) {
   const ids = usable.map((o) => o.id).sort((a, b) => a - b);
   const say = (o) => `${o.sourceSlug} ${o.sourceRef} says ${o.value}`;
   if (best.some((o) => !agree(field, o.value, head.value))) {
+    // Each permit describes its own job, not the whole property.
+    if (top === RANK.permit) return { value: null, winnerId: null, conflict: null, permitsDiffer: true };
     return {
       value: null,
       winnerId: null,
