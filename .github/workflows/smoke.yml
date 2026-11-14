@@ -86,6 +86,12 @@ jobs:
           [[ "$BASE" =~ ^https://[a-z0-9.-]+$ ]] || { echo "::error::url must be https://host with no path"; exit 1; }
           if [ -z "$DEMO_PASSWORD" ]; then echo "::notice::DEMO_PASSWORD not set: layout check skipped."; exit 0; fi
           OUT=layout-shots node test/layout/check.js "$BASE"
+      # Street View on real job pages (ADR-24): loads, or says why not.
+      - name: Job-page photos
+        if: always()
+        run: |
+          if [ -z "$DEMO_PASSWORD" ]; then echo "::notice::DEMO_PASSWORD not set: photo check skipped."; exit 0; fi
+          node test/layout/photos_check.js "$BASE"
       # Screenshots of the live demo show company names and phones from
       # permits, so they are kept for one day only.
       - if: always()
