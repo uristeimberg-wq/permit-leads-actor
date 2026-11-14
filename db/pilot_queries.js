@@ -12,6 +12,7 @@
 const { query } = require('./index.js');
 const { publicAliases } = require('../src/privacy.js');
 const { maskDescription } = require('../src/description_names.js');
+const { SEGMENTS, segmentOf, pickFiler } = require('../src/filers.js');
 
 const { SOURCES: CONFIG, PILOT_AREAS } = require('../src/sources.js');
 
@@ -570,42 +571,103 @@ async function listLeads(f, { days = 7, limit = 25, minValuation = null } = {}) 
  * saw the filing. A contractor is shown only where the filing names one, under
  * the same rule as every screen; applicants and owners are never selected.
  */
-async function listEarly(f, { days = 30, limit = 100 } = {}) {
+async function listEarly(f, { days = 30, limit = 100, segment = null } = {}) {
   const areas = display(f.source).early || [];
   if (!areas.length) return { available: false, filings: [], counts: [] };
-  const args = [areas, EARLY_STAGES, days, f.zips, limit];
-  const where = `p.source_area = ANY($1::text[]) AND p.lifecycle_stage = ANY($2::text[])
+  // The segments read Austin's plan-review sub types ("R- 101 ..."); other
+  // feeds word their types differently, so they are not segmented.
+  const segmentable = areas.includes('austin-plan-review-tx');
+  const pattern = segmentable && segment && SEGMENTS[segment] ? SEGMENTS[segment].pattern : null;
+  const base = `p.source_area = ANY($1::text[]) AND p.lifecycle_stage = ANY($2::text[])
        AND coalesce(p.submitted_on, p.first_seen_at::date) >= current_date - $3::int
        AND ($4::text[] IS NULL OR p.zip = ANY($4))`;
-  const [{ rows }, { rows: counts }] = await Promise.all([
+  const where = `${base} AND ($5::text IS NULL OR p.permit_type ~* $5)`;
+  const args = [areas, EARLY_STAGES, days, f.zips, pattern, limit];
+  const segmentCols = Object.keys(SEGMENTS).map((k, i) => `count(*) FILTER (WHERE p.permit_type ~* $${5 + i})::int AS ${k}`).join(', ');
+  const [{ rows }, { rows: counts }, { rows: [segmentCounts] }] = await Promise.all([
     query(`
       SELECT ${PERMIT_COLS}, p.lifecycle_stage, p.first_seen_stage, p.submitted_on, p.stage_since, p.filing_kind,
              pp.contractor_id, pp.is_building, pp.trade,
-             (SELECT k.to_permit_id FROM permit_links k WHERE k.from_permit_id = p.id ORDER BY k.to_permit_id LIMIT 1) AS permit_id
+             (SELECT k.to_permit_id FROM permit_links k WHERE k.from_permit_id = p.id ORDER BY k.to_permit_id LIMIT 1) AS permit_id,
+             (SELECT coalesce(json_agg(json_build_object('key', o.org_key, 'name', o.display_name, 'partyKind', o.party_kind,
+                       'role', o.role, 'basis', o.basis, 'filings', o.filings, 'contractorId', o.contractor_id,
+                       'rawRecordId', ff.raw_record_id) ORDER BY o.org_key), '[]'::json)
+                FROM filing_filers ff JOIN filer_orgs o ON o.org_key = ff.org_key WHERE ff.permit_id = p.id) AS filers
         FROM permits p LEFT JOIN permit_parties pp ON pp.permit_id = p.id AND pp.role = 'contractor'
        WHERE ${where}
        ORDER BY coalesce(p.submitted_on, p.first_seen_at::date) DESC, p.valuation DESC NULLS LAST, p.id
-       LIMIT $5`, args),
-    query(`SELECT p.lifecycle_stage AS stage, count(*)::int AS n FROM permits p WHERE ${where} GROUP BY 1 ORDER BY 2 DESC`, args.slice(0, 4)),
+       LIMIT $6`, args),
+    query(`SELECT p.lifecycle_stage AS stage, count(*)::int AS n FROM permits p WHERE ${where} GROUP BY 1 ORDER BY 2 DESC`, args.slice(0, 5)),
+    query(`SELECT ${segmentCols} FROM permits p WHERE ${base}`, [...args.slice(0, 4), ...Object.values(SEGMENTS).map((x) => x.pattern)]),
   ]);
-  const people = await contractorsById([...new Set(rows.map((r) => r.contractor_id).filter(Boolean))]);
+  const shown = new Map(rows.map((r) => [String(r.id), pickFiler(r.filers || [])]));
+  const builderIds = [...new Set([...shown.values()].filter((x) => x && x.role === 'builder' && x.contractorId).map((x) => x.contractorId))];
+  const [people, subs] = await Promise.all([
+    contractorsById([...new Set(rows.map((r) => r.contractor_id).filter(Boolean))]),
+    builderSubs(builderIds),
+  ]);
   return {
     available: true,
+    segmentable,
+    segment: pattern ? segment : null,
     counts,
+    segmentCounts: segmentable ? segmentCounts || null : null,
     filings: rows.map((r) => {
       const { lifecycle_stage: stage, first_seen_stage: firstSeenStage, submitted_on: submittedOn, stage_since: stageSince,
-        filing_kind: filingKind, permit_id: permitId, ...rest } = r;
+        filing_kind: filingKind, permit_id: permitId, filers, ...rest } = r;
+      const filer = publicFiler(shown.get(String(r.id)));
       return {
         ...stripInternal(rest), stage, firstSeenStage, submittedOn, stageSince, filingKind,
+        segment: segmentOf(r.permit_type),
         trade: r.trade || null, isBuilding: r.is_building == null ? null : Boolean(r.is_building),
         issuedPermitId: permitId == null ? null : Number(permitId),
         contractor: publicContractor(people.get(String(r.contractor_id))),
+        filer,
+        filerWithheld: !filer && (filers || []).length > 0,
+        builderSubs: filer && filer.role === 'builder' && filer.contractorId ? subs.get(String(filer.contractorId)) || [] : [],
       };
     }),
   };
 }
 
+/**
+ * The business that filed, for a client (rule 5): business-kind only, never
+ * the owner (src/filers.js filersOf drops it), with the evidence for its role
+ * and the raw record it came from (rule 6).
+ */
+function publicFiler(o) {
+  if (!o || o.partyKind !== 'business') return null;
+  return {
+    name: o.name, role: o.role, basis: o.basis, filings: o.filings,
+    contractorId: o.contractorId == null ? null : Number(o.contractorId),
+    rawRecordId: o.rawRecordId == null ? null : Number(o.rawRecordId),
+  };
+}
+
+/**
+ * Each builder's past subs, top three per trade, from issued permits
+ * (contractor_relationships, ADR-12). History, not a claim about this job.
+ */
+async function builderSubs(gcIds, perTrade = 3) {
+  if (!gcIds.length) return new Map();
+  const { rows } = await query(`
+    SELECT * FROM (
+      SELECT r.gc_id, r.sub_id, r.trade, r.jobs, r.last_job_on,
+             sum(r.jobs) OVER (PARTITION BY r.gc_id, r.trade)::int AS trade_jobs,
+             row_number() OVER (PARTITION BY r.gc_id, r.trade ORDER BY r.jobs DESC, r.last_job_on DESC NULLS LAST, r.sub_id) AS n
+        FROM contractor_relationships r WHERE r.gc_id = ANY($1::bigint[]) AND r.sub_id <> r.gc_id) x
+     WHERE n <= $2 ORDER BY gc_id, trade, n`, [gcIds, perTrade]);
+  const named = await contractorsById([...new Set(rows.map((r) => r.sub_id))]);
+  const out = new Map();
+  for (const r of rows) {
+    const list = out.get(String(r.gc_id)) || [];
+    list.push({ trade: r.trade, sub: publicContractor(named.get(String(r.sub_id))), jobs: r.jobs, tradeJobs: r.trade_jobs, lastJobOn: r.last_job_on });
+    out.set(String(r.gc_id), list);
+  }
+  return out;
+}
+
 module.exports = {
-  TRADES, SOURCES, OPEN_WINDOW_DAYS, EARLY_STAGES, listEarly,
+  TRADES, SOURCES, OPEN_WINDOW_DAYS, EARLY_STAGES, listEarly, publicFiler, builderSubs,
   parseFilters, publicContractor, listGcs, marketBaseline, sourceMeta, getJob, getContractor, listLeads, lifecycleFor,
 };

@@ -440,3 +440,43 @@ what would make us revisit it. Never delete an entry; supersede it.
 - **Revisit when:** the backtest shows pre-application capture under 10% in
   every segment (drop the planning feeds), or the competitive check shows a
   competitor already delivers the same plan-review intake with GC-sub history.
+
+## ADR-19: Show the business that filed an Austin application, with its role and evidence
+
+- **Date:** 2026-11-14. **Status:** accepted (implements the owner's
+  "Homes first, apartments as context" choice under ADR-18; pilot P2).
+- **Context:** Austin's plan-review cases (`n8ck-xkda`) name no contractor.
+  They do name organisations in `applicant_organization_name` (62% filled)
+  and `other_organization_name`: builders, owners' companies and permit
+  expediters. A list that shows only the address is not actionable for a
+  supplier or sub; one that calls an expediter "the builder" is wrong.
+- **Decision:**
+  1. Read only the two organisation fields. `*_full_name`, phones,
+     addresses and every owner field stay unread for display (rule 5). An
+     organisation equal to `owner_organization_name` is the owner and is not
+     stored as a filer.
+  2. Classify each organisation on evidence, never by field
+     (`src/filers.js`, `filers-v1`): *expediter* when its name says so, or
+     when 5+ linked building permits were pulled by 3+ other contractors and
+     under 20% by itself; *builder* when it pulled at least half of 2+ linked
+     building permits, or its name equals a contractor on Austin building
+     permits we hold (unless its linked permits say otherwise); otherwise
+     *unknown*, shown as "filed by" with no role. The basis is stored and
+     shown on hover; the raw record id goes with it (rule 6).
+  3. Show a filer only when its name reads as a business, or equals a
+     business-kind building contractor. Person-looking names are withheld.
+  4. For a builder, show its top three past subs per trade from
+     `contractor_relationships`, labelled as history from issued permits,
+     never as this job's subs.
+  5. The Early screen defaults to new homes (census classes 101-104) in
+     Austin; apartments (105) and commercial (213-214, 318-328) are separate
+     views with the backtest's site-plan rate as context. Site plans are not
+     ingested yet (rule 10 first).
+- **Consequences:** `filing_filers` and `filer_orgs` (migration 018), rebuilt
+  daily by `ingest/filers.js` after resolve and lifecycle. With only weeks of
+  plan-review history, behavioural evidence is thin at first; most builders
+  are found by name match until linked permits accumulate (a 12-month
+  plan-review backfill would fix that).
+- **Revisit when:** a design partner reports a wrong role, or the measured
+  agreement between filer and later building contractor falls under 50% for
+  orgs we call builders.

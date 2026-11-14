@@ -23,6 +23,7 @@
   <form class="filters" id="filters">
     <label>Area <select name="source"></select></label>
     <label>Submitted in <select name="days"><option value="7">last 7 days</option><option value="14">last 14 days</option><option value="30">last 30 days</option><option value="90">last 90 days</option></select></label>
+    <label>Show <select name="segment"><option value="homes">New homes</option><option value="apartments">New apartments (5+ units)</option><option value="commercial">New commercial buildings</option><option value="all">All filings</option></select></label>
     <label>ZIPs <input name="zips" placeholder="all" size="14"></label>
     <button type="submit">Apply</button>
   </form>
@@ -36,16 +37,23 @@
 // Filings not issued yet (ADR-16): Austin plan-review cases and Raleigh's
 // pre-issue rows. Dates shown are the source's own beside when we first saw
 // the filing. Third-party text goes through esc() (CLAUDE.md rule 8).
+// "Filed by" is the business on the application (ADR-19): a builder or a
+// permit expediter, with the evidence on hover. Owners and person-looking
+// names are never shown (rule 5). A builder's past subs are history from
+// issued permits, not a claim about this job.
 (function () {
   const L = window.Live;
   const p = L.params();
-  const f = { source: L.areaOf(p.source), days: p.days || '30', zips: p.zips || '' };
+  const f = { source: L.areaOf(p.source), days: p.days || '30', segment: p.segment == null ? 'homes' : p.segment, zips: p.zips || '' };
   const form = document.getElementById('filters');
   form.elements.source.innerHTML = L.areaOptions(f.source);
   for (const k of Object.keys(f)) form.elements[k].value = f[k];
   form.addEventListener('submit', (e) => { e.preventDefault(); location.search = L.qs(Object.fromEntries(new FormData(form))); });
   document.getElementById('top').innerHTML = L.topBar('early.html');
   const $ = (id) => document.getElementById(id);
+  const SEGMENT = { homes: 'new homes', apartments: 'new apartment buildings', commercial: 'new commercial buildings' };
+  const ROLE = { builder: ['Builder', 'ok'], expediter: ['Permit expediter', 'warn'], unknown: ['Filed by', ''] };
+  const TRADE = { electrical: 'Electrical', mechanical: 'HVAC', plumbing: 'Plumbing' };
   const STAGE = { pre_application: 'Pre-application', submitted: 'Submitted', in_review: 'In review', corrections: 'Corrections requested', approved: 'Approved, not issued' };
 
   L.api(`/api/pilot/early?${L.qs(f)}`).then(render).catch((e) => L.fail($('list'), e));
@@ -59,13 +67,18 @@
       $('foot').innerHTML = L.attribution(d.meta);
       return;
     }
+    if (!d.segmentable) form.elements.segment.closest('label').hidden = true;
     const n = d.filings.length;
     const total = d.counts.reduce((a, c) => a + c.n, 0);
-    $('lede').innerHTML = `${total.toLocaleString('en-US')} filings submitted in the last ${d.days} days are not issued yet${n < total ? `; the newest ${n} are listed` : ''}.
+    const what = d.segment ? `applications for ${SEGMENT[d.segment]}` : 'filings';
+    const sc = d.segmentCounts;
+    $('lede').innerHTML = `${total.toLocaleString('en-US')} ${what} submitted in the last ${d.days} days are not issued yet${n < total ? `; the newest ${n} are listed` : ''}.
+      ${sc ? `<br><span class="sub">In the same window: new homes ${sc.homes.toLocaleString('en-US')} · apartments ${sc.apartments.toLocaleString('en-US')} · commercial ${sc.commercial.toLocaleString('en-US')}.</span>` : ''}
       <br><span class="sub">${d.sources.map((s) => `${L.esc(s.label)}: last sync ${L.esc(L.dateTime(s.lastSyncAt))}${s.lastSyncStatus === 'failed' ? ' (latest attempt failed)' : ''}`).join(' · ')}.
-      ${L.esc((d.meta && d.meta.earlyLag) || '')}. Austin's applications name no contractor yet; applicant names are never shown.</span>`;
+      ${L.esc((d.meta && d.meta.earlyLag) || '')}. Austin's applications name no contractor yet. We show the business that filed when its name is a business; owners and people's names are never shown.</span>
+      ${d.segment === 'apartments' || d.segment === 'commercial' ? `<br><span class="sub">Context: in Austin 2020-2024, ${d.segment === 'apartments' ? '92%' : '80%'} of these buildings had a site plan on file a median of about a year before this application. Site plans are not on this list yet.</span>` : ''}`;
     $('counts').innerHTML = `<p class="sub">${d.counts.map((c) => `${L.esc(STAGE[c.stage] || c.stage)} ${c.n.toLocaleString('en-US')}`).join(' · ')}</p>`;
-    $('list').innerHTML = n ? `<div class="card"><table><thead><tr><th>Submitted</th><th>Stage</th><th>Address</th><th class="hide-sm">Type</th><th class="n hide-sm">Declared value</th><th>Contractor</th><th class="hide-sm">Filing</th></tr></thead><tbody>
+    $('list').innerHTML = n ? `<div class="card"><table><thead><tr><th>Submitted</th><th>Stage</th><th>Address</th><th class="hide-sm">Type</th><th class="n hide-sm">Declared value</th><th>Filed by</th><th>Builder's past subs</th><th class="hide-sm">Filing</th></tr></thead><tbody>
       ${d.filings.map((r) => {
         const url = window.safeHttpUrl(r.permit_url);
         const num = url ? `<a class="mono" href="${L.esc(url)}" rel="noopener noreferrer" target="_blank">${L.esc(r.permit_number)}</a>` : `<span class="mono">${L.esc(r.permit_number)}</span>`;
@@ -76,11 +89,35 @@
           <td>${L.esc(r.address || 'Address not published')}${r.zip && !String(r.address || '').includes(r.zip) ? `, ${L.esc(r.zip)}` : ''}<div class="sub">${L.esc((r.work_description || '').slice(0, 140))}${(r.work_description || '').length > 140 ? '…' : ''}</div></td>
           <td class="hide-sm">${L.esc(r.permit_type || '')}</td>
           <td class="n mono hide-sm">${L.esc(L.money(r.valuation))}</td>
-          <td>${r.contractor ? `${L.who(r.contractor)}${r.contractor.name ? `<div>${L.phoneCell(r.contractor.phone)}</div>` : ''}` : '<span class="sub">not named yet</span>'}</td>
+          <td>${r.contractor ? `${L.who(r.contractor)}${r.contractor.name ? `<div>${L.phoneCell(r.contractor.phone)}</div>` : ''}` : filerCell(r)}</td>
+          <td>${subsCell(r)}</td>
           <td class="hide-sm">${num}</td></tr>`;
       }).join('')}</tbody></table></div>` : '<div class="card state">No filings in review in this window.</div>';
     $('foot').innerHTML = L.attribution(d.sources[0] || d.meta)
+      + `<p class="note">"Filed by" comes from the application's organisation fields. A builder is a business that pulled most of the building permits its earlier applications led to, or that is the contractor on Austin building permits we hold; a permit expediter says so in its name or files for many contractors. Anything else is shown without a role. Hover a name for the evidence.</p>`
+      + `<p class="note">Past subs are the electrical, plumbing and HVAC contractors on that builder's earlier issued permits. The subs for this job are not known until its trade permits are filed.</p>`
       + `<p class="note">"Submitted" is the city's own application date; hover it for when we first saw the filing. Stages come from each city's status wording, mapped in reviewed code; a status we have not mapped is left out of this list rather than guessed.</p>`;
+  }
+
+  function filerCell(r) {
+    if (r.filer) {
+      const [label, cls] = ROLE[r.filer.role] || ROLE.unknown;
+      const why = `${r.filer.basis}. Named on ${r.filer.filings} application(s) we hold. From raw record ${r.filer.rawRecordId}.`;
+      const name = r.filer.contractorId && r.filer.role === 'builder'
+        ? `<a href="contractor.html?${L.qs({ id: r.filer.contractorId })}">${L.esc(r.filer.name)}</a>` : L.esc(r.filer.name);
+      return `${label && r.filer.role !== 'unknown' ? `<span class="pill ${cls}">${L.esc(label)}</span>` : ''}<span class="prov" title="${L.esc(why)}">${name}</span>`;
+    }
+    if (r.filerWithheld) return '<span class="sub prov" title="The name on the application looks like a person, so it is withheld (ADR-10)">Withheld</span>';
+    return '<span class="sub">not named</span>';
+  }
+
+  function subsCell(r) {
+    if (!r.filer || r.filer.role !== 'builder') return '<span class="sub">—</span>';
+    if (!r.builderSubs.length) return '<span class="sub">no trade permits on record</span>';
+    const byTrade = {};
+    for (const s of r.builderSubs) (byTrade[s.trade] ||= []).push(s);
+    return Object.entries(byTrade).map(([t, list]) => `<div><span class="sub">${L.esc(TRADE[t] || t)}:</span> ${list.map((s) =>
+      `<span class="prov" title="${L.esc(`${s.jobs} of this builder's ${s.tradeJobs} ${TRADE[t] || t} jobs on record; latest ${L.date(s.lastJobOn)}`)}">${s.sub && s.sub.name ? L.who(s.sub) : 'Individual (withheld)'}</span> <span class="sub mono">${s.jobs}</span>`).join(', ')}</div>`).join('');
   }
 }());
 </script>

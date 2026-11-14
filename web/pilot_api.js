@@ -47,7 +47,8 @@ router.get('/leads', route(async (req) => {
 router.get('/early', route(async (req) => {
   const f = pq.parseFilters(req.query);
   const days = [7, 14, 30, 90].includes(Number(req.query.days)) ? Number(req.query.days) : 30;
-  const [early, meta] = await Promise.all([pq.listEarly(f, { days }), pq.sourceMeta(f.source)]);
+  const segment = ['homes', 'apartments', 'commercial'].includes(req.query.segment) ? req.query.segment : null;
+  const [early, meta] = await Promise.all([pq.listEarly(f, { days, segment }), pq.sourceMeta(f.source)]);
   const sources = await Promise.all((meta && meta.earlySources || []).map((s) => pq.sourceMeta(s)));
   return { filters: f, days, stages: pq.EARLY_STAGES, meta, sources: sources.filter(Boolean), ...early };
 }));

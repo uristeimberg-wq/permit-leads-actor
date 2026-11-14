@@ -112,6 +112,14 @@ jobs:
         env:
           DATABASE_URL: ${{ env.DB_URL }}
         run: set -o pipefail; node ingest/lifecycle.js | tee -a "$GITHUB_STEP_SUMMARY"
+      # Who filed each Austin application, builder or permit expediter, from
+      # the two organisation fields and the linked building permits (ADR-19).
+      # After resolve and lifecycle: it reads contractors and permit_links.
+      - name: Filers
+        if: always() && steps.secret.outputs.ready == 'true'
+        env:
+          DATABASE_URL: ${{ env.DB_URL }}
+        run: set -o pipefail; node ingest/filers.js | tee -a "$GITHUB_STEP_SUMMARY"
       # Property facts for permits whose source publishes a parcel id (ADR-14
       # step 3). After the sync so new permits are covered; runs even if one
       # area failed. Its own sync_runs row makes a failure visible to health.
