@@ -62,6 +62,10 @@ let userMovedMap = false;     // once true, stop auto-fitting the viewport
 let pendingWhere = '';        // area key from the URL, applied once options load
 let unmatchedLocation = null; // a URL location the picker cannot represent
 let baseMapNote = '';         // the standing map note, restored after a transient one
+let pointLayer = null;        // located job sites, drawn instead of area pins when zoomed in
+let pointsReq = 0;            // guards against a slow viewport overwriting a newer one
+let lastFilters = {};         // the filters the map was last drawn for
+let areaNote = '';            // the area-pin note (unplaced permits), kept while zoomed in
 
 /* ------------------------------------------------------------ formatting */
 
@@ -78,8 +82,9 @@ const money = (v) => {
   return '$' + n.toLocaleString('en-US', { minimumFractionDigits: cents, maximumFractionDigits: cents });
 };
 
+// A date-only value is read as local midnight; a full timestamp as itself.
 const fmtDate = (d) => (d
-  ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+  ? new Date(String(d).length === 10 ? `${d}T00:00:00` : d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
   : null);
 
 // Stored as bare digits so they compare reliably; formatted only for display.
@@ -374,12 +379,15 @@ async function loadFreshness() {
       const d = s.finished_at ? daysSince(s.finished_at) : null;
       const note = s.error ? 'failed' : d === null ? 'never run' : relativeDays(d);
       return `<div class="src-row" data-level="${s.error ? 'stale' : level(d ?? 99)}">
-          <span class="name">${esc(s.source_area)}</span>
+          <span class="name">${esc(s.label || s.source_area)}</span>
           <span>${s.permits_seen ? plural(s.permits_seen, 'permit', 'permits') : ''}</span>
           <span class="age">${esc(note)}</span>
+          ${s.publicationLag ? `<span class="lag">${esc(s.publicationLag)}, on top of our sync.</span>` : ''}
         </div>`;
     })
     .join('');
+
+  paintCredits(sources);
 
   // Popover toggle.
   badge.addEventListener('click', () => {
@@ -393,6 +401,36 @@ async function loadFreshness() {
       $('freshPop').hidden = true;
       badge.setAttribute('aria-expanded', 'false');
     }
+  });
+}
+
+/** Every source's credit line under the results (CC BY needs it wherever City of Miami data shows). */
+async function paintCredits(sources) {
+  let enrichment = [];
+  try { ({ enrichment = [] } = await fetch('/api/credits').then((r) => r.json())); } catch { enrichment = []; }
+  const permitCredits = sources.filter((s) => s.attribution).map((s) => `${s.label || s.source_area}: ${s.attribution}`);
+  const lines = [...permitCredits, ...enrichment.map((e) => e.attribution)];
+  $('credits').innerHTML = `
+    <p><b>Sources.</b> ${lines.map(esc).join(' · ') || 'Public permit records.'}</p>
+    <p>Contacts come from the public permit record; individuals are withheld. Not affiliated with or endorsed by these agencies. Data as published, may be incomplete.</p>`;
+}
+
+/** The Screens menu in the topbar: links to the other pilot screens. */
+function initScreensMenu() {
+  const btn = $('screensBtn');
+  const pop = $('screensPop');
+  if (!btn || !pop) return;
+  btn.addEventListener('click', () => {
+    const open = pop.hidden;
+    pop.hidden = !open;
+    btn.setAttribute('aria-expanded', String(open));
+    if (open) { $('freshPop').hidden = true; $('fresh').setAttribute('aria-expanded', 'false'); }
+  });
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.screens-wrap')) { pop.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !pop.hidden) { pop.hidden = true; btn.setAttribute('aria-expanded', 'false'); btn.focus(); }
   });
 }
 
@@ -820,6 +858,7 @@ function initMap() {
   }).addTo(map);
 
   pinLayer = L.layerGroup().addTo(map);
+  pointLayer = L.layerGroup().addTo(map);
 
   // Panning is how you ask "what about over here?", so offer the re-search
   // rather than silently refetching and yanking the list out from under them.
@@ -835,12 +874,14 @@ function initMap() {
   map.on('zoomend', renderPins);
   map.on('moveend', () => {
     if (userMovedMap && map._loadedOnce) $('searchArea').hidden = false;
+    loadPointsSoon();
   });
 }
 
 /** Renders the pin set for the current filters. */
 async function loadMap(filters) {
   if (!map) return;
+  lastFilters = filters;
 
   let data;
   try {
@@ -853,14 +894,85 @@ async function loadMap(filters) {
   renderPins();
 
   // Say plainly when rows exist that no pin can represent.
-  baseMapNote = data.unplaced
+  areaNote = data.unplaced
     ? `${plural(data.unplaced, 'permit', 'permits')} not shown — no mappable area on the record`
     : '';
+  baseMapNote = areaNote;
   clearTimeout(noteTimer);
   $('mapNote').textContent = baseMapNote;
 
   fitPins();
   map._loadedOnce = true;
+  loadPoints();
+}
+
+/* ------------------------------------------------------------ job sites ===
+ *
+ * Zoomed in to neighbourhood level, the map stops drawing "N permits in this
+ * ZIP" and draws the job sites themselves, one dot per located permit. Each dot
+ * says how it was located (the source's own point, the appraiser's parcel, or a
+ * Census match on the address), because those differ in precision. Permits we
+ * could not locate are not drawn at this zoom, and the note says so.
+ */
+const POINT_ZOOM = 14;
+const METHOD_LABEL = {
+  source: 'point published by the permit source',
+  parcel: 'centre of the appraiser’s parcel',
+  census: 'Census match on the job-site address',
+};
+const methodText = (m, quality) =>
+  `${METHOD_LABEL[m] || 'located point'}${m === 'census' && quality === 'non_exact' ? ' (approximate match)' : ''}`;
+
+let pointsTimer = null;
+function loadPointsSoon() {
+  clearTimeout(pointsTimer);
+  pointsTimer = setTimeout(loadPoints, 250);
+}
+
+const showingPoints = () => map && map.getZoom() >= POINT_ZOOM;
+
+async function loadPoints() {
+  if (!map || !pointLayer) return;
+  const mine = ++pointsReq;
+  if (!showingPoints()) {
+    pointLayer.clearLayers();
+    $('map').classList.remove('is-points');
+    baseMapNote = areaNote;
+    if (!noteTimer) $('mapNote').textContent = baseMapNote;
+    return;
+  }
+  const b = map.getBounds();
+  const bbox = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].map((v) => v.toFixed(5)).join(',');
+  let data;
+  try {
+    const r = await fetch(`/api/map/points?${new URLSearchParams({ ...lastFilters, bbox })}`);
+    if (!r.ok) throw new Error(String(r.status));
+    data = await r.json();
+  } catch {
+    return;   // the area pins stay; the map is an aid, not the results
+  }
+  if (mine !== pointsReq || !showingPoints()) return;
+
+  pointLayer.clearLayers();
+  $('map').classList.add('is-points');
+  for (const pt of data.points) {
+    const title = `${pt.address || 'Address not listed'} · ${methodText(pt.method, pt.quality)}`;
+    const marker = L.marker([pt.lat, pt.lng], {
+      icon: L.divIcon({
+        className: 'pin-wrap',
+        html: `<span class="site${pt.stage === 'pending' ? ' is-pending' : ''}${pt.method === 'census' && pt.quality === 'non_exact' ? ' is-approx' : ''}" title="${esc(title)}"></span>`,
+        iconSize: [0, 0],
+      }),
+      keyboard: false, riseOnHover: true,
+    });
+    marker.on('click', () => openDetail(pt.id, null));
+    marker.addTo(pointLayer);
+  }
+  const shown = data.points.length;
+  baseMapNote = shown < data.inView
+    ? `Showing the newest ${plural(shown, 'job site', 'job sites')} of ${data.inView.toLocaleString('en-US')} here. Zoom in for the rest.`
+    : `${plural(shown, 'located job site', 'located job sites')} here. Permits we couldn’t locate aren’t drawn at this zoom.`;
+  if (!noteTimer) $('mapNote').textContent = baseMapNote;
 }
 
 /** Frame the current pins, until the user takes the viewport over themselves. */
@@ -1214,6 +1326,8 @@ async function openDetail(id, cardEl) {
           <td>${esc(i.date || '—')}</td>
           <td class="res">${esc(i.result || i.status || '—')}</td></tr>`).join('')}</tbody></table>` : ''}
 
+    <div id="dMore" aria-live="polite"><div class="sect">Lifecycle, property and licences</div><p class="check-count">Loading…</p></div>
+
     <div class="sect">Record</div>
     <dl class="kv">
       ${row('Source', p.source_area)}
@@ -1224,13 +1338,13 @@ async function openDetail(id, cardEl) {
 
   // On a phone the list and the map are never on screen together, so tapping a
   // card cannot move a map you cannot see. This is how you get there.
-  const mapAction = areaKeyOf(p)
+  const mapAction = (p.location || areaKeyOf(p))
     ? `<button type="button" class="btn" id="dShowMap">
          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
            <path d="m9 4-6 2v14l6-2 6 2 6-2V4l-6 2-6-2ZM9 4v14M15 6v14"/>
          </svg>
-         <span>Show area on map</span>
+         <span>${p.location ? 'Show job site on map' : 'Show area on map'}</span>
        </button>` : '';
 
   const sourceUrl = safeHttpUrl(p.permit_url);
@@ -1247,6 +1361,82 @@ async function openDetail(id, cardEl) {
       flyToPermit(p);
     });
   }
+  loadJobExtras(p.id);
+}
+
+/* ---------------------------------------------------- job page panels ===
+ *
+ * What the job page (/pilot/live/job.html) knows beyond the permit row: the
+ * lifecycle and the application behind it, the appraiser's property facts, the
+ * matched company profile and its state licences. Fetched only when a panel
+ * opens, so the search itself loads nothing extra. Missing reads as missing.
+ */
+const LIFECYCLE = {
+  pre_application: 'Pre-application', submitted: 'Submitted', in_review: 'In review', corrections: 'Corrections',
+  approved: 'Approved, not issued', issued: 'Issued', inspections: 'Inspections', completed: 'Completed',
+  expired: 'Expired', withdrawn: 'Withdrawn', cancelled: 'Cancelled', denied: 'Denied', unknown: 'Stage not mapped',
+};
+const LICENCE_BOARD = { 'fl-dbpr': 'Florida DBPR', 'tx-tdlr': 'Texas TDLR' };
+const num = (v, unit = '') => (v == null ? '' : `${Number(v).toLocaleString('en-US', { maximumFractionDigits: 1 })}${unit}`);
+let extrasFor = null;
+
+async function loadJobExtras(id) {
+  extrasFor = id;
+  const box = $('dMore');
+  let j;
+  try {
+    const r = await fetch(`/api/pilot/jobs/${encodeURIComponent(id)}`);
+    if (!r.ok) throw new Error(`Request failed (${r.status})`);
+    j = await r.json();
+  } catch (err) {
+    if (extrasFor === id && box.isConnected) box.innerHTML = `<div class="sect">Lifecycle, property and licences</div><p class="check-count">Could not load: ${esc(err.message)}</p>`;
+    return;
+  }
+  if (extrasFor !== id || !box.isConnected) return;   // another permit was opened meanwhile
+
+  const lc = j.lifecycle;
+  const apps = (lc && lc.applications) || [];
+  const lifecycle = lc ? `
+    <div class="sect">Lifecycle</div>
+    <dl class="kv">
+      ${row('Stage', LIFECYCLE[lc.stage] || lc.stage)}
+      ${row('Applied', lc.submittedOn ? `${fmtDate(lc.submittedOn)} (the source’s date)` : '')}
+      ${row('Stage since', lc.stageSince ? fmtDate(lc.stageSince) : '')}
+      ${row('First seen by us', lc.firstSeenAt ? `${fmtDate(lc.firstSeenAt)}${lc.firstSeenStage ? `, while ${(LIFECYCLE[lc.firstSeenStage] || lc.firstSeenStage).toLowerCase()}` : ''}` : '')}
+      ${apps.map((a) => `<dt>Application</dt><dd>${esc(a.permitNumber)} · ${esc(LIFECYCLE[a.stage] || a.stage)} · submitted ${esc(a.submittedOn ? fmtDate(a.submittedOn) : 'date not published')}<br><span class="check-count">Linked by ${esc(a.link.detail)}</span></dd>`).join('')}
+    </dl>` : '';
+
+  const pr = j.property;
+  const v = (pr && pr.provenance) || {};
+  const property = pr ? `
+    <div class="sect">Property</div>
+    <dl class="kv">
+      ${row('Land use', pr.landUse || pr.landUseCode)}
+      ${row('Year built', pr.yearBuilt)}
+      ${row(pr.heatedSqft != null ? 'Heated area' : 'Building area', num(pr.heatedSqft ?? pr.buildingSqft, ' sq ft'))}
+      ${row('Lot', num(pr.lotSqft, ' sq ft'))}
+      ${row('Assessed value', pr.assessedValue != null ? money(pr.assessedValue) : '')}
+    </dl>
+    <p class="check-count">Source: ${esc(v.attribution || v.source || 'appraiser')}${pr.valueNote ? ` · ${esc(pr.valueNote)}` : ''}. Owner, sale and exemption fields are not collected.</p>`
+    : '<div class="sect">Property</div><p class="check-count">No appraiser record joined to this permit.</p>';
+
+  const loc = j.location;
+  const located = loc ? `<p class="check-count">Job site located by ${esc(METHOD_LABEL[loc.method] || loc.method)}${loc.quality === 'non_exact' ? ' (approximate)' : ''}.</p>` : '';
+
+  const gc = j.gc;
+  const licences = (j.gcRegistry || []).map((r) => `<dt>Licence</dt><dd>${esc(LICENCE_BOARD[r.provider] || r.provider)} ${esc(r.number)} · ${
+    r.expiresOn ? (r.expired ? `expired ${esc(fmtDate(r.expiresOn))}` : `valid to ${esc(fmtDate(r.expiresOn))}`) : 'no expiry published'}</dd>`).join('');
+  const company = gc && gc.id ? `
+    <div class="sect">Company record</div>
+    <dl class="kv">
+      <dt>Profile</dt><dd><a href="/pilot/live/contractor.html?id=${encodeURIComponent(gc.id)}">${esc(gc.name)} →</a></dd>
+      ${j.gcHiring ? row('Building jobs', j.gcHiring.buildingJobs) : ''}
+      ${licences}
+    </dl>
+    ${licences ? '' : '<p class="check-count">No state licence record matched yet.</p>'}` : '';
+
+  box.innerHTML = `${lifecycle}${property}${located}${company}
+    <p class="check-count"><a href="/pilot/live/job.html?id=${encodeURIComponent(id)}">Open the full job page →</a> trade permits on this job and who the GC hires.</p>`;
 }
 
 /* ============================================================== layout ===
@@ -1307,15 +1497,21 @@ function afterLayoutChange() {
 }
 
 /**
- * Centres the map on a permit's area.
- *
- * It is an AREA, not the address: the schema holds no lat/lng, so the closest
- * honest thing to "jump to this permit" is its ZIP or city centroid. The note
- * says so, because a map that silently centres on a neighbourhood after you
- * clicked one house is claiming a precision it does not have.
+ * Centres the map on a permit: on its job site when we hold a located point
+ * for it, and the note says how that point was found; otherwise on its ZIP or
+ * city centre, and the note says it is the area, not the address. A map that
+ * silently centres on a neighbourhood after you clicked one house would be
+ * claiming a precision it does not have.
  */
 function flyToPermit(p) {
   if (!map || $('app').dataset.view === 'list') return;
+
+  if (p.location) {
+    userMovedMap = true;
+    map.setView([p.location.lat, p.location.lng], Math.max(map.getZoom(), 16), { animate: true });
+    showTransientMapNote(`Centred on this job site: ${methodText(p.location.method, p.location.quality)}`);
+    return;
+  }
 
   const key = areaKeyOf(p);
   if (!key) return;
@@ -1323,20 +1519,20 @@ function flyToPermit(p) {
   if (!area) return;
 
   userMovedMap = true;   // an explicit destination outranks auto-fitting
-  map.setView([area.lat, area.lng], Math.max(map.getZoom(), 12), { animate: true });
+  map.setView([area.lat, area.lng], Math.min(Math.max(map.getZoom(), 12), POINT_ZOOM - 1), { animate: true });
 
   for (const [k, marker] of pinMarkers) {
     const el = marker.getElement() && marker.getElement().querySelector('.pin');
     if (el) el.classList.toggle('is-hot', k === key);
   }
-  showTransientMapNote(`Centred on ${area.label} — area centre, not this address`);
+  showTransientMapNote(`Centred on ${area.label}: area centre, we hold no point for this address`);
 }
 
 let noteTimer = null;
 function showTransientMapNote(text) {
   clearTimeout(noteTimer);
   $('mapNote').textContent = text;
-  noteTimer = setTimeout(() => { $('mapNote').textContent = baseMapNote; }, 7000);
+  noteTimer = setTimeout(() => { noteTimer = null; $('mapNote').textContent = baseMapNote; }, 7000);
 }
 
 /* -------------------------------------------------------------- responsive */
@@ -1480,5 +1676,6 @@ setFilters(savedLayout.filters !== 'closed', { remember: false });
 syncSidebar();
 initMap();
 loadFreshness();
+initScreensMenu();
 loadAllAreas();
 loadOptions().finally(run);

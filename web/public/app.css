@@ -863,7 +863,9 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
 
   .fresh .label { display: none; }
   .fresh { padding: 9px; }
-  .popover { position: fixed; left: var(--sp-3); right: var(--sp-3); width: auto; }
+  /* Fixed to the viewport under the two-row topbar. Without a top it inherited
+     calc(100% + 10px) of the viewport and opened below the screen. */
+  .popover { position: fixed; top: calc(var(--topbar-h) + 6px); left: var(--sp-3); right: var(--sp-3); width: auto; }
 
   .result-count { font-size: var(--t-lg); }
   .feed-bar { gap: var(--sp-2); }
@@ -955,3 +957,40 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
   }
 }
 
+
+/* Job sites (zoomed in): one dot per located permit, drawn instead of the
+   area pins. A dashed ring marks an approximate Census match. */
+#map.is-points .pin { display: none; }
+.site {
+  display: block; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--ink); border: 2px solid var(--surface);
+  box-shadow: var(--e-2); cursor: pointer;
+  transform: translate(-50%, -50%);
+}
+.site.is-pending { background: var(--pending-dot); }
+.site.is-approx { outline: 1.5px dashed var(--ink); outline-offset: 2px; }
+.site:hover { transform: translate(-50%, -50%) scale(1.3); }
+@media (pointer: coarse) {
+  /* The visible dot stays small; the touch target is 44px. */
+  .site { width: 16px; height: 16px; position: relative; }
+  .site::after { content: ''; position: absolute; inset: -14px; }
+}
+
+/* Screens menu: the other pilot screens, from the search topbar. */
+.screens-wrap { position: relative; }
+.screens { width: 240px; display: grid; gap: 2px; padding: var(--sp-2); }
+.screens a {
+  display: flex; align-items: center; min-height: 40px; padding: 0 var(--sp-3);
+  color: var(--ink); text-decoration: none; font-weight: 600; border-radius: var(--r-md, 6px);
+}
+.screens a:hover, .screens a:focus-visible { background: var(--surface-2); }
+.screens a[aria-current="page"] { color: var(--accent-ink, var(--accent)); }
+@media (pointer: coarse) { .screens a { min-height: 44px; } }
+@media (max-width: 620px) { #screensLabel { display: none; } .screens { width: auto; } }
+
+/* Source credits under the results: required for CC BY data (City of Miami)
+   and asked for by the licence boards and the Census geocoder. */
+.credits { margin-top: var(--sp-5); padding-top: var(--sp-4); border-top: 1px solid var(--line);
+  font-size: var(--t-sm); color: var(--ink-3); line-height: 1.5; }
+.credits p { margin: 0 0 var(--sp-2); }
+.src-row .lag { grid-column: 1 / -1; font-size: var(--t-sm); color: var(--ink-3); }

@@ -186,12 +186,14 @@ Two things that will bite:
   `requestAnimationFrame` so the grid has settled. Measure too early and Leaflet
   reads the old width and paints a band of grey where the pane just grew.
 
-Clicking a permit centres the map on it — on its **area**, since the schema has
-no lat/lng. The note says `Centred on 78704 — area centre, not this address`,
+Clicking a permit centres the map on its **job site** when we hold a located
+point for it (`permit_locations`: the source's own point, the appraiser parcel,
+or a Census address match), and the note says which. Otherwise it centres on
+the **area** and says `area centre, we hold no point for this address`,
 because a map that silently recentres on a neighbourhood after you clicked one
 house is claiming a precision it does not have. On a phone the list and map are
-never both on screen, so the detail sheet carries a **Show area on map** button
-instead.
+never both on screen, so the detail sheet carries a **Show job site on map**
+(or **Show area on map**) button instead.
 
 ## Mobile is a first-class target, not a fallback
 
@@ -245,10 +247,14 @@ Three honesty rules are built in, and all three came from the data:
 Leaflet over OpenStreetMap tiles, both loaded from a CDN — still no build step.
 
 **Counts on the pins are real** and follow the active filters, straight from
-`GROUP BY` over the permits table. **Pin positions are not addresses.** The
-schema stores no lat/lng, so `/api/map` attaches a centroid per area: the ZIP's
-where the source gives one, the city's otherwise. A pin means *"N permits in this
-ZIP/city"*, never *"a permit at this point"*. Keep any wording you add honest
+`GROUP BY` over the permits table. **Area pins are not addresses.** `/api/map`
+places each ZIP (or city, where the source gives no ZIP) at the median of its
+permits' located job sites, falling back to the committed centroid file
+(`web/areas.js`). A pin means *"N permits in this ZIP/city"*, never *"a permit
+at this point"*. Zoomed in to street level (zoom 14+), the map switches to
+**job sites**: one dot per located permit from `GET /api/map/points?bbox=`,
+each labelled with how it was located; a dashed ring is an approximate Census
+match, and permits we could not locate are not drawn (the note says so). Keep any wording you add honest
 about that — and note the response's `unplaced` count, which the UI surfaces as
 "N permits not shown", rather than quietly dropping rows.
 
@@ -257,7 +263,8 @@ Grouping by city is not a nicety: Miami-Dade publishes no property ZIP, so its
 
 | Piece | Where |
 |---|---|
-| Centroids | `data/area-coords.json` — geocoded **once** against Nominatim and committed |
+| Area centres | median of located job sites per ZIP/city (cached 6 h in-process); `data/area-coords.json` as the fallback. The file has no North Carolina entries, which is why Raleigh was missing before |
+| Job sites in a viewport | `GET /api/map/points?bbox=south,west,north,east&<filters>` (at most 1° across, newest 1,000) |
 | Pins for the current filters | `GET /api/map?<same filters as /api/permits>` |
 | Multi-area filter | `areas=z:78704,c:MIAMI|FL` — ORs ZIPs and cities together |
 

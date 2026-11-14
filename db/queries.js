@@ -8,6 +8,7 @@ const { query } = require('./index.js');
 const { DEFAULT_STAGES, isValidStage } = require('../src/status.js');
 const { redactContractor, isShownContractor, dropSuppressedPhone } = require('../src/privacy.js');
 const { maskDescription } = require('../src/description_names.js');
+const { SOURCES: SOURCE_CONFIG } = require('../src/sources.js');
 
 // Names inside a description are masked for display (rule 5).
 const maskRow = (r) => (r && r.work_description != null ? { ...r, work_description: maskDescription(r.work_description) } : r);
@@ -33,6 +34,13 @@ const RESULT_COLUMNS = `
   fees, fees_paid, fees_balance, inspections,
   contractor_name, contractor_phone, contractor_licence, contractor_trade,
   contractor_city`;
+
+// The job site's located point (015_permit_locations.sql), with how it was
+// found, so the map can say "this job site" only when we hold one. NULL when
+// the permit is not located; the UI then falls back to its area's centre.
+const LOCATION_COLUMN = `(
+  SELECT json_build_object('lat', l.lat, 'lng', l.lng, 'method', l.method, 'quality', l.quality)
+    FROM permit_locations l WHERE l.permit_id = permits.id) AS location`;
 
 function clampInt(value, { min, max, fallback }) {
   const n = Number.parseInt(value, 10);
@@ -149,7 +157,7 @@ async function searchPermits(filters = {}) {
 
   const countSql = `SELECT count(*)::int AS total FROM permits ${where}`;
   const rowsSql = `
-    SELECT ${RESULT_COLUMNS}
+    SELECT ${RESULT_COLUMNS}, ${LOCATION_COLUMN}
       FROM permits
       ${where}
      ORDER BY ${orderBy}
@@ -196,6 +204,100 @@ async function mapClusters(filters = {}) {
       ${where}
      GROUP BY zip, city, state`, params);
   return rows;
+}
+
+/**
+ * Where each ZIP's and each city's permits actually are: the median of their
+ * located job sites. Computed over the whole table, so it is cached in-process
+ * for CENTROID_TTL_MS (locations change once a day, with the sync). A failure
+ * returns empty maps, and placement falls back to data/area-coords.json.
+ */
+const CENTROID_TTL_MS = 6 * 3600 * 1000;
+let centroidCache = null;
+
+const EMPTY_CENTROIDS = Object.freeze({ zips: new Map(), cities: new Map() });
+
+/**
+ * @param {{maxWaitMs?: number}} opts  when the cache is cold, wait at most this
+ *   long; past it, answer from the area file (empty maps) while the query
+ *   finishes and fills the cache for the next request. Keeps the search page's
+ *   first load after a deploy from waiting on a whole-table aggregate.
+ */
+async function areaCentroids({ now = Date.now(), maxWaitMs = Infinity } = {}) {
+  const fresh = centroidCache && now - centroidCache.at < CENTROID_TTL_MS;
+  if (!fresh) refreshCentroids(now);
+  if (!Number.isFinite(maxWaitMs)) return centroidCache.value;
+  let timer;
+  const timeout = new Promise((resolve) => { timer = setTimeout(() => resolve(EMPTY_CENTROIDS), maxWaitMs); });
+  try {
+    return await Promise.race([centroidCache.value, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function refreshCentroids(now) {
+  const pending = (async () => {
+    const { rows } = await query(`
+      SELECT 'z' AS kind, p.zip AS key,
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY l.lat) AS lat,
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY l.lng) AS lng,
+             count(*)::int AS located
+        FROM permits p JOIN permit_locations l ON l.permit_id = p.id
+       WHERE p.zip IS NOT NULL
+       GROUP BY p.zip
+      UNION ALL
+      SELECT 'c', upper(p.city) || '|' || upper(p.state),
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY l.lat),
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY l.lng),
+             count(*)::int
+        FROM permits p JOIN permit_locations l ON l.permit_id = p.id
+       WHERE p.city IS NOT NULL AND p.state IS NOT NULL
+       GROUP BY upper(p.city), upper(p.state)`);
+    const value = { zips: new Map(), cities: new Map() };
+    for (const r of rows) {
+      (r.kind === 'z' ? value.zips : value.cities).set(r.key, { lat: Number(r.lat), lng: Number(r.lng), located: r.located });
+    }
+    return value;
+  })();
+  // Concurrent callers share one query rather than each starting their own.
+  // A failure answers from the area file and is retried on the next request.
+  const value = pending.catch((err) => {
+    console.error('areaCentroids failed; using the area file only:', err.message);
+    centroidCache = null;
+    return EMPTY_CENTROIDS;
+  });
+  centroidCache = { at: now, value };
+}
+
+const MAX_POINTS = 1000;
+
+/**
+ * Located job sites inside a map viewport, for the current filters. Asked for
+ * only when the map is zoomed in to neighbourhood level, so the box is small.
+ * `inView` counts every located permit in the box, so the UI can say when it
+ * shows fewer than that.
+ */
+async function mapPoints(filters, bbox) {
+  const { sql: where, params } = buildWhere(filters);
+  const n = params.length;
+  const box = [bbox.south, bbox.north, bbox.west, bbox.east];
+  const from = `FROM permits JOIN permit_locations l ON l.permit_id = permits.id
+    ${where ? `${where} AND` : 'WHERE'} l.lat BETWEEN $${n + 1} AND $${n + 2} AND l.lng BETWEEN $${n + 3} AND $${n + 4}`;
+  const [pts, total] = await Promise.all([
+    query(`
+      SELECT permits.id, l.lat, l.lng, l.method, l.quality, permits.status_stage, permits.address
+        ${from}
+       ORDER BY permits.filed_date DESC NULLS LAST, permits.id DESC
+       LIMIT $${n + 5}`, [...params, ...box, MAX_POINTS]),
+    query(`SELECT count(*)::int AS n ${from}`, [...params, ...box]),
+  ]);
+  return {
+    points: pts.rows.map((r) => ({ id: Number(r.id), lat: r.lat, lng: r.lng, method: r.method, quality: r.quality,
+      stage: r.status_stage, address: r.address })),
+    inView: total.rows[0].n,
+    limit: MAX_POINTS,
+  };
 }
 
 /**
@@ -341,7 +443,7 @@ async function getContractorHistory(name) {
 
 /** One permit, with everything we hold — backs the in-app detail view. */
 async function getPermit(id) {
-  const { rows } = await query(`SELECT ${RESULT_COLUMNS} FROM permits WHERE id = $1`, [Number(id)]);
+  const { rows } = await query(`SELECT ${RESULT_COLUMNS}, ${LOCATION_COLUMN} FROM permits WHERE id = $1`, [Number(id)]);
   return rows[0] ? maskRow(dropSuppressedPhone(redactContractor(rows[0]), await suppressedPhones())) : null;
 }
 
@@ -351,19 +453,40 @@ async function suppressedPhones() {
   return new Set(rows.map((r) => r.value));
 }
 
-/** Freshness: when each source last ingested successfully. */
+/**
+ * Freshness: each enabled permit source's latest ingest attempt, with what the
+ * source itself says about its delay (src/sources.js `display.publicationLag`)
+ * and its credit line. A source the sync no longer runs (the prototype's
+ * Oregon scrapers) is left out rather than shown as permanently stale.
+ */
 async function getFreshness() {
   const { rows } = await query(`
-    SELECT DISTINCT ON (source_area)
-           source_area, started_at, finished_at, permits_seen, permits_new, error
-      FROM ingest_runs
-     ORDER BY source_area, started_at DESC`);
-  return rows;
+    SELECT DISTINCT ON (r.source_area)
+           r.source_area, r.started_at, r.finished_at, r.permits_seen, r.permits_new, r.error,
+           s.attribution_text
+      FROM ingest_runs r
+      LEFT JOIN sources s ON s.slug = r.source_area
+     WHERE s.slug IS NULL OR s.enabled
+     ORDER BY r.source_area, r.started_at DESC`);
+  return rows.map(({ attribution_text: credit, ...r }) => {
+    const cfg = SOURCE_CONFIG[r.source_area];
+    const display = (cfg && cfg.display) || {};
+    return { ...r, label: (cfg && cfg.label) || r.source_area, publicationLag: display.publicationLag || null, attribution: credit || null };
+  });
+}
+
+/** Credit lines of the enabled enrichment sources (appraisers, licence boards, geocoder). */
+async function enrichmentCredits() {
+  const { rows } = await query(`
+    SELECT slug, attribution_text FROM sources
+     WHERE role = 'enrichment' AND enabled AND attribution_text IS NOT NULL AND attribution_text <> ''
+     ORDER BY slug`);
+  return rows.map((r) => ({ source: r.slug, attribution: r.attribution_text }));
 }
 
 module.exports = {
   RESULT_COLUMNS,
-  searchPermits, listAreas, listFilterOptions, getPermit, isZipCovered, getFreshness,
-  mapClusters, searchContractors, getContractorHistory, isRealContractor,
+  searchPermits, listAreas, listFilterOptions, getPermit, isZipCovered, getFreshness, enrichmentCredits,
+  mapClusters, mapPoints, areaCentroids, searchContractors, getContractorHistory, isRealContractor,
   buildWhere, MAX_PAGE_SIZE, DEFAULT_PAGE_SIZE,
 };

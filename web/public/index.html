@@ -40,6 +40,27 @@
     </div>
 
     <div class="topbar-right">
+      <!-- The other pilot screens. The search screen used to be a dead end. -->
+      <div class="screens-wrap">
+        <button type="button" class="btn btn-ghost" id="screensBtn" aria-expanded="false"
+                aria-controls="screensPop" aria-label="Other screens">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+            <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+          </svg>
+          <span id="screensLabel">Screens</span>
+        </button>
+        <nav class="popover screens" id="screensPop" aria-label="Screens" hidden>
+          <a href="/pilot/live/">Overview</a>
+          <a href="/pilot/live/early.html">Early filings</a>
+          <a href="/pilot/live/gcs.html">GC relationships</a>
+          <a href="/pilot/live/digest.html">Weekly digest</a>
+          <a href="/search.html" aria-current="page">Permit search</a>
+          <a href="/logout">Sign out</a>
+        </nav>
+      </div>
+
       <button type="button" class="btn btn-ghost filters-toggle" id="filtersToggle"
               aria-controls="sidebar">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -235,6 +256,7 @@
       <div class="active-filters" id="activeFilters"></div>
       <div id="results"></div>
       <nav class="pager" id="pager" aria-label="Pagination"></nav>
+      <footer class="credits" id="credits"></footer>
       <p class="source-note" style="font-size:12px;opacity:.75;margin-top:16px">
         Sources: City of Austin, Texas – data.austintexas.gov, dataset 3syk-w9eu; Miami-Dade County Open Data
         (ArcGIS building permits layer). Not affiliated with or endorsed by these agencies. Data as published,

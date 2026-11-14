@@ -74,60 +74,35 @@ app.get('/api/permits/:id', asyncRoute(async (req, res) => {
   return res.json(permit);
 }));
 
-// Centroids for the map. Geocoded once against OpenStreetMap and committed, so
-// no geocoding happens at request time and nothing is re-fetched per user.
-// eslint-disable-next-line global-require
-const AREA_COORDS = require('../data/area-coords.json');
-
-/** True when two centroids are further apart than any one metro area. */
-function farApart(a, b, maxKm = 150) {
-  const R = 6371, rad = (d) => (d * Math.PI) / 180;
-  const dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng);
-  const h = Math.sin(dLat / 2) ** 2 +
-            Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h)) > maxKm;
-}
+// Map and picker placement (web/areas.js): an area sits at the median of its
+// permits' located job sites, falling back to the committed prototype
+// centroids. No geocoding happens at request time.
+const { placeArea, zipIsTrusted } = require('./areas.js');
+// Past this, a cold centroid cache answers from the area file for one request.
+const CENTROID_WAIT_MS = 2000;
 
 /**
  * Map pins for the current filter set. Counts come from the database and are
- * as real as the list; the COORDINATES are per-area centroids, because permits
- * carry no lat/lng. A pin means "N permits in this ZIP/city", never "a permit
- * at this point" — `placed`/`unplaced` in the response lets the UI say so.
+ * as real as the list. A pin means "N permits in this ZIP/city", never "a
+ * permit at this point"; `placed`/`unplaced` in the response lets the UI say
+ * so. Street-level job sites come from /api/map/points instead.
  */
 app.get('/api/map', asyncRoute(async (req, res) => {
-  const rows = await queries.mapClusters(pickFilters(req.query));
+  const [rows, located] = await Promise.all([queries.mapClusters(pickFilters(req.query)), queries.areaCentroids({ maxWaitMs: CENTROID_WAIT_MS })]);
 
   const pins = new Map();
   let unplaced = 0;
 
   for (const row of rows) {
-    // Prefer the ZIP centroid; fall back to the city when the source gives no
-    // ZIP, which is every Miami-Dade record.
-    const cityKey = row.city && row.state ? `${row.city}|${row.state}` : null;
-    const zipCoord = row.zip ? AREA_COORDS.zips[row.zip] : null;
-    const cityCoord = cityKey ? AREA_COORDS.cities[cityKey] : null;
+    // ZIP where the record has a believable one, else the city: Miami-Dade
+    // publishes no property ZIP, and a few of its rows carry out-of-state ones.
+    const place = placeArea(row, located);
+    if (!place) { unplaced += row.permits; continue; }
 
-    // Some rows carry a ZIP that contradicts their own city — Miami-Dade has a
-    // handful reading 10028 and 18225, which would drop Miami permits into
-    // Manhattan and Pennsylvania. The city name is the far more reliable field,
-    // so when the two disagree by more than a metro's width, the city wins.
-    const useZip = zipCoord && !(cityCoord && farApart(zipCoord, cityCoord));
-    const coord = useZip ? zipCoord : cityCoord;
-
-    if (!coord) { unplaced += row.permits; continue; }
-
-    const key = useZip ? `z:${row.zip}` : `c:${cityKey}`;
-    const pin = pins.get(key) || {
-      key,
-      kind: useZip ? 'zip' : 'city',
-      label: useZip ? row.zip : row.city,
-      sublabel: useZip ? (row.city || '') : (row.state || ''),
-      lat: coord.lat, lng: coord.lng,
-      permits: 0, pending: 0,
-    };
+    const pin = pins.get(place.key) || { ...place, permits: 0, pending: 0 };
     pin.permits += row.permits;
     pin.pending += row.pending;
-    pins.set(key, pin);
+    pins.set(place.key, pin);
   }
 
   const list = [...pins.values()].sort((a, b) => b.permits - a.permits);
@@ -139,22 +114,31 @@ app.get('/api/map', asyncRoute(async (req, res) => {
 }));
 
 /**
+ * Located job sites in a viewport (`bbox=south,west,north,east`), for the
+ * current filters. The map asks only when zoomed in to neighbourhood level.
+ */
+app.get('/api/map/points', asyncRoute(async (req, res) => {
+  const parts = String(req.query.bbox || '').split(',').map(Number);
+  const [south, west, north, east] = parts;
+  const valid = parts.length === 4 && parts.every(Number.isFinite)
+    && south < north && west < east && north - south <= 1 && east - west <= 1;
+  // A box wider than about a city would scan most of the table: refuse it.
+  if (!valid) return res.status(400).json({ error: 'bbox must be south,west,north,east and at most 1 degree across' });
+  return res.json(await queries.mapPoints(pickFilters(req.query), { south, west, north, east }));
+}));
+
+/**
  * The places the UI is allowed to offer. A ZIP is only offered when we can
- * place it AND its centroid agrees with its own city — Miami-Dade carries a
- * handful of rows reading 10028, 18225 and 24037, which are New York,
- * Pennsylvania and Virginia postal codes on Miami addresses.
+ * place it AND it agrees with its own city: Miami-Dade carries a handful of
+ * rows reading 10028, 18225 and 24037, which are New York, Pennsylvania and
+ * Virginia postal codes on Miami addresses.
  *
  * Nothing becomes unreachable: filtering by city returns those permits too, so
  * they sit under "Miami — all" rather than under a postal code that is wrong.
  */
 app.get('/api/areas', asyncRoute(async (_req, res) => {
-  const areas = await queries.listAreas();
-  const trusted = areas.zips.filter((z) => {
-    const zipCoord = AREA_COORDS.zips[z.zip];
-    if (!zipCoord) return false;
-    const cityCoord = z.city && z.state ? AREA_COORDS.cities[`${z.city}|${z.state}`] : null;
-    return !(cityCoord && farApart(zipCoord, cityCoord));
-  });
+  const [areas, located] = await Promise.all([queries.listAreas(), queries.areaCentroids({ maxWaitMs: CENTROID_WAIT_MS })]);
+  const trusted = areas.zips.filter((z) => zipIsTrusted(z, located));
 
   res.json({
     ...areas,
@@ -183,6 +167,11 @@ app.get('/api/contractors/:name', asyncRoute(async (req, res) => {
   if (!history) return res.status(404).json({ error: 'No permits under that name' });
   return res.json(history);
 }));
+
+// Credit lines for every source on the search screen: the permit feeds (from
+// /api/freshness) plus the enrichment sources behind the permit panel. City of
+// Miami data is CC BY 4.0, so its credit must appear wherever its data does.
+app.get('/api/credits', cache.route(async () => ({ enrichment: await queries.enrichmentCredits() })));
 
 app.get('/api/filters', cache.route(() => queries.listFilterOptions()));
 
