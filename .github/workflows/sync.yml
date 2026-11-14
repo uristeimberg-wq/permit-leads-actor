@@ -209,12 +209,21 @@ jobs:
       # Corporations' free SFTP files. Daily files each day; the 1.8 GB
       # quarterly file when it changes or weekly (ingest/enrich_sunbiz.js).
       # Its matches feed tomorrow's Resolve (contractors-v5 rule 3).
+      # curl's SFTP needs the host key in known_hosts (curl exit 60 without
+      # it): ingest/sunbiz_known_hosts.sh adds only keys matching pinned
+      # fingerprints; verification is never turned off.
+      # The step is non-fatal to the sync: a failure is still recorded as a
+      # failed fl-sunbiz attempt (rule 3), but the job does not turn red for it.
       - name: Florida business entities (Sunbiz)
         if: always() && steps.secret.outputs.ready == 'true'
+        continue-on-error: true
         timeout-minutes: 50
         env:
           DATABASE_URL: ${{ env.DB_URL }}
-        run: set -o pipefail; node ingest/enrich_sunbiz.js | tee -a "$GITHUB_STEP_SUMMARY"
+        run: |
+          set -o pipefail
+          bash ingest/sunbiz_known_hosts.sh
+          node ingest/enrich_sunbiz.js | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Verify licences
         if: always() && steps.secret.outputs.ready == 'true'
         env:

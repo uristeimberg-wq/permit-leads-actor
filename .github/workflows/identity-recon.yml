@@ -9,6 +9,7 @@ on:
   pull_request:
     paths:
       - recon/identity_recon.js
+      - ingest/sunbiz_known_hosts.sh
       - .github/workflows/identity-recon.yml
 
 jobs:
@@ -29,11 +30,14 @@ jobs:
       - run: npm ci --ignore-scripts
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      - name: Precision of name and phone links
+        continue-on-error: true
+        run: node recon/identity_recon.js --precision | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Sunbiz folders
         continue-on-error: true
         run: |
           curl -V | head -2
-          mkdir -p ~/.ssh && ssh-keyscan -t rsa,ecdsa,ed25519 sftp.floridados.gov 2>/dev/null | tee -a ~/.ssh/known_hosts | ssh-keygen -lf - || true
+          bash ingest/sunbiz_known_hosts.sh
           for d in /Public/ /Public/doc/ /Public/doc/quarterly/ /Public/doc/quarterly/cor/ /Public/doc/Quarterly/ /Public/doc/Quarterly/Cor/; do
             echo "### $d"; curl -sS --max-time 60 -u "$SFTP_USER" "$SFTP$d" | tail -25 || true
           done

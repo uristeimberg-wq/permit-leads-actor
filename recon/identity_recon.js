@@ -4,6 +4,8 @@
 //   node recon/identity_recon.js --architects        Miami-Dade ArchitectName profile
 //   node recon/identity_recon.js --audit             200-firm entity-resolution sample
 //   node recon/identity_recon.js --sunbiz=<file>     check the Sunbiz layout on a daily file
+//   node recon/identity_recon.js --precision         consistency checks and a fixed sample of
+//                                                    every name/phone registry and licence link
 //
 // Names that read like a person's are never printed whole (rule 5): only
 // their initials and length, so the shape can be judged without the name.
@@ -267,11 +269,87 @@ async function accountMarks() {
   out();
 }
 
+// ---------- Precision of name- and phone-based links ----------
+// Registry and licence links made by name or phone (class C, hidden by
+// ADR-26). Two checks need no judgement: an entity registered after the
+// contractor's last permit cannot be the business that took those permits,
+// and a licence whose holder city is in another state is doubtful. A fixed
+// sample per provider is printed for hand labelling.
+
+async function precision() {
+  out('## Precision of name- and phone-based links');
+  out();
+  let regs = [];
+  try {
+    regs = await q(`
+      SELECT x.provider, x.match_rule, c.id, c.display_name, c.normalized_name, c.business_city, c.business_state,
+             c.first_permit_on, c.last_permit_on, c.permit_count,
+             g.registry_id, g.legal_name, g.sos_status, g.right_to_transact, g.sos_registered_on,
+             coalesce(g.principal_city, g.mailing_city) AS reg_city, coalesce(g.principal_state, g.mailing_state) AS reg_state,
+             md5(c.id::text || g.registry_id || 'precision') AS h
+        FROM contractor_registrations x JOIN contractors c ON c.id = x.contractor_id
+        JOIN business_registrations g ON g.id = x.registration_id`);
+  } catch (err) { if (err.code !== '42P01') throw err; }
+  const lics = await q(`
+    SELECT x.provider, x.match_rule, c.id, c.display_name, c.normalized_name, c.business_city, c.business_state,
+           c.first_permit_on, c.last_permit_on, c.permit_count,
+           l.licence_number, l.licence_type, l.business_name, l.city AS lic_city, l.state AS lic_state,
+           l.primary_status, l.expires_on, md5(c.id::text || l.id::text || 'precision') AS h
+      FROM contractor_registry_licences x JOIN contractors c ON c.id = x.contractor_id
+      JOIN registry_licences l ON l.id = x.licence_id
+     WHERE x.match_rule <> 'licence'`);
+  const day = (d) => (d ? new Date(d).toISOString().slice(0, 10) : '');
+  const groups = new Map();
+  for (const r of regs) {
+    const k = `${r.provider} ${r.match_rule}`;
+    const after = r.sos_registered_on && r.last_permit_on && new Date(r.sos_registered_on) > new Date(r.last_permit_on);
+    const afterFirst = r.sos_registered_on && r.first_permit_on && new Date(r.sos_registered_on) > new Date(r.first_permit_on);
+    const outState = r.reg_state && r.business_state && r.reg_state !== r.business_state;
+    const g = groups.get(k) || { n: 0, after: 0, afterFirst: 0, outState: 0, noDate: 0, rows: [] };
+    g.n += 1; if (after) g.after += 1; if (afterFirst) g.afterFirst += 1; if (outState) g.outState += 1; if (!r.sos_registered_on) g.noDate += 1;
+    g.rows.push({ h: r.h, cells: [r.id, r.display_name, r.permit_count, `${day(r.first_permit_on)}..${day(r.last_permit_on)}`, r.business_city,
+      masked(r.legal_name), day(r.sos_registered_on), `${r.reg_city || ''} ${r.reg_state || ''}`, r.right_to_transact || r.sos_status,
+      `${after ? 'A' : ''}${afterFirst ? 'F' : ''}${outState ? 'O' : ''}`] });
+    groups.set(k, g);
+  }
+  out('Registry links (Comptroller, Sunbiz). A = registered after the contractor\'s last permit; F = after its first permit; O = registry address in another state.');
+  out();
+  table(['provider rule', 'links', 'A (impossible)', 'F', 'O', 'no date'],
+    [...groups].map(([k, g]) => [k, g.n, `${g.after} (${pct(g.after, g.n)})`, `${g.afterFirst} (${pct(g.afterFirst, g.n)})`, `${g.outState} (${pct(g.outState, g.n)})`, g.noDate]));
+  for (const [k, g] of groups) {
+    out(`### Sample: ${k} (40, fixed order)`);
+    out();
+    table(['id', 'contractor', 'permits', 'permit dates', 'permit city', 'legal name', 'registered', 'registry place', 'status', 'flag'],
+      g.rows.sort((a, b) => a.h.localeCompare(b.h)).slice(0, 40).map((r) => r.cells));
+  }
+  const lg = new Map();
+  for (const r of lics) {
+    const k = `${r.provider} ${r.match_rule}`;
+    const outState = r.lic_state && r.business_state && r.lic_state !== r.business_state;
+    const expired = r.expires_on && r.last_permit_on && new Date(r.expires_on) < new Date(r.last_permit_on);
+    const g = lg.get(k) || { n: 0, outState: 0, expired: 0, rows: [] };
+    g.n += 1; if (outState) g.outState += 1; if (expired) g.expired += 1;
+    g.rows.push({ h: r.h, cells: [r.id, r.display_name, r.permit_count, r.business_city, `${r.licence_type} ${r.licence_number}`,
+      masked(r.business_name), `${r.lic_city || ''} ${r.lic_state || ''}`, day(r.expires_on), `${outState ? 'O' : ''}${expired ? 'E' : ''}`] });
+    lg.set(k, g);
+  }
+  out('Licence links by name or phone. O = licence address in another state; E = licence expired before the contractor\'s last permit (a renewal may not be in the file).');
+  out();
+  table(['provider rule', 'links', 'O', 'E'], [...lg].map(([k, g]) => [k, g.n, `${g.outState} (${pct(g.outState, g.n)})`, `${g.expired} (${pct(g.expired, g.n)})`]));
+  for (const [k, g] of lg) {
+    out(`### Sample: ${k} (30, fixed order)`);
+    out();
+    table(['id', 'contractor', 'permits', 'permit city', 'licence', 'licence business', 'licence place', 'expires', 'flag'],
+      g.rows.sort((a, b) => a.h.localeCompare(b.h)).slice(0, 30).map((r) => r.cells));
+  }
+}
+
 async function main() {
   const arg = (n) => { const a = process.argv.find((x) => x === `--${n}` || x.startsWith(`--${n}=`)); return a ? (a.split('=')[1] ?? true) : null; };
   try {
     if (arg('sunbiz')) await sunbiz(arg('sunbiz'));
     if (arg('architects')) await architects();
+    if (arg('precision')) await precision();
     if (arg('audit')) { await raleighLicences(); await accountMarks(); await audit(); }
   } finally {
     if (db) await db.close();
