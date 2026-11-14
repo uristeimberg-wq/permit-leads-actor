@@ -93,6 +93,18 @@ async function main() {
       assert.ok(!Object.keys(r).some((k) => /officer|agent|street|fei/i.test(k)));
     });
 
+    await check('before migration 024 is applied, the contractor page still loads (no registration panel)', async () => {
+      const { getContractor } = require('../../db/pilot_queries.js');
+      const [{ id }] = await q("SELECT id FROM contractors WHERE display_name = 'IES Residential, Inc.'");
+      await q('ALTER TABLE contractor_registrations RENAME TO contractor_registrations_hidden');
+      try {
+        const d = await getContractor(id);
+        assert.deepStrictEqual(d.registrations, []);
+      } finally {
+        await q('ALTER TABLE contractor_registrations_hidden RENAME TO contractor_registrations');
+      }
+    });
+
     await check('coverage: verified share of looked-up businesses and of their permits', async () => {
       const c = await coverage();
       assert.deepStrictEqual([c.businesses, c.looked, c.verified, c.permits, c.verified_permits], [4, 4, 1, 57, 40]);

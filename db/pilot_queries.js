@@ -346,14 +346,23 @@ async function registryFor(ids) {
 async function registrationsFor(ids) {
   const out = new Map();
   if (!ids.length) return out;
-  const { rows } = await query(`
+  // An optional panel: the app can deploy before the sync applies its
+  // migration (024), and a missing table must not take the page down. Any
+  // other error still throws.
+  let rows;
+  try {
+    ({ rows } = await query(`
     SELECT cr.contractor_id, cr.match_rule, cr.match_confidence, b.provider, b.registry_id, b.legal_name, b.dba_name,
            b.sos_file_number, b.state_of_formation, b.sos_status, b.right_to_transact, b.sos_registered_on, b.report_year,
            b.mailing_city, b.mailing_state, b.fetched_at, s.attribution_text
       FROM contractor_registrations cr JOIN business_registrations b ON b.id = cr.registration_id
       JOIN sources s ON s.slug = b.provider
      WHERE cr.contractor_id = ANY($1::bigint[])
-     ORDER BY cr.match_confidence DESC, b.registry_id`, [ids]);
+     ORDER BY cr.match_confidence DESC, b.registry_id`, [ids]));
+  } catch (err) {
+    if (err.code === '42P01') { console.warn('registrations panel skipped: migration 024 not applied yet'); return out; }
+    throw err;
+  }
   for (const r of rows) {
     const k = String(r.contractor_id);
     if (!out.has(k)) out.set(k, []);
