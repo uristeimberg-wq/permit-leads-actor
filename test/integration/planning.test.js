@@ -48,7 +48,7 @@ async function main() {
   process.env.DATABASE_URL = testUrl;
   const db = require('../../db/index.js');
   const { ingestArea } = require('../../ingest/run.js');
-  const { rebuildLinks } = require('../../ingest/planning.js');
+  const { rebuildLinks, report } = require('../../ingest/planning.js');
   const q = async (sql, p) => (await db.query(sql, p)).rows;
   let failures = 0;
   const check = async (name, fn) => {
@@ -157,6 +157,8 @@ async function main() {
         WHERE c.source_area = 'miami-city-trees-fl' ORDER BY 1`);
       assert.deepStrictEqual(rows.map((r) => [r.permit_number, r.link_basis, r.confidence]),
         [['BD26019593001B001', 'official_reference', 1], ['BD26019593001E001', 'official_reference', 1]]);
+      const tree = (await report()).links.find((l) => l.source_area === 'miami-city-trees-fl');
+      assert.deepStrictEqual([tree.cases, tree.linked], [1, 1], 'a case with two linked permits is one case in the report');
     });
     await check('an undated layer is read whole: zoning hearings upsert once, re-run adds nothing', async () => {
       await run('miami-dade-zoning-hearings-fl');

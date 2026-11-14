@@ -163,10 +163,17 @@ async function report() {
                         WHERE source_area = ANY($1::text[]) AND lifecycle_stage = 'unknown' GROUP BY 1, 2 ORDER BY 1, n DESC`),
     otherKinds: await q(`SELECT source_area, case_type_raw, count(*)::int AS n FROM planning_cases
                           WHERE source_area = ANY($1::text[]) AND case_kind = 'other' GROUP BY 1, 2 ORDER BY 1, n DESC`),
-    links: await q(`SELECT c.source_area, count(*)::int AS cases, count(DISTINCT k.case_id)::int AS linked,
-                           percentile_disc(0.5) WITHIN GROUP (ORDER BY COALESCE(p.submitted_on, p.filed_date) - c.filed_on) AS median_days_to_permit
-                      FROM planning_cases c LEFT JOIN planning_case_links k ON k.case_id = c.id LEFT JOIN permits p ON p.id = k.permit_id
-                     WHERE c.source_area = ANY($1::text[]) GROUP BY 1 ORDER BY 1`),
+    // One row per case: a case linked to several permits (a City of Miami
+    // application holds building and trade permits) counts once, and its lead
+    // is to its first linked permit, so the median is per case, not per link.
+    links: await q(`WITH per_case AS (
+                      SELECT c.source_area, c.id, bool_or(k.case_id IS NOT NULL) AS linked,
+                             min(COALESCE(p.submitted_on, p.filed_date)) - c.filed_on AS days
+                        FROM planning_cases c LEFT JOIN planning_case_links k ON k.case_id = c.id LEFT JOIN permits p ON p.id = k.permit_id
+                       WHERE c.source_area = ANY($1::text[]) GROUP BY c.source_area, c.id, c.filed_on)
+                    SELECT source_area, count(*)::int AS cases, count(*) FILTER (WHERE linked)::int AS linked,
+                           percentile_disc(0.5) WITHIN GROUP (ORDER BY days) AS median_days_to_permit
+                      FROM per_case GROUP BY 1 ORDER BY 1`),
   };
 }
 
@@ -193,4 +200,4 @@ if (require.main === module) {
   main().catch(async (err) => { console.error(err.stack || err.message); await db.close(); process.exit(1); });
 }
 
-module.exports = { upsertPlanningCases, rebuildLinks, caseHash, planningSources };
+module.exports = { upsertPlanningCases, rebuildLinks, caseHash, planningSources, report };
