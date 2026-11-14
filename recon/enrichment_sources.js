@@ -678,6 +678,79 @@ sections.wake = async () => {
   log('join: permit pins found as parcels', `${found} of ${pins.length} (${pct(found, pins.length)}); pins with >1 parcel row: ${[...multi.values()].filter((n) => n > 1).length}`);
 };
 
+// Texas Comptroller public-data API (ADR-23 sprint 2; owner registered the
+// key 2026-11-14 as TX_COMPTROLLER_API_KEY). Franchise-tax search by the most
+// frequent Austin contractor business names, then one detail call per exact
+// hit: prints status codes, rate-limit headers, response field names and
+// business-level values. Officer and registered-agent names are people: only
+// their field names are printed, never values.
+const CPA = 'https://api.comptroller.texas.gov/public-data/v1/public';
+async function cpa(pathAndQuery) {
+  const key = process.env.TX_COMPTROLLER_API_KEY;
+  if (!key) throw new Error('TX_COMPTROLLER_API_KEY is not set');
+  const wait = 600 - (Date.now() - lastRequest);
+  if (wait > 0) await sleep(wait);
+  lastRequest = Date.now();
+  const res = await fetch(`${CPA}${pathAndQuery}`, { headers: { 'x-api-key': key, 'User-Agent': UA, Accept: 'application/json' } });
+  const text = await res.text();
+  const headers = {};
+  for (const [k, v] of res.headers) if (/rate|limit|retry|quota|remaining/i.test(k)) headers[k] = v;
+  let body = null;
+  try { body = JSON.parse(text); } catch { body = text.slice(0, 300); }
+  return { status: res.status, headers, body };
+}
+const PERSON_KEYS = /officer|agent|director|manager|member|person|name_?of|first|last|middle/i;
+function shapeOf(v, depth = 0) {
+  if (Array.isArray(v)) return v.length ? [shapeOf(v[0], depth + 1)] : [];
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, depth > 3 ? typeof x : shapeOf(x, depth + 1)]));
+  return typeof v;
+}
+function businessOnly(v) {
+  if (Array.isArray(v)) return v.map(businessOnly);
+  if (v && typeof v === 'object') {
+    return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, PERSON_KEYS.test(k) && !/taxpayer|legal|entity|business|dba|company/i.test(k)
+      ? (x && typeof x === 'object' ? `[${Array.isArray(x) ? x.length : 1} redacted]` : '[redacted]') : businessOnly(x)]));
+  }
+  return v;
+}
+sections.comptroller = async () => {
+  const rows = await austinRecent();
+  const counts = new Map();
+  for (const r of rows) {
+    const n = String(r.contractor_company_name || '').trim();
+    if (n.length >= 4) counts.set(n, (counts.get(n) || 0) + 1);
+  }
+  const names = [...counts].sort((a, b) => b[1] - a[1]).map(([n]) => n)
+    .filter((n) => /\b(LLC|L\.L\.C|INC|CORP|CO|COMPANY|LP|LTD|PLLC|SERVICES|ELECTRIC|PLUMBING|HOMES|BUILDERS|CONSTRUCTION)\b/i.test(n)).slice(0, 25);
+  log('names probed', names.length);
+  const first = await cpa(`/franchise-tax-list?name=${encodeURIComponent(names[0].slice(0, 50))}`);
+  log('first call', { status: first.status, headers: first.headers });
+  log('list response shape', shapeOf(first.body));
+  console.log(`  FIXTURE_LIST ${JSON.stringify(businessOnly(first.body)).slice(0, 4000)}`);
+  if (first.status !== 200) return;
+  const results = [];
+  let detailShown = false;
+  for (const name of names) {
+    const r = name === names[0] ? first : await cpa(`/franchise-tax-list?name=${encodeURIComponent(name.slice(0, 50))}`);
+    const list = Array.isArray(r.body) ? r.body : (r.body && (r.body.data || r.body.results || r.body.items)) || [];
+    const top = list[0] || null;
+    results.push({ name, status: r.status, hits: Array.isArray(list) ? list.length : null, top: top && businessOnly(top) });
+    if (top && !detailShown) {
+      const id = top.taxpayerId || top.taxpayerNumber || top.taxpayer_id || top.id;
+      if (id) {
+        const d = await cpa(`/franchise-tax/${encodeURIComponent(id)}`);
+        log('detail call', { status: d.status, headers: d.headers });
+        log('detail response shape', shapeOf(d.body));
+        console.log(`  FIXTURE_DETAIL ${JSON.stringify(businessOnly(d.body)).slice(0, 4000)}`);
+        detailShown = true;
+      }
+    }
+  }
+  table(results.map((x) => ({ name: x.name, status: x.status, hits: x.hits, top: x.top && JSON.stringify(x.top).slice(0, 300) })));
+  const hit = results.filter((x) => x.hits > 0).length;
+  log('names with at least one franchise-tax record', `${hit} of ${results.length} (${pct(hit, results.length)})`);
+};
+
 async function main() {
   const only = (process.argv.find((a) => a.startsWith('--only=')) || '').slice(7).split(',').filter(Boolean);
   for (const [name, fn] of Object.entries(sections)) {

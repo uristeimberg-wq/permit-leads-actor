@@ -517,6 +517,26 @@ files).
 **Recommendation: use**, joined on pin. Closes the audit's Raleigh gap
 (0% parcel linked) and gives unlocated Raleigh permits a parcel point.
 
+### Texas Comptroller, franchise tax (`tx-comptroller`, connected 2026-11-14)
+
+| Field | Value |
+| --- | --- |
+| Endpoint | `https://api.comptroller.texas.gov/public-data/v1/public`: `GET /franchise-tax-list?name=` (also `taxpayerId`, `fileNumber`) and `GET /franchise-tax/{11-digit taxpayer id}`. Docs: `https://api-doc.comptroller.texas.gov/` |
+| Access | `x-api-key` header; key registered by the owner 2026-11-14, stored as the `TX_COMPTROLLER_API_KEY` Actions secret |
+| Reachable | From Actions, yes (feasibility run 43611762012). Not from the dev container |
+| Search | Matches the start of the legal name, punctuation included ("Christianson Plumbing" finds "CHRISTIANSON PLUMBING & A/C"). List rows: `name`, `taxpayerId`, `mailingAddressZip` |
+| Detail | `taxpayerId`, `name`, `dbaName`, `rightToTransactTX`, `sosRegistrationStatus`, `sosFileNumber`, `stateOfFormation`, `effectiveSosRegistrationDate` (MM/DD/YYYY), `reportYear`, mailing and registered-office addresses, `feiNumber`, `registeredAgentName`, `officerInfo[]` (names, titles, addresses) |
+| Loaded | Taxpayer id, legal name, DBA, SOS file number, state of formation, SOS status, right to transact, SOS registration date, report year, mailing city/state/ZIP |
+| Never loaded | Officers, registered agent (people, rule 5), street addresses, FEIN |
+| Rate limit | Not documented and no rate headers. 429s after three requests 0.6 s apart; requests are spaced 1.5 s with 5/15/45 s back-off |
+| Probe | 25 top Austin contractor business names: 9 had a franchise-tax record, 10 were throttled before an answer |
+| Matching | Exact normalised name, one taxpayer only (`src/enrichment/registrations.js`); same-name taxpayers are ambiguous, a longer legal name is a prefix candidate, neither is linked |
+| Terms | None stated in the documentation (read 2026-11-14) |
+| Fixture | `test/fixtures/enrichment/tx-comptroller.json` (people's values redacted) |
+
+**Recommendation: use** for Texas legal-entity anchoring (plan target: 60% or
+more of Texas business contractors tied to a registry key).
+
 ### US Census Geocoder, batch
 
 | Field | Value |

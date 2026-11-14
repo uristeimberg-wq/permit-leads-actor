@@ -168,6 +168,16 @@ jobs:
         run: set -o pipefail; node ingest/geocode.js | tee -a "$GITHUB_STEP_SUMMARY"
       # State licence registries (ADR-15 item 1): verifies contractors after
       # Resolve has rebuilt them. Each provider records its own sync run.
+      # Texas business registrations (ADR-23 sprint 2): contractor businesses
+      # against the Comptroller's franchise-tax records. Rate-limited API, so
+      # each run works through at most 600 names or 20 minutes of the backlog.
+      - name: Texas business registrations
+        if: always() && steps.secret.outputs.ready == 'true'
+        timeout-minutes: 25
+        env:
+          DATABASE_URL: ${{ env.DB_URL }}
+          TX_COMPTROLLER_API_KEY: ${{ secrets.TX_COMPTROLLER_API_KEY }}
+        run: set -o pipefail; node ingest/enrich_registrations.js | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Verify licences
         if: always() && steps.secret.outputs.ready == 'true'
         env:

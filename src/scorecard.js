@@ -7,7 +7,9 @@
 // Precision checks (hand-checked samples) are not here: a rate without its
 // sample check is reported as a rate, never as "accuracy".
 
-const METHOD_VERSION = 'scorecard-v1';
+// v2 (2026-11-14): entity_anchored also counts Texas Comptroller business
+// registrations (migration 024).
+const METHOD_VERSION = 'scorecard-v2';
 
 const PERMITS = "p.filing_kind IS NULL";
 
@@ -41,9 +43,10 @@ const METRICS = {
   },
   entity_anchored: {
     unit: 'share', target30: null, target90: 0.6,
-    label: 'Business entities tied to a state licence',
+    label: 'Business entities tied to a state licence or business registration',
     sql: `SELECT c.business_state AS market,
-                 count(*) FILTER (WHERE EXISTS (SELECT 1 FROM contractor_registry_licences l WHERE l.contractor_id = c.id)) AS num, count(*) AS den
+                 count(*) FILTER (WHERE EXISTS (SELECT 1 FROM contractor_registry_licences l WHERE l.contractor_id = c.id)
+                                     OR EXISTS (SELECT 1 FROM contractor_registrations g WHERE g.contractor_id = c.id)) AS num, count(*) AS den
             FROM contractors c WHERE c.party_kind = 'business' GROUP BY 1`,
   },
   phone_coverage: {

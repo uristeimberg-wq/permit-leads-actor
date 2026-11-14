@@ -114,6 +114,8 @@ jobs:
         timeout-minutes: 15
         env:
           SECTIONS: ${{ inputs.only }}
+          # Only the comptroller section reads it; the key is never printed.
+          TX_COMPTROLLER_API_KEY: ${{ secrets.TX_COMPTROLLER_API_KEY }}
         run: |
           if [ "$SECTIONS" = enrichment ]; then node recon/enrichment_sources.js; else node recon/enrichment_sources.js --only="${SECTIONS#enrichment:}"; fi
       - uses: actions/upload-artifact@v4

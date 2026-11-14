@@ -1,0 +1,9 @@
+{
+ "_recorded": "2026-11-14, feasibility run 43611762012 (recon/enrichment_sources.js --only=comptroller), https://api.comptroller.texas.gov/public-data/v1/public. Officer and registered-agent values were redacted by the probe before printing (people, rule 5); lastUpdated redacted by the probe's name filter. The ambiguous and prefix cases are the probe's own results, trimmed to the fields the list returns.",
+ "search": {
+  "IES Residential, Inc.": {"success": true, "data": [{"name": "IES RESIDENTIAL, INC.", "taxpayerId": "32012778745", "mailingAddressZip": "77478"}], "count": 1},
+  "Christianson Plumbing": {"success": true, "data": [{"name": "CHRISTIANSON PLUMBING & A/C", "taxpayerId": "32020647130", "mailingAddressZip": "78664"}], "count": 1},
+  "Victory Plumbing Company": {"success": true, "data": [], "count": 0}
+ },
+ "detail": {"success": true, "data": {"taxpayerId": "32012778745", "feiNumber": "741774028", "name": "IES RESIDENTIAL, INC.", "dbaName": null, "mailingAddressStreet": "13131 DAIRY ASHFORD RD STE 500", "mailingAddressCity": "SUGAR LAND", "mailingAddressState": "TX", "mailingAddressZip": "77478", "mailingAddressZip4": "4398", "rightToTransactTX": "ACTIVE", "rightToTransactTXLink": null, "stateOfFormation": " DE", "sosRegistrationStatus": "ACTIVE", "effectiveSosRegistrationDate": "08/24/2007", "sosFileNumber": "0800862442", "registeredAgentName": "[redacted]", "registeredOfficeAddressStreet": "1999 BRYAN ST., STE. 900", "registeredOfficeAddressCity": "DALLAS", "registeredOfficeAddressState": "TX", "registeredOfficeAddressZip": "75201", "taxId": 13, "lastUpdated": "[redacted]", "reportYear": "2026", "officerInfo": [{"AGNT_NM": "[redacted]", "AGNT_TITL_TX": "[redacted]", "AGNT_ACTV_YR": "2026", "AD_STR_POB_TX": "[redacted]", "CITY_NM": "[redacted]", "ST_CD": null, "AD_ZP": "[redacted]", "SOURCE": "[redacted]"}]}}
+}
