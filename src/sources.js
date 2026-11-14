@@ -931,8 +931,13 @@ const SOURCES = {
     planning: {
       caseKind: 'zoning',
       undated: 'the layer publishes no date field',
+      // One row per parcel: the first full read (2026-11-14) returned 951
+      // rows for 578 process numbers. Keyed by process number alone, all but
+      // one parcel of a case was dropped, so the case is the process number's
+      // parcel (as DERM, migration 028); the process number is case_ref.
+      caseNumberParts: ['PROC_NUM', 'FOLIO'],
       fields: {
-        caseNumber: 'PROC_NUM', caseRef: 'CASE_NUM', caseType: 'WORK_TYPE', status: 'APPL_STATUS',
+        caseRef: 'PROC_NUM', caseType: 'WORK_TYPE', status: 'APPL_STATUS',
         parcel: 'FOLIO', address: 'LOC_ADDR', recordUrl: 'APPL_LINK',
       },
       // No link yet. 282 of 907 folios have some county permit (probe

@@ -983,6 +983,9 @@ status only, so this history is ours).
 - `APPL_DESC` holds applicant names (often people) and staff notes
   ("Rezoning", "Application Withdrawn - Re-filed under Z25-228") in one
   column. It is not stored as a party or a description.
+- **One row per parcel:** the first full read returned 951 rows for 578
+  process numbers, so a case is keyed by `PROC_NUM` + `FOLIO` (migration
+  032 removes the 578 cases stored under the process number alone).
 - **Statuses:** Corrections Required 486, Under Review 254, Pending
   Corrections 189, Payment Pending 22 (`unknown`).
 - **No link yet:** 282 of 907 folios have some county permit, but with no

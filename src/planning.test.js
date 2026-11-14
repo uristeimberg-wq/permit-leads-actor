@@ -131,7 +131,9 @@ check('Miami-Dade zoning hearings: proc number key, folio, case page; APPL_DESC 
   const rows = fixture('miami-dade-zoning-hearings-fl');
   const cases = rows.map((r) => mapCase(src, r));
   const c = cases[0];
-  assert.deepStrictEqual([c.caseNumber, c.caseRef, c.parcel, c.caseKind, c.lifecycleStage], ['Z2025000117', '121903', '3060060340025', 'zoning', 'corrections']);
+  assert.deepStrictEqual([c.caseNumber, c.caseRef, c.parcel, c.caseKind, c.lifecycleStage], ['Z2025000117 | 3060060340025', 'Z2025000117', '3060060340025', 'zoning', 'corrections']);
+  const other = mapCase(src, { ...rows[0], FOLIO: '3060060340026' });
+  assert.notStrictEqual(other.caseNumber, c.caseNumber, 'a second parcel of the same case is its own row, not dropped');
   assert.match(c.recordUrl, /^https:\/\/energov\.miamidade\.gov\//);
   assert.strictEqual(cases[1].address, null, "'NA' address is a placeholder");
   assert.ok(cases.every((x) => x.parties.length === 0 && x.name == null && x.description == null), 'applicant text mixes people and notes');
