@@ -4,6 +4,8 @@
 const db = require('../../db');
 const { ingestArea } = require('../../ingest/run');
 const { resolveAll } = require('../../ingest/resolve');
+const { runLifecycle } = require('../../ingest/lifecycle');
+const { runFilers } = require('../../ingest/filers');
 
 let seed = 7;
 const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -15,7 +17,7 @@ const subs = Array.from({ length: 24 }, (_, i) => [`Sample ${['Electric', 'Plumb
 const rows = [];
 let n = 100000;
 for (let i = 0; i < 1200; i++) {
-  const ago = Math.floor(Math.pow(rnd(), 1.1) * 190) + 2;
+  const ago = Math.floor(Math.pow(rnd(), 1.1) * 400) + 2;
   const g = gcs[Math.min(29, Math.floor(Math.pow(rnd(), 2.2) * 30))];
   const zip = pick(zips);
   n += 1;
@@ -23,6 +25,9 @@ for (let i = 0; i < 1200; i++) {
     permit_number: `2026-${n} BP`, permittype: 'BP', permit_type_desc: 'Building Permit',
     description: pick(['Remodel kitchen and bath, new circuits', 'New single family residence', 'Interior finish-out for retail shell', 'Addition of primary suite with a much longer description that has to wrap on a phone screen']),
     status_current: pick(['Active', 'Issued', 'Final']), issue_date: daysAgo(ago),
+    // Census class and application date: the estimates compare like with like (ADR-21).
+    permit_class: pick(['R- 101 Single Family Houses', 'R- 101 Single Family Houses', 'R- 434 Addition & Alterations', 'C- 437 Non-Residential Addition']),
+    applieddate: daysAgo(ago + 10 + Math.floor(rnd() * 120)),
     original_address1: `${Math.floor(rnd() * 9000) + 100} ${pick(['OAK', 'ELM', 'CEDAR', 'LAMAR', 'CONGRESS', 'BURNET'])} ${pick(['ST', 'DR', 'LN', 'BLVD'])}`,
     original_city: 'AUSTIN', original_state: 'TX', original_zip: zip,
     contractor_company_name: g[0], contractor_phone: g[1], contractor_trade: null,
@@ -43,7 +48,7 @@ for (let i = 0; i < 1200; i++) {
 const cases = Array.from({ length: 40 }, (_, i) => ({
   permit_number: `2026-${200000 + i} PR`, permit_type: 'Plan Review', sub_type: pick(['R- 101 Single Family Houses', 'C-1000 Commercial Remodel']),
   folder_description: pick(['New single family residence', 'Interior remodel of a sample retail shell with a long description that wraps on a phone']),
-  folderrsn: String(900000 + i), status_current: pick(['Pending', 'In Review', 'Awaiting Update', 'Approved']),
+  folderrsn: String(900000 + i), other_organization_name: rnd() < 0.6 ? pick(gcs)[0] : null, status_current: pick(['Pending', 'In Review', 'Awaiting Update', 'Approved']),
   applied_date: daysAgo(Math.floor(rnd() * 28) + 1), status_date: daysAgo(1),
   project_name: `${Math.floor(rnd() * 9000) + 100} ${pick(['OAK', 'ELM', 'LAMAR'])} ST`, total_job_valuation: String(Math.round(Math.exp(10 + rnd() * 3))),
 }));
@@ -57,9 +62,11 @@ global.fetch = async (url) => {
 
 (async () => {
   await db.applySchema();
-  await ingestArea('austin-tx', { days: 200, max: 100000, allDetails: false });
+  await ingestArea('austin-tx', { days: 420, max: 100000, allDetails: false });
   await ingestArea('austin-plan-review-tx', { max: 1000, allDetails: false });
   await resolveAll();
+  await runLifecycle();
+  await runFilers();
   console.log(`seeded ${rows.length} sample permits`);
   await db.close();
 })().catch((e) => { console.error(e); process.exit(1); });

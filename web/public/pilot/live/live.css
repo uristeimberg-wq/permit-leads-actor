@@ -211,6 +211,13 @@ tr.me { background: var(--color-accent-wash); }
 .lic { padding: var(--space-xs) 0; border-bottom: var(--rule-hair) solid var(--color-rule); font-size: var(--text-sm); }
 .lic-row { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-sm); flex-wrap: wrap; }
 .pill.bad { border-color: var(--color-err); color: var(--color-err); }
+/* Estimates (ADR-21): a dashed tag, so an inference never reads as a record. */
+.pill.est { border-style: dashed; border-color: var(--color-muted); color: var(--color-muted); }
+.trend-rising, .trend-new { color: var(--color-ok); font-weight: 700; }
+.trend-slowing { color: var(--color-err); font-weight: 700; }
+.tabs { display: flex; flex-wrap: wrap; gap: var(--space-xs); margin: var(--space-sm) 0; }
+.tabs a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 var(--space-sm); border: 1px solid var(--color-rule); text-decoration: none; font-size: var(--text-sm); }
+.tabs a[aria-current="true"] { border-color: var(--color-ink); background: var(--color-plate); font-weight: 700; }
 
 /* ── Phones and tablets ─────────────────────────────────── */
 /* Top bar: wordmark and Sign out on one row, the screens on a second row

@@ -68,6 +68,7 @@ function measure(minTarget) {
       ['overview', '/pilot/live/'],
       ['early', '/pilot/live/early.html'],
       ['early-raleigh', '/pilot/live/early.html?source=raleigh-nc'],
+      ['momentum', '/pilot/live/momentum.html?segment=all&tab=all'],
       ['gcs', '/pilot/live/gcs.html'],
       ['digest', '/pilot/live/digest.html'],
       // The customer email (ADR-20), rendered from the same data, and its preview index.

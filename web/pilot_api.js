@@ -53,4 +53,11 @@ router.get('/early', route(async (req) => {
   return { filters: f, days, stages: pq.EARLY_STAGES, meta, sources: sources.filter(Boolean), ...early };
 }));
 
+router.get('/momentum', route(async (req) => {
+  const f = pq.parseFilters(req.query);
+  const segment = ['homes', 'apartments', 'commercial'].includes(req.query.segment) ? req.query.segment : null;
+  const windowDays = [60, 90, 180].includes(Number(req.query.window)) ? Number(req.query.window) : 90;
+  return { filters: f, ...(await pq.listMomentum(f, { windowDays, segment })) };
+}));
+
 module.exports = { router };

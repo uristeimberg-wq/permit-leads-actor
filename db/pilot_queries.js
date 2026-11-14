@@ -13,6 +13,8 @@ const { query } = require('./index.js');
 const { publicAliases } = require('../src/privacy.js');
 const { maskDescription } = require('../src/description_names.js');
 const { SEGMENTS, segmentOf, pickFiler } = require('../src/filers.js');
+const insight = require('./insight_queries.js');
+const F = require('../src/forecast.js');
 
 const { SOURCES: CONFIG, PILOT_AREAS } = require('../src/sources.js');
 
@@ -399,10 +401,13 @@ async function locationFor(permitId) {
  */
 async function getJob(permitId, f) {
   const { rows: [bp] } = await query(`
-    SELECT ${PERMIT_COLS}, pp.job_key, pp.is_building, pp.contractor_id, pp.raw_record_id, pp.match_rule, pp.match_confidence
+    SELECT ${PERMIT_COLS}, pp.job_key, pp.is_building, pp.contractor_id, pp.raw_record_id, pp.match_rule, pp.match_confidence,
+           pp.issued_on AS bp_issued_on
       FROM permits p LEFT JOIN permit_parties pp ON pp.permit_id = p.id AND pp.role = 'contractor'
      WHERE p.id = $1`, [permitId]);
   if (!bp) return null;
+  const bpIssuedOn = bp.bp_issued_on;
+  delete bp.bp_issued_on;
 
   const { rows: related } = bp.job_key ? await query(`
     SELECT ${PERMIT_COLS}, pp.trade, pp.is_building, pp.issued_on, pp.contractor_id, pp.raw_record_id
@@ -439,7 +444,13 @@ async function getJob(permitId, f) {
   }
 
   const tradeFiled = related.filter((r) => r.trade === f.trade);
+  // Estimates for the trades with no permit yet (ADR-21): building permits only.
+  const missing = TRADES.filter((t) => !related.some((r) => r.trade === t));
+  const outlook = bp.is_building && bp.job_key && missing.length && !['finished', 'cancelled'].includes(bp.status_stage)
+    ? await insight.tradeOutlook({ source: bp.source_area, gcId: bp.contractor_id, cls: await insight.permitClass(bp.source_area, bp.id), bpIssuedOn, trades: missing })
+    : {};
   return {
+    tradeOutlook: outlook,
     property: await propertyFor(bp.id),
     location: await locationFor(bp.id),
     lifecycle: await lifecycleFor(bp.id),
@@ -613,6 +624,17 @@ async function listEarly(f, { days = 30, limit = 100, segment = null, since = nu
     contractorsById([...new Set(rows.map((r) => r.contractor_id).filter(Boolean))]),
     builderSubs(builderIds),
   ]);
+  // When each filing is likely to be issued (ADR-21): an estimate from permits
+  // issued in this market, never a date the city has given.
+  const forecasts = new Map();
+  for (const r of rows) {
+    forecasts.set(String(r.id), await insight.forecastFiling(f.source, {
+      submittedOn: r.submitted_on,
+      kind: r.is_building === false ? (r.trade || 'other') : 'building',
+      cls: segmentable ? r.permit_type : null,
+      segment: segmentable ? segmentOf(r.permit_type) : null,
+    }));
+  }
   return {
     available: true,
     segmentable,
@@ -632,6 +654,7 @@ async function listEarly(f, { days = 30, limit = 100, segment = null, since = nu
         filer,
         filerWithheld: !filer && (filers || []).length > 0,
         builderSubs: filer && filer.role === 'builder' && filer.contractorId ? subs.get(String(filer.contractorId)) || [] : [],
+        issueForecast: forecasts.get(String(r.id)) || null,
       };
     }),
   };
@@ -684,7 +707,83 @@ async function builderSubs(gcIds, perTrade = 3) {
   return out;
 }
 
+/**
+ * Builder momentum (ADR-21): each business's building jobs in the last
+ * `windowDays` against the same span before it, from issued permits we hold,
+ * plus (where the market has an application feed) the applications it filed
+ * in the recent window, and how many are still in review. Counts are facts
+ * from the records; the trend label is our reading of them, defined in
+ * src/forecast.js momentum(). Individuals are left out (rule 5).
+ */
+async function listMomentum(f, { windowDays = F.MOMENTUM_WINDOW_DAYS, segment = null, limit = 150 } = {}) {
+  const meta = await sourceMeta(f.source);
+  const classField = insight.CLASS_FIELD[f.source];
+  const pattern = classField && segment && SEGMENTS[segment] ? SEGMENTS[segment].pattern : null;
+  const { rows } = await query(`
+    WITH bp AS (
+      SELECT pp.contractor_id AS gc_id, pp.job_key, min(pp.issued_on) AS issued_on
+        FROM permit_parties pp JOIN permits p ON p.id = pp.permit_id
+       WHERE pp.is_building AND pp.contractor_id IS NOT NULL AND pp.job_key IS NOT NULL AND p.source_area = $1
+         AND pp.issued_on > current_date - 2 * $2::int AND pp.issued_on <= current_date
+         AND ($3::text[] IS NULL OR p.zip = ANY($3))
+         AND ($4::text IS NULL OR ${insight.classSql(f.source)} ~* $4)
+       GROUP BY 1, 2
+    ),
+    g AS (
+      SELECT gc_id, count(*) FILTER (WHERE issued_on > current_date - $2::int)::int AS recent,
+             count(*) FILTER (WHERE issued_on <= current_date - $2::int)::int AS prior, max(issued_on) AS last_on
+        FROM bp GROUP BY gc_id
+    )
+    SELECT c.id, c.display_name, c.party_kind, c.first_permit_on, ph.phone, g.recent, g.prior, g.last_on
+      FROM g JOIN contractors c ON c.id = g.gc_id AND c.party_kind = 'business'
+      ${BEST_PHONE}
+     WHERE g.recent >= $5 OR g.prior >= $5`, [f.source, windowDays, f.zips, pattern, F.MOMENTUM_MIN_RECENT]);
+
+  // History must reach back over the earlier window, or the change is withheld.
+  const priorFrom = new Date(Date.now() - 2 * windowDays * 86400000).toISOString().slice(0, 10);
+  const historyCovers = Boolean(meta && meta.historyFrom && String(new Date(meta.historyFrom).toISOString()).slice(0, 10) <= priorFrom);
+  const recentFrom = new Date(Date.now() - windowDays * 86400000).toISOString().slice(0, 10);
+
+  // Applications the builder filed recently (Austin plan review): what is
+  // coming before any permit is issued.
+  const early = (meta && meta.earlySources) || [];
+  const ids = rows.map((r) => r.id);
+  const apps = new Map();
+  if (early.length && ids.length) {
+    const appPattern = early.includes('austin-plan-review-tx') && segment && SEGMENTS[segment] ? SEGMENTS[segment].pattern : null;
+    const { rows: a } = await query(`
+      SELECT o.contractor_id, count(DISTINCT p.id)::int AS filed,
+             count(DISTINCT p.id) FILTER (WHERE p.lifecycle_stage = ANY($4::text[]))::int AS in_review
+        FROM filing_filers ff JOIN filer_orgs o ON o.org_key = ff.org_key JOIN permits p ON p.id = ff.permit_id
+       WHERE o.role = 'builder' AND o.contractor_id = ANY($1::bigint[]) AND p.source_area = ANY($2::text[])
+         AND coalesce(p.submitted_on, p.first_seen_at::date) > current_date - $3::int
+         AND ($5::text IS NULL OR p.permit_type ~* $5)
+       GROUP BY 1`, [ids, early, windowDays, EARLY_STAGES, appPattern]);
+    for (const r of a) apps.set(String(r.contractor_id), { filed: r.filed, inReview: r.in_review });
+  }
+  const builders = rows.map((r) => {
+    const m = F.momentum(r.recent, r.prior, {
+      historyCovers,
+      firstSeenRecently: Boolean(r.first_permit_on && String(new Date(r.first_permit_on).toISOString()).slice(0, 10) > recentFrom),
+    });
+    return { builder: publicContractor(r), firstSeenOn: r.first_permit_on, lastJobOn: r.last_on, ...m,
+      applications: early.length ? apps.get(String(r.id)) || { filed: 0, inReview: 0 } : null };
+  });
+  const rank = { rising: 0, new: 1, slowing: 2, steady: 3, unknown: 4 };
+  builders.sort((a, b) => rank[a.trend] - rank[b.trend] || (b.change ?? b.recent) - (a.change ?? a.recent)
+    || b.recent - a.recent || a.builder.id - b.builder.id);
+  const shown = builders.slice(0, limit);
+  const subs = await builderSubs(shown.map((b) => b.builder.id), 1);
+  for (const b of shown) b.topSubs = subs.get(String(b.builder.id)) || [];
+  const counts = builders.reduce((m, b) => ({ ...m, [b.trend]: (m[b.trend] || 0) + 1 }), {});
+  return {
+    windowDays, segment: pattern ? segment : null, segmentable: Boolean(classField), historyCovers, recentFrom, priorFrom,
+    hasApplications: early.length > 0, counts, total: builders.length, builders: shown, meta,
+  };
+}
+
 module.exports = {
+  listMomentum,
   TRADES, SOURCES, OPEN_WINDOW_DAYS, EARLY_STAGES, SCORE_KEY, listEarly, publicFiler, builderSubs, contractorsById, filersFor,
   parseFilters, publicContractor, listGcs, marketBaseline, sourceMeta, getJob, getContractor, listLeads, lifecycleFor,
 };

@@ -70,13 +70,26 @@
       <p class="sub">This permit: ${L.esc(STAGE[lc.stage] || lc.stage)}${lc.submittedOn ? `, applied ${L.esc(L.date(lc.submittedOn))}` : ''}.</p>${hist(lc.history || [])}</div>`;
   }
 
+  // Trade timing (ADR-21): an estimate from earlier jobs, with its basis.
+  const OUT_BASIS = { builder: "this builder's", class: 'same-class', market: 'market' };
+  function outlookCell(o, t) {
+    if (!o) return '<span class="sub">—</span>';
+    const who = OUT_BASIS[o.basis && o.basis.basis] || 'comparable';
+    const facts = `${o.withTrade} of ${o.n} ${who} jobs got a ${L.TRADE[t].toLowerCase()} permit within ${o.basis.horizonDays} days${o.typicalDays != null ? `, typically ${o.typicalDays} days after the building permit` : ''}.`;
+    if (o.status === 'thin') return `<span class="sub prov" title="${L.esc(`Only ${o.n} comparable jobs watched for the full ${o.basis.horizonDays} days.`)}">not enough history to estimate</span>`;
+    if (o.status === 'late') return `<span class="sub prov" title="${L.esc(`${facts} This job is ${o.ageDays} days past its building permit, later than nearly all of them.`)}">later than usual; no estimate</span>`;
+    if (o.midDays == null) return `<span class="prov" title="${L.esc(facts)}">Unlikely: none of the ${o.waiting} ${who} jobs still without one at ${o.ageDays} days got one</span> ${L.estPill(facts)}`;
+    const why = `${facts} Of the ${o.waiting} still without one ${o.ageDays} days in, ${L.pct(o.likelihood)} got one later; the middle 6 in 10 of those fell between ${L.date(o.lowOn)} and ${L.date(o.highOn)} counted from today.`;
+    return `<span class="prov" title="${L.esc(why)}">${L.esc(L.pct(o.likelihood))} likely · ${L.esc(L.dateRange(o.lowOn, o.highOn))}</span> ${L.estPill(why)}<div class="sub">from ${L.esc(who)} jobs (${o.n})</div>`;
+  }
+
   function render(d) {
     const pm = d.permit;
     document.title = `${pm.permit_number} · ${L.TRADE[trade]} lead`;
     const age = L.daysSince(pm.filed_date);
     const tradeRows = ['electrical', 'plumbing', 'mechanical'].map((t) => {
       const got = d.related.filter((r) => r.trade === t);
-      if (!got.length) return `<tr><td>${L.TRADE[t]}</td><td class="sub">none issued yet</td><td>—</td><td>${t === trade ? '<span class="pill">your trade</span>' : '—'}</td></tr>`;
+      if (!got.length) return `<tr><td>${L.TRADE[t]}${t === trade ? ' <span class="pill">your trade</span>' : ''}</td><td class="sub">none issued yet</td><td colspan="2">${outlookCell(d.tradeOutlook && d.tradeOutlook[t], t)}</td></tr>`;
       return got.map((r) => `<tr><td>${L.TRADE[t]}</td><td class="mono"><a href="job.html?${L.qs({ id: r.id, trade })}">${L.esc(r.permit_number)}</a></td><td class="mono">${L.esc(L.date(r.issuedOn))}</td><td>${L.who(r.contractor)}</td></tr>`).join('');
     }).join('');
     const others = d.related.filter((r) => !r.trade);
@@ -133,6 +146,7 @@
       <h2>Trade permits on this job</h2>
       <table><thead><tr><th>Trade</th><th>Permit</th><th>Issued</th><th>Pulled by</th></tr></thead><tbody>${tradeRows}</tbody></table>
       ${others.length ? `<p class="note">Also on this job: ${others.map((r) => `<a class="mono" href="job.html?${L.qs({ id: r.id, trade })}">${L.esc(r.permit_number)}</a>`).join(', ')}</p>` : ''}
+      ${Object.keys(d.tradeOutlook || {}).length ? `<p class="note"><span class="pill est">estimate</span> For a trade with no permit yet: how often one followed on comparable jobs, and when, counted from today. Comparable jobs had their building permit issued 6 to 18 months ago, so each was watched for ${(Object.values(d.tradeOutlook)[0].basis || {}).horizonDays || 180} days. This builder's own jobs are used when it has at least 8, otherwise the market's. A permit is not a hire: the sub may be lined up before it is pulled.</p>` : ''}
       <p class="note">Linked by ${L.esc((d.meta && d.meta.jobLink) || 'permit number')}.${d.meta && d.meta.source === 'austin-tx' ? ' Austin creates trade permits with the building permit, so issue dates, not application dates, are what tell trades apart here.' : ''}</p>
     </div>
     ${lifecycleCard(d.lifecycle)}

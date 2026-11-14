@@ -39,7 +39,7 @@ jobs:
             jar=$(mktemp)
             c=$(code -c "$jar" -X POST --data-urlencode "password=$DEMO_PASSWORD" --data-urlencode "next=/pilot/live/" "$BASE/login")
             echo "sign-in: $c (want 303)"; [ "$c" = 303 ] || fail=1
-            for p in "/pilot/live/" "/pilot/live/early.html" "/pilot/live/gcs.html" "/pilot/live/digest.html" "/search.html"; do
+            for p in "/pilot/live/" "/pilot/live/early.html" "/pilot/live/momentum.html" "/pilot/live/gcs.html" "/pilot/live/digest.html" "/search.html"; do
               c=$(code -b "$jar" "$BASE$p"); echo "page $p: $c"; [ "$c" = 200 ] || fail=1
             done
             curl -s --max-time 90 -b "$jar" "$BASE/api/pilot/overview?source=austin-tx" \

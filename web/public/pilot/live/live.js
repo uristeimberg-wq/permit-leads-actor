@@ -58,7 +58,7 @@
   }
 
   // One shell for every screen. `current` is the page's own file name.
-  const NAV = [['index.html', 'Overview'], ['early.html', 'Early filings'], ['gcs.html', 'GC relationships'], ['digest.html', 'Weekly digest'], ['/search.html', 'Permit search']];
+  const NAV = [['index.html', 'Overview'], ['early.html', 'Early filings'], ['momentum.html', 'Builder momentum'], ['gcs.html', 'GC relationships'], ['digest.html', 'Weekly digest'], ['/search.html', 'Permit search']];
   function topBar(current) {
     const here = current || location.pathname.split('/').pop() || 'index.html';
     return `<header class="top"><div class="top-in">
@@ -185,7 +185,15 @@
     new MutationObserver(() => labelTables(document)).observe(document.documentElement, { childList: true, subtree: true });
   }
 
+  // ── Estimates (ADR-21) ────────────────────────────────────
+  // Anything we infer is marked with a dashed "estimate" tag and carries its
+  // basis on hover or tap; facts from the record carry no tag.
+  const estPill = (why) => `<span class="pill est prov" title="${esc(why)}">estimate</span>`;
+  const shortDate = (d) => (d ? asDate(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : '—');
+  /** "Dec 3 – Jan 20", or one date when both ends are the same day. */
+  const dateRange = (a, b) => (a === b ? shortDate(a) : `${shortDate(a)} – ${shortDate(b)}`);
+
   const fail = (el, err) => { el.innerHTML = `<div class="state err">${esc(err.message)}</div>`; };
 
-  window.Live = { esc, params, qs, api, date, dateTime, money, pct, daysSince, phone, who, phoneCell, freshness, topBar, attribution, fail, propertyCard, registryList, labelTables, noHover, AREA, areaOf, areaOptions, TRADE, TRADE_PERSON };
+  window.Live = { esc, params, qs, api, date, dateTime, money, pct, daysSince, phone, who, phoneCell, freshness, topBar, attribution, fail, propertyCard, registryList, labelTables, noHover, estPill, shortDate, dateRange, AREA, areaOf, areaOptions, TRADE, TRADE_PERSON };
 }());

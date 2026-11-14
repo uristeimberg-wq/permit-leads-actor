@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Builder momentum · Contractos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500&amp;family=Archivo:wght@400;700&amp;family=Oswald:wght@700&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="live.css">
+</head>
+<body>
+<div id="top"></div>
+<main>
+  <div class="head">
+    <div>
+      <h1 id="title">Builder momentum</h1>
+      <span class="context">Who is building more, and who is slowing down</span>
+      <p class="lede" id="lede">Loading…</p>
+    </div>
+    <div id="fresh"></div>
+  </div>
+  <form class="filters" id="filters">
+    <label>Area <select name="source"></select></label>
+    <label>Compare <select name="window"><option value="60">last 60 days vs the 60 before</option><option value="90">last 90 days vs the 90 before</option><option value="180">last 180 days vs the 180 before</option></select></label>
+    <label>Show <select name="segment"><option value="homes">New homes</option><option value="apartments">New apartments (5+ units)</option><option value="commercial">New commercial buildings</option><option value="all">All building work</option></select></label>
+    <label>ZIPs <input name="zips" placeholder="all" size="14"></label>
+    <button type="submit">Apply</button>
+  </form>
+  <nav class="tabs" id="tabs" aria-label="Trend"></nav>
+  <div id="list"><div class="state">Loading…</div></div>
+  <div id="foot"></div>
+</main>
+<script src="../../links.js"></script>
+<script src="live.js"></script>
+<script>
+// Builder momentum (ADR-21): building jobs per builder in two equal windows,
+// from issued permits, plus the applications it filed recently where the
+// market publishes them. Counts are facts from the records; the trend label
+// is our reading of them (src/forecast.js momentum) and is tagged so.
+// Individuals are never listed (rule 5). Third-party text goes through esc().
+(function () {
+  const L = window.Live;
+  const p = L.params();
+  const f = { source: L.areaOf(p.source), window: p.window || '90', segment: p.segment == null ? 'homes' : p.segment, zips: p.zips || '' };
+  const tab = ['up', 'down', 'all'].includes(p.tab) ? p.tab : 'up';
+  const form = document.getElementById('filters');
+  form.elements.source.innerHTML = L.areaOptions(f.source);
+  for (const k of Object.keys(f)) form.elements[k].value = f[k];
+  form.addEventListener('submit', (e) => { e.preventDefault(); location.search = L.qs({ ...Object.fromEntries(new FormData(form)), tab }); });
+  document.getElementById('top').innerHTML = L.topBar('momentum.html');
+  const $ = (id) => document.getElementById(id);
+  const TREND = { rising: 'Rising', new: 'New to market', slowing: 'Slowing', steady: 'Steady', unknown: 'Not enough history' };
+  const TRADE = { electrical: 'Electrical', mechanical: 'HVAC', plumbing: 'Plumbing' };
+  const SEGMENT = { homes: 'new homes', apartments: 'new apartment buildings', commercial: 'new commercial buildings' };
+
+  L.api(`/api/pilot/momentum?${L.qs(f)}`).then(render).catch((e) => L.fail($('list'), e));
+
+  function render(d) {
+    const area = L.AREA[f.source];
+    const w = d.windowDays;
+    $('title').textContent = `Builder momentum in ${area}`;
+    $('fresh').innerHTML = L.freshness(d.meta);
+    if (!d.segmentable) form.elements.segment.closest('label').hidden = true;
+    const what = d.segment ? `${SEGMENT[d.segment]}` : 'building work';
+    const c = d.counts || {};
+    $('lede').innerHTML = `${d.total.toLocaleString('en-US')} businesses pulled 3 or more building permits for ${L.esc(what)} in one of the two windows: the last ${w} days (since ${L.esc(L.date(d.recentFrom))}) and the ${w} days before.
+      ${d.historyCovers ? `<br><span class="sub">${(c.rising || 0) + (c.new || 0)} rising or new · ${c.slowing || 0} slowing · ${c.steady || 0} steady.</span>`
+        : `<br><span class="sub err">Our history for this market starts ${L.esc(L.date(d.meta && d.meta.historyFrom))}, after the earlier window begins (${L.esc(L.date(d.priorFrom))}), so no change is shown. Pick a shorter window.</span>`}`;
+    const tabs = [['up', 'Rising and new'], ['down', 'Slowing'], ['all', 'All']];
+    $('tabs').innerHTML = tabs.map(([k, label]) => `<a href="?${L.qs({ ...f, tab: k })}"${k === tab ? ' aria-current="true"' : ''}>${label}</a>`).join('');
+    const keep = { up: (b) => b.trend === 'rising' || b.trend === 'new', down: (b) => b.trend === 'slowing', all: () => true }[tab];
+    const list = d.builders.filter(keep);
+    const apps = d.hasApplications;
+    $('list').innerHTML = list.length ? `<div class="card"><table><thead><tr><th>Builder</th><th>Trend</th><th class="n">Jobs, last ${w} days</th><th class="n">Jobs, ${w} days before</th>${apps ? `<th class="n">Applications filed, last ${w} days</th>` : ''}<th>Usual subs</th><th class="hide-sm">Latest permit</th></tr></thead><tbody>
+      ${list.map((b) => `<tr>
+        <td>${L.who(b.builder)}<div>${L.phoneCell(b.builder.phone)}</div></td>
+        <td>${trendCell(b, w)}</td>
+        <td class="n mono">${b.recent}</td>
+        <td class="n mono">${b.prior == null ? '<span class="sub">—</span>' : b.prior}</td>
+        ${apps ? `<td class="n mono">${b.applications.filed ? `<span class="prov" title="${L.esc(`Applications where this business is the filer we classed as the builder (ADR-19). ${b.applications.inReview} not issued yet.`)}">${b.applications.filed}</span><div class="sub">${b.applications.inReview} in review</div>` : '<span class="sub">0</span>'}</td>` : ''}
+        <td>${subsCell(b)}</td>
+        <td class="hide-sm mono">${L.esc(L.date(b.lastJobOn))}</td></tr>`).join('')}</tbody></table></div>`
+      : `<div class="card state">${tab === 'down' ? 'No builder is slowing by our definition in this window.' : tab === 'up' ? 'No builder is rising by our definition in this window.' : 'No builder pulled 3 or more building permits in these windows.'}</div>`;
+    $('foot').innerHTML = L.attribution(d.meta)
+      + `<p class="note">Jobs are building permits we hold, counted once per job, by the business on the permit. The counts are from the records; the trend is our reading of them: <b>rising</b> means at least 3 jobs recently, at least 3 more than before, and 1.5 times as many; <b>new to market</b> means its first permit in our data falls in the recent window; <b>slowing</b> means at least 3 fewer and half as many or less. A builder whose permits list another name, or that works in other cities, can look slower than it is.</p>`
+      + (apps ? '<p class="note">Applications are the plan-review filings where this business is the filer we classed as the builder (see Early filings). They show work coming before any permit is issued. Our application history only goes back to when we started collecting it, so this column undercounts at first.</p>' : '')
+      + '<p class="note">Usual subs are the most frequent electrical, plumbing and HVAC contractor on the builder\'s earlier issued permits: history, not a claim about its next job.</p>';
+  }
+
+  function trendCell(b, w) {
+    if (b.trend === 'unknown') return '<span class="sub">not enough history</span>';
+    const why = b.prior === 0
+      ? `${b.recent} jobs in the last ${w} days, none in the ${w} days before.${b.trend === 'new' ? ` First permit in our data ${L.date(b.firstSeenOn)}.` : ''}`
+      : `${b.recent} jobs in the last ${w} days against ${b.prior} in the ${w} days before (${b.change >= 0 ? '+' : ''}${b.change}).`;
+    return `<span class="trend-${L.esc(b.trend)} prov" title="${L.esc(why)}">${L.esc(TREND[b.trend])}</span> ${L.estPill(`Our label, from the counts: ${why}`)}`
+      + (b.change != null && b.trend !== 'steady' ? `<div class="sub mono">${b.change >= 0 ? '+' : ''}${b.change}</div>` : '');
+  }
+
+  function subsCell(b) {
+    if (!b.topSubs || !b.topSubs.length) return '<span class="sub">no trade permits on record</span>';
+    return b.topSubs.map((s) => `<div><span class="sub">${L.esc(TRADE[s.trade] || s.trade)}:</span> <span class="prov" title="${L.esc(`${s.jobs} of this builder's ${s.tradeJobs} ${TRADE[s.trade] || s.trade} jobs on record; latest ${L.date(s.lastJobOn)}`)}">${s.sub && s.sub.name ? L.who(s.sub) : 'Individual (withheld)'}</span></div>`).join('');
+  }
+}());
+</script>
+</body>
+</html>

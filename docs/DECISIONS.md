@@ -537,3 +537,56 @@ what would make us revisit it. Never delete an entry; supersede it.
   customer asks for a different time of day (sends follow the 17:15 UTC
   sync), or saved searches replace the fixed subscription fields.
 
+## ADR-21: Three estimates from our own history: issue window, trade timing, builder momentum
+
+- **Date:** 2026-11-14. **Status:** accepted (the owner asked for features
+  competitors lack, built on ADR-17/18 edges; the email digest, ADR-20, is
+  parked).
+- **Context:** our edges are official links, history we snapshot, entity
+  precision and GC-sub history (DATA_STRATEGY section 1). Lists of permits are
+  commodity; what a builder, supplier or sub plans around is *when* work
+  arrives and *who is busy*. Every input below is already in our tables.
+- **Decision:** three features, each labelled an estimate with its basis on
+  hover/tap (a dashed "estimate" tag; facts carry none):
+  1. **Likely issue window on Early filings** (`src/forecast.js`
+     `issueForecast`, `db/insight_queries.js`). Comparables: building permits
+     issued in the market in the last 12 months, from the city's application
+     date to its issue date; the same census class when 20+ exist (Austin's
+     `permit_class` read from the permit's raw record), else the segment, else
+     all building permits. Conditional on the filing's age: only comparables
+     still open at that age count. The range is their middle 60%. Fewer than
+     20: "not enough history". Too few still open: "longer than X% of similar
+     cases", no range. It assumes the filing is issued and ignores its stage.
+  2. **Trade timing on the job page** (`tradeTiming`). For each trade with
+     no permit yet: of comparable jobs still without one at this job's age,
+     the share that got one within 180 days, and when. Comparables are jobs
+     whose BP was issued 6 to 18 months ago (fully observed): the builder's
+     own when it has 8+, else the same census class, else the market. A
+     permit is not a hire; the note says so.
+  3. **Builder momentum screen** (`/pilot/live/momentum.html`,
+     `listMomentum`). Building jobs per business in the last N days against
+     the N before (60/90/180), plus applications filed where the builder is
+     the classified filer (ADR-19) and how many are still in review, and its
+     usual sub per trade. Labels: rising (3+ jobs, +3, 1.5x), new to market,
+     slowing (-3, half or less), steady. Withheld when our history starts
+     after the earlier window. Individuals are never listed.
+- **Why these three (value to effort):** each reuses tables we already fill
+  and needs no new source or migration. Rejected for now: sub churn (the GC
+  screen's "changed" segment already flags a GC leaving its usual sub) and a
+  builder timeline (low marginal value over the contractor page).
+- **Uniqueness, and how it was checked:** the issue window and trade timing
+  apply to filings and jobs competitors do not list in this form: the P1
+  check (2026-11-14) found no Austin plan-review records on Zabalist, and
+  Shovels documents a twice-monthly refresh; the E-matrix found no
+  competitor with trade-matched "no trade permit yet" lists. Cities (SF,
+  Denver, Portland) publish average review times by type, not a per-filing
+  window; a web search found no lead tool offering one (search-level check,
+  not exhaustive). Momentum on issued permits alone is **not** unique
+  (Zabalist and Shovels show contractor permit history); the part that is
+  ours is the pending-application count beside it.
+- **Measurement:** `recon/insights_check.js` (workflow `insights-check`,
+  read-only) reports coverage on today's Early list and calibration on
+  permits with known outcomes (target: about 60% inside the range). Re-run
+  after the 12-month plan-review backfill.
+- **Revisit when:** calibration falls outside 50-70% for a market, or a
+  design partner says the windows are too wide to plan with.
