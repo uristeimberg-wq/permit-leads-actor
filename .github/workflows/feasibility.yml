@@ -43,6 +43,9 @@ on:
       backtest:
         description: "Early-signal backtest (recon/early_backtest.js, DATA_STRATEGY P0): 'yes' runs only this"
         default: ''
+      planning:
+        description: "Planning-source probe (recon/planning_probe.js): 'all' or a comma list of raleigh-devplans,raleigh-plan-areas,austin-site-plans,austin-subdivisions,miami-derm-sewer,miami-derm-lead,miami-wasd-allocation; runs only this"
+        default: ''
 
 jobs:
   measure:
@@ -88,6 +91,10 @@ jobs:
       - if: inputs.backtest != ''
         timeout-minutes: 25
         run: node recon/early_backtest.js --out=feasibility-report/early-backtest
+      - if: inputs.planning != ''
+        run: node recon/planning_probe.js --only="$PLANNING" --pad
+        env:
+          PLANNING: ${{ inputs.planning }}
       - if: inputs.descriptions != ''
         run: node recon/description_names.js --out=feasibility-report/description-names --months="$MONTHS"
         env:
@@ -100,10 +107,10 @@ jobs:
         run: node recon/market_terms.js --only="$TERMS"
         env:
           TERMS: ${{ inputs.market_terms }}
-      - if: inputs.only == '' && inputs.markets == '' && inputs.market_links == '' && inputs.market_terms == '' && inputs.descriptions == '' && inputs.tcad == '' && inputs.preapproval == '' && inputs.backtest == ''
+      - if: inputs.only == '' && inputs.markets == '' && inputs.market_links == '' && inputs.market_terms == '' && inputs.descriptions == '' && inputs.tcad == '' && inputs.preapproval == '' && inputs.backtest == '' && inputs.planning == ''
         run: node recon/plan_review.js --out=feasibility-report/plan-review --months=24
       # Inputs go through env, not inline, so they can't inject shell.
-      - if: always() && !startsWith(inputs.only, 'enrichment') && inputs.markets == '' && inputs.market_links == '' && inputs.market_terms == '' && inputs.descriptions == '' && inputs.tcad == '' && inputs.preapproval == '' && inputs.backtest == ''
+      - if: always() && !startsWith(inputs.only, 'enrichment') && inputs.markets == '' && inputs.market_links == '' && inputs.market_terms == '' && inputs.descriptions == '' && inputs.tcad == '' && inputs.preapproval == '' && inputs.backtest == '' && inputs.planning == ''
         run: node recon/feasibility.js --out=feasibility-report --months="$MONTHS" ${ONLY:+--only="$ONLY"}
         env:
           MONTHS: ${{ inputs.months }}

@@ -757,6 +757,120 @@ specific metro. That combination is the defensible slice, and it is
 unverified that they lack it: a side-by-side on the same Austin filings is the
 only proof (ROADMAP E1).
 
+## Planning sources (connected 2026-11-14)
+
+Pre-application signals stored as `planning_cases` (migration 025,
+`src/planning.js`, `ingest/planning.js`), never as permits. All read live on
+2026-11-14 by `recon/planning_probe.js` (feasibility.yml input `planning`);
+fixtures under `test/fixtures/sources/` with people's names, phones and
+emails redacted. Status words map to lifecycle stages in `src/sources.js`;
+words that do not say the stage plainly stay `unknown` and are reported by
+the sync step "Planning cases and links". Each sync writes a status-history
+row only when the status or its date changes (the sources keep current
+status only, so this history is ours).
+
+### Austin, TX: Site Plan Cases (`austin-site-plans-tx`, `mavg-96ck`)
+
+- `datahub.austintexas.gov`, Public Domain. 23,792 rows since 1981; 44
+  applied and 485 status changes in the 30 days to 2026-11-14; a case
+  applied the day before is present (same-day publication).
+- **Key:** `folderrsn` (100%). The human number `permit_number`
+  (SP-2026-0349D) is on 84% and missing at intake.
+- **Used:** `sub_type`, `status`, `status_date`, `application_start_date`,
+  `approval_date` (26%), `case_name`, `description_of_work` (79%), street
+  parts, `tcad_id` (89%), `propertyrsn` (96%), `existing_zoning` (36%),
+  `proposed_no_of_units`, `proposed_bldg_sq_footage`,
+  `gross_site_area_acres` (sparse), `latitude`/`longitude` (92%), `link`.
+- **Participants:** `applicant_organization_name` (82%, usually the civil
+  engineer or land-use firm) and `owner_organization_name` (53%; builders
+  such as KB Home appear here). Full names, addresses and phones are not
+  stored (rule 5).
+- **Not a window:** `update_date` is rewritten on every row daily.
+- **Link:** `propertyrsn` is shared with a plan-review case for 77 to 81 of
+  the newest 200 (two probes). Same property, not the same project, so the
+  link is `parcel_window` (confidence 0.6, plan review filed within 3 years
+  after the site plan). `3syk-w9eu` has no `propertyrsn`.
+
+### Austin, TX: Subdivision Cases (`austin-subdivisions-tx`, `s7gx-9m54`)
+
+- Same portal and licence. 15,378 rows since 1971; 20 applied and 147 status
+  changes in 30 days. Types: Final Plat, Preliminary Plan, Subdivision
+  Construction Plan, Subdivision Vacation.
+- **Key:** `projectid` (100%); `permitnum` (2026-149676 C) is the case number.
+- **Used:** as site plans, plus `proposed_no_of_lots` (87%) and
+  `desc_of_proposed_development` (12%). Owners name the developer (Tri Pointe
+  Homes, Brookfield Properties, Spur Mirador Development); applicants are
+  engineers (LJA, Carlson Brigance & Doering, Quiddity).
+- **Link:** `propertyrsn` shared with plan review for 43 to 75 of the newest
+  200; `parcel_window`, confidence 0.5.
+
+### Raleigh, NC: Development Plan Areas (`raleigh-plan-areas-nc`)
+
+- `services.arcgis.com/v400IkDOw1ad7Yad/.../Development_Plan_Areas/FeatureServer/0`.
+  Item licence blank; same org as our permit layers (Open Raleigh Data
+  Policy; the City may require us to stop). 12,775 plans (EnerGov: ASR,
+  Preliminary Subdivision, Site Permitting Review); 33 applied and 357
+  changed in 30 days; edited 2026-11-14 14:02 UTC.
+- **Key:** `plan_number` (SUB-0068-2026). **Used:** `plan_type`,
+  `plan_status`, `apply_date`, `expire_date`, `project`, `description`
+  (100%, often states units and square feet in words), `main_address_line1`,
+  `main_parcel_number` (PIN, 99.4%). `square_feet` is 0 on every row (NULL).
+- **Link:** the plan PIN has a building permit applied on or after the plan
+  for 70 of the newest 300 plans; median 210 days (p25 69, p75 364).
+  `parcel_window`, confidence 0.6, 3 years. Building permits' `devplanid` is
+  an integer key of neither plan layer (`plplanid` is a GUID; probe
+  2026-11-14), so there is no official link.
+
+### Raleigh, NC: Development Plans (`raleigh-devplans-nc`)
+
+- `.../Development_Plans/FeatureServer/0`, item licence the Open Raleigh Data
+  Policy. 6,731 plans since 1985, including pre-EnerGov plan types; 13
+  submitted and 129 updated in 30 days. 671 of the newest 2,000 plan areas
+  share a `plan_number` with it: the same plan, so join the two sources on
+  `case_number`.
+- **Used:** `developer` (86%; as published, often the engineer such as
+  McAdams; 5.7% read as a person's name: stored, never shown), `plan_name`,
+  `plan_type`, `status`, `submitted`, `approved`, `sunset_date`,
+  `major_street`, `zoning`, `acreage`, `lots_req`/`lots_apprv`,
+  `units_req`/`units_apprv`, `sq_ft_req` (0 is NULL).
+- **Status `Active`** (4,884, mostly old plans) stays unmapped.
+
+### Miami-Dade, FL: DERM Sewer Allocation (connected as `miami-derm-sewer-fl`) and WASD Permits Requiring Allocation (not connected)
+
+- **DERM Sewer Allocation** (`DERMSewerAllocation_gdb/FeatureServer/0`,
+  item `d583b45d...`, county "as is" disclaimer, weekly; edited 2026-11-10):
+  76,778 certifications; 180 in the 30 days to 2026-11-14, 4,169 in a year.
+  `EEOSALLCNO` key, `FOLIO` 100% (half match a county permit folio),
+  `BLDPROCNO` 99.9% but in many municipal formats (`N/A` on 27%); 85 of 389
+  folio-matched certifications carry the county `ProcessNumber`. Proposed
+  flow in gallons per day (99%). No participant names. Polygon geometry, so
+  no point is stored.
+  - **Lead over the county permit (measured 2026-11-14, 595 certifications
+    from the last year):** where `BLDPROCNO` equals an issued county
+    `ProcessNumber` (85), the permit was issued a median **33 days** after
+    certification (p25 21, p75 77), and never before it. 510 of 595 had no
+    issued county permit with that process yet (municipal processes, or not
+    issued). Miami-Dade otherwise publishes issued permits only, so this is
+    its earliest signal we have.
+  - **Connected** as a planning source: key `EEOSALLCNO`, filed on
+    `SWRCRTDATE` (the request date `SWRRCTDATE` is on 0.2% of rows),
+    expires `EXPDT90DAY`, parcel `FOLIO`, official reference `BLDPROCNO`
+    (`N/A` is NULL), flow `PRPDFLWGPD`. Linked to `miami-dade-fl` permits
+    with the same `ProcessNumber` (official reference, confidence 1.00).
+  - **Statuses** (`SWRAPVCODE`, a year): APP 1,238 approved, COALLOC 493,
+    CODEALALLOC 213, DEAL 25, BPEXP 11 expired, DEN 8 denied, EXP 2
+    expired, WITHDRAWN 1. COALLOC, CODEALALLOC and DEAL are allocation
+    bookkeeping the county does not define, so they stay `unknown`.
+  - Redistribution is unknown (same county terms as `miami-dade-fl`).
+- **Permits Requiring Allocation (WASD)** (`PermitsRequiringAllocation_gdb`,
+  439,082 rows, weekly batches): one row per building process, 98.4% of new
+  rows have no permit number yet, but for issued county processes the
+  application to issue time is a median 3 days and the row lands a median 6
+  days after application. Its process numbers match the county permit
+  layer's `ProcessNumber` 200 of 200, so it adds almost no lead over the
+  permits we already ingest. **Not connected.** `PROJNAME` is usually the
+  owner's own name (rule 5).
+
 ## Corrections and new finds (2026-11-14)
 
 From the early-signal research (`docs/DATA_STRATEGY.md`; worker reports in

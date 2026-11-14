@@ -42,7 +42,8 @@ async function main() {
     await db.applySchema();
 
     await check('the migrations enable exactly the pilot markets', async () => {
-      const rows = await q("SELECT slug, enabled, sync_mode, homeowner_use, automated_access FROM sources WHERE role = 'permits' ORDER BY slug");
+      // Planning sources (role 'planning') are pilot areas too: they sync daily.
+      const rows = await q("SELECT slug, enabled, sync_mode, homeowner_use, automated_access FROM sources WHERE role IN ('permits', 'planning') ORDER BY slug");
       assert.deepStrictEqual(rows.filter((r) => r.enabled).map((r) => r.slug), [...require('../../src/sources.js').PILOT_AREAS].sort());
       assert.ok(rows.every((r) => r.homeowner_use === 'blocked' && r.automated_access === 'unknown'));
     });

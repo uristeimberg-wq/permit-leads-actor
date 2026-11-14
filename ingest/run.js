@@ -15,6 +15,7 @@ const { toScorable } = require('../src/normalize.js');
 const db = require('../db/index.js');
 const { toRawRecords, classifyError } = require('./raw.js');
 const { detectDrift } = require('./drift.js');
+const { upsertPlanningCases } = require('./planning.js');
 
 // Adapters that hand back unmapped rows for raw_records (migration 002).
 const RAW_CAPTURE_TYPES = new Set(['socrata', 'arcgis']);
@@ -71,6 +72,10 @@ async function ingestArea(area, { days, daysExplicit = false, max: requestedMax,
   const windows = !daysExplicit && source.syncWindows ? source.syncWindows : undefined;
   const windowText = windows ? windows.map((w) => `${w.field} last ${w.days}d`).join(' + ') : `last ${days} days`;
   let truncated = false;
+  // A planning source (kind 'planning', src/planning.js) writes planning_cases
+  // from its raw rows, never permits.
+  const planning = source.kind === 'planning';
+  let rawRecords = [];
   log.info(`[${area}] ingest start (${windowText}, max ${max})`);
 
   try {
@@ -99,6 +104,7 @@ async function ingestArea(area, { days, daysExplicit = false, max: requestedMax,
       // Raw rows are stored before mapping, so a mapping bug never loses data.
       onRaw: captureRaw ? async (rows, meta) => {
         const { records, failed } = toRawRecords(rows, source);
+        rawRecords = records;
         const { newCount, changed } = await db.insertRawRecords(sourceId, syncRunId, records);
         Object.assign(stats, { requests: meta.requests, fetched: rows.length, newCount, changed, failed });
         truncated = Boolean(meta.truncated);
@@ -126,8 +132,16 @@ async function ingestArea(area, { days, daysExplicit = false, max: requestedMax,
       await db.recordSourceEvent(sourceId, syncRunId, 'truncated', 'warning', { max, window: windowText });
     }
 
-    const withScores = permits.map((p) => ({ ...p, tradeScores: tradeScoresFor(p) }));
-    const { written, inserted } = await db.upsertPermits(withScores, area);
+    let written; let inserted;
+    if (planning) {
+      const r = await upsertPlanningCases(area, sourceId, rawRecords);
+      ({ inserted } = r);
+      written = r.cases;
+      log.info(`[${area}] planning cases: ${r.cases} seen, ${r.inserted} new, ${r.changed} changed, ${r.parties} parties, ${r.skipped} without a case number`);
+    } else {
+      const withScores = permits.map((p) => ({ ...p, tradeScores: tradeScoresFor(p) }));
+      ({ written, inserted } = await db.upsertPermits(withScores, area));
+    }
 
     await db.finishIngestRun(runId, { seen: permits.length, inserted });
     await db.finishSyncRun(syncRunId, { status: 'succeeded', ...stats });

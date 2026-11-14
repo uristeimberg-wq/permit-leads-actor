@@ -4,6 +4,51 @@
 //
 // These jurisdictions do NOT share a data format — see the notes on each.
 
+// Status words of Austin's AMANDA planning cases (site plans, subdivisions),
+// read live 2026-11-14. Unmapped on purpose, so they report as unknown:
+// 'closed', 'inactive', 'suspended', 'admin hold', 'vacated', 'review
+// completed', 'intake rejected', 'cc rejected' (none says the stage plainly).
+// "CC" is the completeness check at intake.
+const AUSTIN_CASE_STATUSES = {
+  pending: 'submitted', 'intake pending': 'submitted', 'internet pending': 'submitted',
+  'intake accepted - fees due': 'submitted', 'formal intake accepted - fees due': 'submitted',
+  'cc pending': 'in_review', 'cc pending - fees paid': 'in_review', 'cc approved': 'in_review',
+  'in review': 'in_review', 'waiting on legal': 'in_review', 'waiting on fiscal': 'in_review',
+  'scheduled for hearing': 'in_review', 'tolling - hearing pending': 'in_review',
+  'awaiting update': 'corrections', 'application incomplete': 'corrections',
+  approved: 'approved', 'approved and released': 'approved', 'awaiting recordation': 'approved',
+  'subdivision recorded': 'completed',
+  expired: 'expired', withdrawn: 'withdrawn', aborted: 'withdrawn', void: 'cancelled', cancelled: 'cancelled', denied: 'denied',
+};
+
+// Raleigh plan statuses on both plan layers (read 2026-11-14). 'active'
+// (most pre-2020 plans), 'review complete', 'on hold', 'pending' and
+// 'disposed' stay unmapped: none says the stage plainly.
+// DERM sewer certification codes (SWRAPVCODE, probe 2026-11-14: APP 1,238,
+// COALLOC 493, CODEALALLOC 213, DEAL 25, BPEXP 11, DEN 8, EXP 2, WITHDRAWN 1
+// in a year). COALLOC, CODEALALLOC and DEAL are allocation bookkeeping whose
+// meaning the county does not publish, so they stay unknown (rule 3).
+const DERM_SEWER_STATUSES = {
+  pen: 'submitted', app: 'approved', den: 'denied', exp: 'expired', bpexp: 'expired', withdrawn: 'withdrawn',
+};
+
+const RALEIGH_PLAN_STATUSES = {
+  submitted: 'submitted', 'submitted - online': 'submitted',
+  'in review': 'in_review', 'review in progress': 'in_review',
+  approved: 'approved', 'in appeal period': 'approved', 'ready for issuance': 'approved',
+  'approval expired': 'expired', 'review expired': 'expired', denied: 'denied',
+};
+
+// Raleigh plan types -> case kind. 'special use' is a zoning permit; 'master
+// plan' a development plan; the rest are site or subdivision plans.
+const RALEIGH_PLAN_KINDS = {
+  'dslc - administrative site review [asr]': 'site_plan', 'administrative site review': 'site_plan',
+  'dslc - site permitting review': 'site_plan', 'site plan': 'site_plan', 'plan approval': 'site_plan',
+  'group housing': 'site_plan', 'shopping center': 'site_plan', 'mobile home park': 'site_plan',
+  'dslc - preliminary subdivision': 'subdivision', subdivision: 'subdivision', 'minor subdivision': 'subdivision',
+  'infill recombination': 'subdivision', 'special use': 'zoning', 'master plan': 'development_plan',
+};
+
 const SOURCES = {
   'portland-or': {
     label: 'Portland, OR (City)',
@@ -531,6 +576,234 @@ const SOURCES = {
     },
   },
 
+  // --- Planning cases (pre-application signals) ----------------------------
+  //
+  // kind 'planning': these write planning_cases (migration 025,
+  // src/planning.js), never permits, and the lead screens never read them.
+  // Every column below was read live on 2026-11-14 (recon/planning_probe.js,
+  // feasibility.yml input `planning`; fixtures in test/fixtures/sources/).
+  // fieldMap holds only what the adapters and raw_records need: the case key
+  // and the window date. No maxDataAgeDays: the health check's "newest permit"
+  // test does not apply; sync failures still alarm through source_health.
+
+  // Austin Site Plan Cases (mavg-96ck): site plans from intake, months to a
+  // year before the building permit for apartments and commercial (P0
+  // backtest). 44 applied in the 30 days to 2026-11-14; status changes 485 in
+  // 30 days. update_date is rewritten on every row daily, so it is no window.
+  // Public Domain (dataset licence). The case is keyed by folderrsn (100%);
+  // the human case number (permit_number, 84%) is case_ref.
+  'austin-site-plans-tx': {
+    label: 'Austin, TX (site plans)',
+    kind: 'planning',
+    type: 'socrata',
+    domain: 'datahub.austintexas.gov',
+    datasetId: 'mavg-96ck',
+    syncWindows: [
+      { field: 'application_start_date', days: 30 },
+      { field: 'status_date', days: 14 },
+    ],
+    maxPerRun: 5000,
+    backfillMaxPerRun: 30000,
+    registry: {
+      jurisdiction: 'austin-tx', syncMode: 'date_window', expectedInterval: '1 day',
+      terms: { url: 'https://data.austintexas.gov/stories/s/City-of-Austin-Open-Data-Terms-of-Use/ranj-cccq/', licenceTag: 'Public Domain', reviewedOn: '2026-11-14', automatedAccess: 'unknown', redistribution: 'yes' },
+      fixture: 'test/fixtures/sources/austin-site-plans-tx.json',
+    },
+    dateField: 'application_start_date',
+    defaultState: 'TX',
+    fieldMap: { permitNumber: 'folderrsn', filedDate: 'application_start_date' },
+    planning: {
+      caseKind: 'site_plan',
+      fields: {
+        caseNumber: 'folderrsn', caseRef: 'permit_number', caseType: 'sub_type', status: 'status',
+        filedOn: 'application_start_date', statusDate: 'status_date', decidedOn: 'approval_date',
+        name: 'case_name', description: 'description_of_work', parcel: 'tcad_id', propertyRef: 'propertyrsn',
+        zoning: 'existing_zoning', unitsProposed: 'proposed_no_of_units', floorAreaSqft: 'proposed_bldg_sq_footage',
+        acreage: 'gross_site_area_acres', lat: 'latitude', lng: 'longitude', recordUrl: 'link',
+      },
+      addressParts: ['street_number', 'street_prefix', 'street_name', 'street_type', 'street_direction'],
+      // Organisations only; the applicant and owner full names are people
+      // and are not stored (rule 5).
+      parties: [{ role: 'applicant', field: 'applicant_organization_name' }, { role: 'owner', field: 'owner_organization_name' }],
+      // 81 of the newest 200 site plans share a propertyrsn with a plan-review
+      // case (probe 2026-11-14). Same property, not the same project: inferred.
+      links: [{ kind: 'parcel_window', to: 'austin-plan-review-tx', caseColumn: 'property_ref', permitField: 'propertyrsn',
+        days: 1095, confidence: 0.6, detail: 'plan review propertyrsn = site plan propertyrsn, filed within 3 years after' }],
+    },
+    lifecycle: { statuses: AUSTIN_CASE_STATUSES },
+  },
+
+  // Austin Subdivision Cases (s7gx-9m54): preliminary plans, final plats and
+  // construction plans, often a year or more before homes. 20 applied in 30
+  // days; 147 status changes. Keyed by projectid (100%); permitnum is the
+  // human case number. Lots proposed on 87% of the newest rows.
+  'austin-subdivisions-tx': {
+    label: 'Austin, TX (subdivisions)',
+    kind: 'planning',
+    type: 'socrata',
+    domain: 'datahub.austintexas.gov',
+    datasetId: 's7gx-9m54',
+    syncWindows: [
+      { field: 'application_start_date', days: 30 },
+      { field: 'status_date', days: 14 },
+    ],
+    maxPerRun: 5000,
+    backfillMaxPerRun: 20000,
+    registry: {
+      jurisdiction: 'austin-tx', syncMode: 'date_window', expectedInterval: '1 day',
+      terms: { url: 'https://data.austintexas.gov/stories/s/City-of-Austin-Open-Data-Terms-of-Use/ranj-cccq/', licenceTag: 'Public Domain', reviewedOn: '2026-11-14', automatedAccess: 'unknown', redistribution: 'yes' },
+      fixture: 'test/fixtures/sources/austin-subdivisions-tx.json',
+    },
+    dateField: 'application_start_date',
+    defaultState: 'TX',
+    fieldMap: { permitNumber: 'projectid', filedDate: 'application_start_date' },
+    planning: {
+      caseKind: 'subdivision',
+      fields: {
+        caseNumber: 'projectid', caseRef: 'permitnum', caseType: 'sub_type', status: 'status',
+        filedOn: 'application_start_date', statusDate: 'status_date', decidedOn: 'approval_date',
+        name: 'case_name', description: ['desc_of_proposed_development', 'description_of_work'],
+        parcel: 'tcad_id', propertyRef: 'propertyrsn', zoning: 'existing_zoning',
+        lotsProposed: 'proposed_no_of_lots', unitsProposed: 'proposed_no_of_units', floorAreaSqft: 'proposed_bldg_sq_footage',
+        acreage: 'gross_site_area_acres', lat: 'latitude', lng: 'longitude', recordUrl: 'link',
+      },
+      addressParts: ['street_number', 'street_prefix', 'street_name', 'street_type', 'street_direction'],
+      parties: [{ role: 'applicant', field: 'applicant_organization_name' }, { role: 'owner', field: 'owner_organization_name' }],
+      // 43 of the newest 200 share a propertyrsn with a plan-review case.
+      links: [{ kind: 'parcel_window', to: 'austin-plan-review-tx', caseColumn: 'property_ref', permitField: 'propertyrsn',
+        days: 1095, confidence: 0.5, detail: 'plan review propertyrsn = subdivision propertyrsn, filed within 3 years after' }],
+    },
+    lifecycle: { statuses: AUSTIN_CASE_STATUSES },
+  },
+
+  // Raleigh Development Plan Areas: every plan in the City's EnerGov system
+  // (site reviews, preliminary subdivisions, site permitting reviews), with
+  // the main parcel PIN (99.4%) and a description. 33 applied in the 30 days
+  // to 2026-11-14; 357 changed. Item licence blank; same org and Open Raleigh
+  // Data Policy as our permit layers, so the same stop-on-request rule.
+  'raleigh-plan-areas-nc': {
+    label: 'Raleigh, NC (development plans)',
+    kind: 'planning',
+    type: 'arcgis',
+    layerUrl: 'https://services.arcgis.com/v400IkDOw1ad7Yad/arcgis/rest/services/Development_Plan_Areas/FeatureServer/0',
+    syncWindows: [
+      { field: 'apply_date', days: 30 },
+      { field: 'lastchangedon', days: 14 },
+    ],
+    orderByFields: 'apply_date DESC, OBJECTID',
+    maxPerRun: 3000,
+    backfillMaxPerRun: 15000,
+    registry: {
+      jurisdiction: 'raleigh-nc', syncMode: 'date_window', expectedInterval: '1 day',
+      terms: { url: null, reviewedOn: '2026-11-14', automatedAccess: 'unknown', redistribution: 'unknown' },
+      fixture: 'test/fixtures/sources/raleigh-plan-areas-nc.json',
+    },
+    dateField: 'apply_date',
+    defaultState: 'NC',
+    fieldMap: { permitNumber: 'plan_number', filedDate: 'apply_date' },
+    planning: {
+      caseKinds: RALEIGH_PLAN_KINDS,
+      fields: {
+        caseNumber: 'plan_number', caseType: 'plan_type', status: 'plan_status', filedOn: 'apply_date',
+        expiresOn: 'expire_date', name: 'project', description: 'description', address: 'main_address_line1',
+        parcel: 'main_parcel_number', floorAreaSqft: 'square_feet',
+      },
+      // Building permits name the parcel PIN; devplanid is not a key of either
+      // plan layer (integer vs GUID plplanid, probe 2026-11-14), so the link is
+      // by parcel and time only.
+      links: [{ kind: 'parcel_window', to: 'raleigh-nc', caseColumn: 'parcel_id', permitField: 'pin',
+        days: 1095, confidence: 0.6, detail: 'permit pin = plan main_parcel_number, filed within 3 years after' }],
+    },
+    lifecycle: { statuses: RALEIGH_PLAN_STATUSES },
+  },
+
+  // Raleigh Development Plans: the same plans by plan_number, with what the
+  // areas layer lacks: the developer (as published; often the engineer),
+  // lots, units and square feet requested and approved, zoning and acreage.
+  // 13 submitted in 30 days, 129 updated. 5.7% of developer names read as a
+  // person's: stored, never shown (rule 5).
+  'raleigh-devplans-nc': {
+    label: 'Raleigh, NC (development plan details)',
+    kind: 'planning',
+    type: 'arcgis',
+    layerUrl: 'https://services.arcgis.com/v400IkDOw1ad7Yad/arcgis/rest/services/Development_Plans/FeatureServer/0',
+    syncWindows: [
+      { field: 'submitted', days: 30 },
+      { field: 'updated', days: 14 },
+    ],
+    orderByFields: 'submitted DESC, OBJECTID',
+    maxPerRun: 3000,
+    backfillMaxPerRun: 10000,
+    registry: {
+      jurisdiction: 'raleigh-nc', syncMode: 'date_window', expectedInterval: '1 day',
+      // Item licence field: the Open Raleigh Data Policy (read 2026-11-14).
+      terms: { url: 'https://www.arcgis.com/home/item.html?id=0cded58c5048437d8da83608818650ba', reviewedOn: '2026-11-14', automatedAccess: 'unknown', redistribution: 'unknown' },
+      fixture: 'test/fixtures/sources/raleigh-devplans-nc.json',
+    },
+    dateField: 'submitted',
+    defaultState: 'NC',
+    fieldMap: { permitNumber: 'plan_number', filedDate: 'submitted' },
+    planning: {
+      caseKinds: RALEIGH_PLAN_KINDS,
+      fields: {
+        caseNumber: 'plan_number', caseType: 'plan_type', status: 'status', filedOn: 'submitted',
+        decidedOn: 'approved', expiresOn: 'sunset_date', name: 'plan_name', address: 'major_street',
+        zoning: 'zoning', acreage: 'acreage', lotsProposed: 'lots_req', lotsApproved: 'lots_apprv',
+        unitsProposed: 'units_req', unitsApproved: 'units_apprv', floorAreaSqft: 'sq_ft_req',
+      },
+      parties: [{ role: 'developer', field: 'developer' }],
+    },
+    lifecycle: { statuses: RALEIGH_PLAN_STATUSES },
+  },
+
+  // Miami-Dade DERM sewer capacity certifications (probe 2026-11-14). A
+  // project must certify sewer capacity before the county issues its building
+  // permit, and the certification names that permit's process number
+  // (BLDPROCNO). Measured on 595 certifications: where the process number
+  // matched an issued county permit (85), the permit came a median 33 days
+  // later (p25 21, p75 77), never before; 510 had no issued permit yet. Miami
+  // otherwise publishes issued permits only, so this is its earliest signal.
+  'miami-derm-sewer-fl': {
+    label: 'Miami-Dade, FL (DERM sewer certifications)',
+    kind: 'planning',
+    type: 'arcgis',
+    layerUrl: 'https://services.arcgis.com/8Pc9XBTAsYuxx9Ny/arcgis/rest/services/DERMSewerAllocation_gdb/FeatureServer/0',
+    // The layer is edited about weekly. A certification's status changes
+    // (approved -> expired or deallocated) are caught while it is within 60
+    // days of certification, or by its deallocation date.
+    syncWindows: [
+      { field: 'SWRCRTDATE', days: 60 },
+      { field: 'SWRDEALLDT', days: 30 },
+    ],
+    orderByFields: 'SWRCRTDATE DESC, OBJECTID',
+    maxPerRun: 3000,
+    backfillMaxPerRun: 15000,
+    registry: {
+      jurisdiction: 'miami-dade-county-fl', syncMode: 'date_window', expectedInterval: '1 day',
+      // Same county terms as miami-dade-fl: no licence granted, so
+      // redistribution is unknown until the lawyer answers.
+      terms: { url: 'https://www.miamidade.gov/global/disclaimer/disclaimer.page', reviewedOn: '2026-11-14', automatedAccess: 'unknown', redistribution: 'unknown' },
+      fixture: 'test/fixtures/sources/miami-derm-sewer-fl.json',
+    },
+    dateField: 'SWRCRTDATE',
+    defaultState: 'FL',
+    fieldMap: { permitNumber: 'EEOSALLCNO', filedDate: 'SWRCRTDATE' },
+    planning: {
+      caseKind: 'utility_allocation',
+      fields: {
+        // SWRCRTDATE is the certification date. The request date SWRRCTDATE is
+        // on 0.2% of rows, so it is not used as the filing date.
+        caseNumber: 'EEOSALLCNO', status: 'SWRAPVCODE', filedOn: 'SWRCRTDATE', expiresOn: 'EXPDT90DAY',
+        description: 'EEOSPRJDSC', address: 'ADDRESS', parcel: 'FOLIO', officialRef: 'BLDPROCNO',
+        flowGpd: 'PRPDFLWGPD',
+      },
+      // BLDPROCNO "N/A" is a placeholder and stays NULL (src/planning.js).
+      links: [{ kind: 'official', to: 'miami-dade-fl', caseColumn: 'official_ref', permitField: 'ProcessNumber',
+        detail: 'permit ProcessNumber = certification BLDPROCNO' }],
+    },
+    lifecycle: { statuses: DERM_SEWER_STATUSES },
+  },
+
   // --- Not yet implemented -------------------------------------------------
   //
   // Clark County WA publishes a real ArcGIS feature layer — structurally the
@@ -568,6 +841,9 @@ const SOURCES = {
 // 30-day trial; the sales screens still show Austin and Miami-Dade only.
 // Austin plan review joined 2026-11-13 (ADR-16 E1): applications, not leads, so
 // the lead screens never list it (db/pilot_queries.js filters by source).
-const PILOT_AREAS = ['austin-tx', 'austin-plan-review-tx', 'miami-dade-fl', 'miami-city-fl', 'raleigh-nc'];
+// Planning cases joined 2026-11-14 (kind 'planning', migration 025): they
+// write planning_cases, never permits, so no lead screen lists them.
+const PILOT_AREAS = ['austin-tx', 'austin-plan-review-tx', 'miami-dade-fl', 'miami-city-fl', 'raleigh-nc',
+  'austin-site-plans-tx', 'austin-subdivisions-tx', 'raleigh-plan-areas-nc', 'raleigh-devplans-nc', 'miami-derm-sewer-fl'];
 
 module.exports = { SOURCES, PILOT_AREAS };

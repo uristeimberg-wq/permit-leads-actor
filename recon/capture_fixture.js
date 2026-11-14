@@ -20,23 +20,9 @@
 const { SOURCES } = require('../src/sources.js');
 const { getAdapter } = require('../src/adapters/index.js');
 
-const PERSON_FIELD = /owner|applicant|full_?name|first_?name|last_?name|contact_?name|agent|architect|engineer|designer|surveyor|other_address/i; // other_address: Austin plan review, often an owner's name and address
-const PHONE_FIELD = /phone|tel|fax|mobile/i;
-const EMAIL_FIELD = /e_?mail/i;
-
-/** A copy of one raw row with people's details replaced. Pure; tested. */
-function redactRow(row) {
-  const out = {};
-  let n = 0;
-  for (const [k, v] of Object.entries(row)) {
-    if (v == null || v === '') { out[k] = v; continue; }
-    if (EMAIL_FIELD.test(k)) out[k] = 'redacted@example.com';
-    else if (PHONE_FIELD.test(k)) { n += 1; out[k] = `512555${String(100 + n).padStart(4, '0')}`; }
-    else if (PERSON_FIELD.test(k)) out[k] = 'REDACTED';
-    else out[k] = v;
-  }
-  return out;
-}
+// Redaction lives in recon/redact.js (no dependencies, so recon scripts
+// that run without npm ci can use it).
+const { redactRow } = require('./redact.js');
 
 function arg(name, fallback) {
   const hit = process.argv.find((a) => a.startsWith(`--${name}=`));

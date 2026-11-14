@@ -38,7 +38,10 @@ for (const [slug, src] of Object.entries(SOURCES).filter(([, s]) => s.registry))
 
   check(`${slug}: required config`, () => {
     // An application feed (filingKind) names no contractor yet, so it has no parties.
-    for (const k of ['label', 'type', 'fieldMap', 'maxPerRun', 'maxDataAgeDays', 'dateField', 'defaultState', ...(src.filingKind ? [] : ['parties'])]) {
+    // A planning source (kind 'planning') writes planning_cases, not permits:
+    // no contractor and no "newest permit" age check.
+    const planning = src.kind === 'planning';
+    for (const k of ['label', 'type', 'fieldMap', 'maxPerRun', 'dateField', 'defaultState', ...(planning ? ['planning'] : ['maxDataAgeDays']), ...(src.filingKind || planning ? [] : ['parties'])]) {
       assert.ok(src[k] != null, `missing ${k}`);
     }
     assert.ok(MAPPERS[src.type], `type ${src.type} has no offline mapper; connectors must use socrata or arcgis, or add one here`);
@@ -85,6 +88,21 @@ for (const [slug, src] of Object.entries(SOURCES).filter(([, s]) => s.registry))
     const permits = MAPPERS[src.type](fx.rows, src);
     const usable = permits.filter((p) => p.permitNumber && /^\d{4}-\d{2}-\d{2}/.test(String(p.filedDate || '')));
     assert.ok(usable.length / fx.rows.length >= MIN_MAPPED, `only ${usable.length}/${fx.rows.length} rows map to a permit with a number and date`);
+  });
+
+  if (src.kind === 'planning') check(`${slug}: planning block is valid and maps the fixture`, () => {
+    const { mapCase, validatePlanning } = require('./planning.js');
+    assert.deepStrictEqual(validatePlanning(slug, src), []);
+    const fx = JSON.parse(fs.readFileSync(path.join(ROOT, reg.fixture), 'utf8'));
+    // Every column the planning block names exists in the live rows or the
+    // source's declared columns (Socrata leaves empty columns out of a row).
+    const seen = new Set([...fx.rows.flatMap((r) => Object.keys(r)), ...(fx.declaredFields || []).map((f) => String(f).split(':')[0])]);
+    const named = [...Object.values(src.planning.fields).flat(), ...(src.planning.addressParts || []), ...(src.planning.parties || []).map((p) => p.field)];
+    assert.deepStrictEqual(named.filter((f) => !seen.has(f)), [], 'planning fields missing from the fixture (guessed?)');
+    const cases = fx.rows.map((r) => mapCase(src, r)).filter(Boolean);
+    const usable = cases.filter((c) => c.caseNumber && /^\d{4}-\d{2}-\d{2}$/.test(String(c.filedOn || '')));
+    assert.ok(usable.length / fx.rows.length >= MIN_MAPPED, `only ${usable.length}/${fx.rows.length} rows map to a case with a number and filing date`);
+    assert.strictEqual(new Set(cases.map((c) => c.caseNumber)).size, cases.length, 'case numbers repeat within the fixture');
   });
 
   if (src.lifecycle) check(`${slug}: lifecycle vocabulary uses known stages`, () => {
