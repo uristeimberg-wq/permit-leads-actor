@@ -136,7 +136,8 @@
           <div class="sub">Contractor on the building permit${d.match ? ` · matched by ${L.esc(d.match.rule === 'licence' ? 'licence number' : 'exact name within the state')}` : ''}</div>
           <div class="who-phone">${L.phoneCell(d.gc.phone)}</div>
           <p class="note">Tap or hover the label next to the number for where it came from. "Corroborated" means it is on 3+ of this company's permits and no other company's. Nobody has called to check it.</p>
-          ${d.gcRegistry && d.gcRegistry.length ? `<h2 class="h-gap">State licence</h2>${L.registryList(d.gcRegistry, { compact: true })}` : ''}`
+          ${d.gcRegistry && d.gcRegistry.length ? `<h2 class="h-gap">State licence</h2>${L.registryList(d.gcRegistry, { compact: true })}` : ''}
+          ${d.gcRegistrations && d.gcRegistrations.length ? `<h2 class="h-gap">State business registration</h2>${L.registrationList(d.gcRegistrations, { compact: true })}` : ''}`
         : d.gc ? `<p>${L.who(d.gc)}</p><p class="note">${L.esc(d.gc.withheld)}</p>` : '<p class="sub">No contractor on this permit (owner-builder or not published).</p>'}
         ${h ? `<h2 class="h-gap">How this GC hires ${L.esc(L.TRADE_PERSON[trade])}</h2>
           <p class="body-sm">${h.buildingJobs} building jobs in our data, latest ${L.esc(L.date(h.lastJobOn))}.

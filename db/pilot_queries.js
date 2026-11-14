@@ -339,6 +339,37 @@ async function registryFor(ids) {
 }
 
 /**
+ * State business registrations (franchise-tax file) matched to contractors:
+ * the business facts only, with how and when each was matched (rule 6).
+ * Officers and registered agents are never stored, so never shown (rule 5).
+ */
+async function registrationsFor(ids) {
+  const out = new Map();
+  if (!ids.length) return out;
+  const { rows } = await query(`
+    SELECT cr.contractor_id, cr.match_rule, cr.match_confidence, b.provider, b.registry_id, b.legal_name, b.dba_name,
+           b.sos_file_number, b.state_of_formation, b.sos_status, b.right_to_transact, b.sos_registered_on, b.report_year,
+           b.mailing_city, b.mailing_state, b.fetched_at, s.attribution_text
+      FROM contractor_registrations cr JOIN business_registrations b ON b.id = cr.registration_id
+      JOIN sources s ON s.slug = b.provider
+     WHERE cr.contractor_id = ANY($1::bigint[])
+     ORDER BY cr.match_confidence DESC, b.registry_id`, [ids]);
+  for (const r of rows) {
+    const k = String(r.contractor_id);
+    if (!out.has(k)) out.set(k, []);
+    out.get(k).push({
+      provider: r.provider, taxpayerId: r.registry_id, legalName: r.legal_name, dbaName: r.dba_name,
+      sosFileNumber: r.sos_file_number, stateOfFormation: r.state_of_formation, sosStatus: r.sos_status,
+      rightToTransact: r.right_to_transact, registeredOn: r.sos_registered_on, reportYear: r.report_year,
+      mailingCity: r.mailing_city, mailingState: r.mailing_state,
+      matchedBy: r.match_rule, confidence: Number(r.match_confidence),
+      provenance: { source: r.provider, attribution: r.attribution_text, fetchedAt: r.fetched_at },
+    });
+  }
+  return out;
+}
+
+/**
  * Facts about the parcel the permit is on, from an official appraiser, with
  * where and when each came from (rule 6). Null when the permit's source has no
  * parcel id or the appraiser has no such parcel. Owner fields are never stored.
@@ -461,6 +492,7 @@ async function getJob(permitId, f) {
     provenance: await provenanceFor(bp.raw_record_id),
     gc: publicContractor(gc),
     gcRegistry: gc && gc.party_kind === 'business' ? ((await registryFor([gc.id])).get(String(gc.id)) || []) : [],
+    gcRegistrations: gc && gc.party_kind === 'business' ? ((await registrationsFor([gc.id])).get(String(gc.id)) || []) : [],
     gcHiring: hiring,
     tradePermitIssued: tradeFiled.length > 0,
     related: related.map((r) => ({
@@ -542,6 +574,7 @@ async function getContractor(id) {
     aliases: publicAliases(aliases.rows.map((a) => ({ name: a.raw_name, seen: a.seen_count }))),
     licences: licences.rows.map((l) => ({ state: l.licence_state, number: l.licence_number, source: l.source })),
     registry: (await registryFor([id])).get(String(id)) || [],
+    registrations: (await registrationsFor([id])).get(String(id)) || [],
     subsHired: asGc.rows.map(rel),
     gcsWorkedFor: asSub.rows.map(rel),
     recentPermits: recent.rows.map((r) => ({ ...stripInternal(r), trade: r.trade, isBuilding: r.is_building, issuedOn: r.issued_on })),

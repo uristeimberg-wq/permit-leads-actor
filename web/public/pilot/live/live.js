@@ -144,6 +144,39 @@
       <p class="note">Source: ${esc(credits.join('; '))}.${dbpr ? ' Status codes are DBPR’s own, shown as published.' : ''} Tap or hover a licence for how it was matched.</p>`;
   }
 
+  /**
+   * State business registrations matched to a business (Texas franchise-tax
+   * file): legal entity, Secretary of State file and right to transact, as
+   * published. People (officers, registered agent) are not collected.
+   */
+  function registrationList(recs, { compact = false } = {}) {
+    if (!recs || !recs.length) {
+      return compact ? '' : '<p class="sub">No state business registration matched yet. We link only when exactly one registered entity has this exact name.</p>';
+    }
+    const rows = recs.map((r) => {
+      const rt = r.rightToTransact
+        ? `<span class="pill ${/^active$/i.test(r.rightToTransact) ? 'ok' : 'bad'}">right to transact: ${esc(r.rightToTransact)}</span>`
+        : '<span class="pill">right to transact not published</span>';
+      const v = r.provenance || {};
+      const how = `Matched by ${MATCHED[r.matchedBy] || r.matchedBy}, confidence ${pct(r.confidence)}. Fetched ${dateTime(v.fetchedAt)}.`;
+      const facts = [
+        r.sosFileNumber && `SOS file ${r.sosFileNumber}`,
+        r.stateOfFormation && `formed in ${r.stateOfFormation}`,
+        r.registeredOn && `registered ${date(r.registeredOn)}`,
+        r.sosStatus && `SOS status ${r.sosStatus}`,
+        r.reportYear && `last report ${r.reportYear}`,
+        r.mailingCity && `mail ${[r.mailingCity, r.mailingState].filter(Boolean).join(', ')}`,
+      ].filter(Boolean).join(' · ');
+      return `<li class="lic">
+        <div class="lic-row"><span class="prov" title="${esc(how)}"><b>${esc(r.legalName || 'Name not published')}</b>${r.dbaName ? ` <span class="sub">dba ${esc(r.dbaName)}</span>` : ''}</span>${rt}</div>
+        <div class="sub">Taxpayer <span class="mono">${esc(r.taxpayerId)}</span>${facts ? ` · ${esc(facts)}` : ''}</div>
+      </li>`;
+    }).join('');
+    const credits = [...new Set(recs.map((r) => r.provenance && r.provenance.attribution).filter(Boolean))];
+    return `<ul class="lics">${rows}</ul>
+      <p class="note">Source: ${esc(credits.join('; ') || 'Texas Comptroller of Public Accounts')}. Officers and registered agent are not collected. Tap or hover the name for how it was matched.</p>`;
+  }
+
   // ── Touch support ─────────────────────────────────────────
   // Provenance lives in title attributes (rule 6), which touch screens never
   // show. A tap on a dotted value opens the same text in a small panel.
@@ -195,5 +228,5 @@
 
   const fail = (el, err) => { el.innerHTML = `<div class="state err">${esc(err.message)}</div>`; };
 
-  window.Live = { esc, params, qs, api, date, dateTime, money, pct, daysSince, phone, who, phoneCell, freshness, topBar, attribution, fail, propertyCard, registryList, labelTables, noHover, estPill, shortDate, dateRange, AREA, areaOf, areaOptions, TRADE, TRADE_PERSON };
+  window.Live = { esc, params, qs, api, date, dateTime, money, pct, daysSince, phone, who, phoneCell, freshness, topBar, attribution, fail, propertyCard, registryList, registrationList, labelTables, noHover, estPill, shortDate, dateRange, AREA, areaOf, areaOptions, TRADE, TRADE_PERSON };
 }());

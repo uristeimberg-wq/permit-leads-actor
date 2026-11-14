@@ -82,6 +82,17 @@ async function main() {
       assert.deepStrictEqual(runs.map((r) => r.status), ['succeeded', 'succeeded']);
     });
 
+    await check('the contractor page carries the registration, business facts only', async () => {
+      const { getContractor } = require('../../db/pilot_queries.js');
+      const [{ id }] = await q("SELECT id FROM contractors WHERE display_name = 'IES Residential, Inc.'");
+      const d = await getContractor(id);
+      assert.strictEqual(d.registrations.length, 1);
+      const r = d.registrations[0];
+      assert.deepStrictEqual([r.taxpayerId, r.sosFileNumber, r.rightToTransact, r.matchedBy], ['32012778745', '0800862442', 'ACTIVE', 'name_state']);
+      assert.ok(r.provenance && r.provenance.fetchedAt, 'fetched time is shown');
+      assert.ok(!Object.keys(r).some((k) => /officer|agent|street|fei/i.test(k)));
+    });
+
     await check('coverage: verified share of looked-up businesses and of their permits', async () => {
       const c = await coverage();
       assert.deepStrictEqual([c.businesses, c.looked, c.verified, c.permits, c.verified_permits], [4, 4, 1, 57, 40]);
