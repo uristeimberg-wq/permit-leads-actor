@@ -14,15 +14,18 @@
 
 const { SOURCES } = require('./sources.js');
 
-const RESOLVER_VERSION = 'contractors-v1';
+const RESOLVER_VERSION = 'contractors-v2';
 
 const NON_CONTRACTORS = new Set(['owner', 'owner builder', 'self', 'homeowner', 'na', 'n a', 'none', 'tbd', 'unknown', 'owner owner']);
 
 // Legal-form words dropped for the identity key, so "Acme Builders, LLC" and
 // "ACME BUILDERS INC" are one name. Trade words are kept: "Acme Plumbing" and
-// "Acme Electric" are different firms.
+// "Acme Electric" are different firms. Place words ("of Texas", "TX") are
+// kept too (contractors-v2, ADR-18): stripping them merged different legal
+// entities, e.g. "Meritage Homes of Texas LLC" with "Meritage Homes
+// Corporation" and "Pool Builders of Texas" with "Pool Builders Inc".
 const LEGAL_SUFFIXES = new Set(['llc', 'l l c', 'inc', 'incorporated', 'co', 'corp', 'corporation', 'company', 'ltd', 'limited',
-  'lp', 'llp', 'pllc', 'pc', 'pa', 'plc', 'dba', 'the', 'of', 'texas', 'tx', 'florida', 'fl']);
+  'lp', 'llp', 'pllc', 'pc', 'pa', 'plc', 'dba', 'the']);
 
 const BUSINESS_WORDS = /\b(llc|inc|corp|co|company|ltd|lp|llp|pllc|services?|construction|constructors?|contracting|contractors?|builders?|building|homes?|plumbing|electric(al)?|mechanical|air|hvac|heating|cooling|roofing|solar|pools?|remodel(ing)?|renovations?|restoration|development|group|enterprises?|industries|systems|solutions|properties|design|energy|power|fire|sprinklers?|ac|a\/c|conditioning|windows?|doors?|fence|concrete|paving|landscap\w*|drywall|painting|flooring|tile|cabinets?|glass|steel|iron|welding|demolition|excavation|utilities|engineering|technologies|tech|supply|partners|associates|management|holdings|realty|international|national|america|usa)\b/i;
 

@@ -104,7 +104,15 @@ any new UI.
 | E8 | Design-partner test: 3-5 Austin **GCs, builders or suppliers** (owner's choice) get a daily list of application-stage projects for 4 weeks | 3 of 5 say "new and early enough" at least once a week; otherwise stop and rethink E |
 
 **Go or no-go at the end of E:** go if early-capture is 80% or more, the link
-rate is 90% or more, and E8 passes. If partners say application-stage
+rate is 90% or more, and E8 passes.
+
+**Amendment (ADR-18, accepted 2026-11-14):** the 80% gate
+measures *application capture* (seen at plan review before issue), which is
+close to automatic in Austin because every BP has a plan-review case. Report
+*pre-application capture* (an earlier planning or demolition signal, lead over
+the application date, by segment) beside it. The early-signal pilot (P0
+backtest, P1 competitive check, P2 forward test merged with E8) and its pass
+criteria are in `docs/DATA_STRATEGY.md` section 8. If partners say application-stage
 projects are no more winnable (stickiness), the product leans to GCs and
 suppliers, not subs.
 

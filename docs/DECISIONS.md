@@ -209,6 +209,16 @@ what would make us revisit it. Never delete an entry; supersede it.
 - **Revisit when:** licence files (TX TDLR, FL DBPR) are loaded. They give
   Austin firms a licence key and allow corroboration against an independent
   source.
+- **Amended 2026-11-14 (`contractors-v2`, ADR-18):** place words ("of
+  Texas", "TX", "Florida", "FL", trailing "of") are no longer stripped from the
+  name key. v1 merged different legal entities with generic or brand names
+  ("Pool Builders of Texas" with "Pool Builders Inc"; "Meritage Homes of Texas
+  LLC" with "Meritage Homes Corporation"). Under this ADR a missed merge is the
+  cheaper error, so variants that differ only by a place word now stay
+  separate until a reviewed merge or a licence key joins them. Brand grouping
+  (all Meritage entities) is a separate, reviewed level (DATA_STRATEGY
+  section 6), never the merge key. The same key is used for licence name
+  matching, so a licence filed as "X of Texas" no longer attaches to "X Inc".
 
 
 ## ADR-13: Live demo on Railway, behind a shared password
@@ -383,3 +393,50 @@ what would make us revisit it. Never delete an entry; supersede it.
 - **Revisit when:** a production sample of 30 hits and 30 misses per market
   shows more than 5 wrong in either set, or a customer asks for commercial
   work separated.
+
+## ADR-18: Early-signal data strategy: link official keys and keep history, prove before adding sources
+
+- **Date:** 2026-11-14. **Status:** accepted 2026-11-14 (owner: "Approve,
+  start the pilot"). Builds on
+  ADR-16; does not relax rules 1 to 10.
+- **Context:** The owner asked for a proprietary data advantage from
+  overlooked, lawful sources (brief of 2026-11-14). Five research workers
+  checked Austin, Texas and competitor sources (`docs/DATA_STRATEGY.md`,
+  `docs/research/2026-11-14-early-signals/`). Facts that bear on it: no
+  exclusive Austin dataset exists; Zabalist already sells Austin site plans,
+  TCAD and TDLR data from $49 a month; Austin's planning datasets keep only the
+  current status; AMANDA keys (`folderrsn`, `propertyrsn`) and case numbers
+  cited in permit descriptions give official links; the current resolver
+  merges unrelated firms with generic names; Legistar's PDF host disallows all
+  robots.
+- **Decision:**
+  1. The advantage is built from official links, history we snapshot from now
+     on, entity precision and the GC-sub relationship layer, not from
+     exclusive access. Sales copy never claims exclusive data.
+  2. Every new source enters `docs/research/source_registry.json` (later the
+     `source_registry` table) with the nine-criterion score; legal
+     feasibility is a gate. After the backtest, measured marginal
+     pre-application capture replaces estimated uniqueness and coverage.
+  3. Project existence is labelled on the L1-L4 evidence ladder, separately
+     from the four participant labels. Only official evidence promotes;
+     terminal statuses demote.
+  4. Pilot scope: Austin plan review and permits (live) plus site plans,
+     subdivisions, affordable housing and the demolition signal; proven by
+     the P0 backtest, P1 competitive check and P2 forward test before any
+     other connector.
+  5. ROADMAP E reports application capture and pre-application capture
+     separately; the 80% gate applies to the first only.
+  6. No automated source-discovery engine, general document AI pipeline or
+     graph database now; the minimum versions in `DATA_STRATEGY.md`
+     section 9 instead.
+  7. Owner names stay hidden; showing a business buyer of land needs its own
+     ADR and counsel.
+- **Owner's choice, 2026-11-14 (after P0 and P1):** "Homes first, apartments
+  as context". The Austin early list leads with single-family and small
+  residential building applications (plan review), the builder behind each and
+  its subs; multifamily and commercial site plans are shown as context with
+  their measured rate (22% reach a new main building within 24 months), never
+  as upcoming construction.
+- **Revisit when:** the backtest shows pre-application capture under 10% in
+  every segment (drop the planning feeds), or the competitive check shows a
+  competitor already delivers the same plan-review intake with GC-sub history.

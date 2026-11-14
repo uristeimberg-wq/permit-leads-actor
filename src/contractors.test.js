@@ -10,7 +10,14 @@ check('legal forms and punctuation do not split a firm', () => {
   assert.strictEqual(C.normalizeName('Acme Builders, LLC'), 'acme builders');
   assert.strictEqual(C.normalizeName('ACME BUILDERS INC.'), 'acme builders');
   assert.strictEqual(C.normalizeName('The Acme Builders Co'), 'acme builders');
-  assert.strictEqual(C.normalizeName('Smith & Sons Plumbing of Texas, L.L.C.'), 'smith and sons plumbing');
+  assert.strictEqual(C.normalizeName('Smith & Sons Plumbing of Texas, L.L.C.'), 'smith and sons plumbing of texas');
+});
+
+check('place words are part of the name, so different legal entities stay apart (contractors-v2)', () => {
+  assert.notStrictEqual(C.normalizeName('Meritage Homes of Texas LLC'), C.normalizeName('Meritage Homes Corporation'));
+  assert.notStrictEqual(C.normalizeName('Pool Builders of Texas'), C.normalizeName('Pool Builders Inc'));
+  assert.notStrictEqual(C.normalizeName('D.R. Horton - Texas, Ltd.'), C.normalizeName('D.R. Horton, Inc.'));
+  assert.strictEqual(C.normalizeName('Meritage Homes of Texas, L.L.C.'), C.normalizeName('MERITAGE HOMES OF TEXAS LLC'));
 });
 
 check('trade words are kept, so different trades stay different firms', () => {

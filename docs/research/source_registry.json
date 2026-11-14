@@ -1,0 +1,283 @@
+{
+  "version": "2026-11-14",
+  "note": "Seed of the source registry (docs/DATA_STRATEGY.md section 5). Human-reviewed; scores are 1-5 (5 = best; for cost 5 = cheapest). basis says whether the scores rest on live checks or estimates. Rank with: node recon/source_registry.js",
+  "sources": [
+    {
+      "id": "austin-issued-tx", "name": "Austin Issued Construction Permits", "jurisdiction": "Austin, TX",
+      "category": "issued_permit", "url": "https://datahub.austintexas.gov/resource/3syk-w9eu.json",
+      "earliest_stage": "issued_permit", "access": "open_api", "terms": "Public Domain", "legal_gate": "open",
+      "cadence": "daily full reload; rows 2-3 days after issue (measured M1)", "history_from": "1921",
+      "participants": "contractor company 91%, phone", "join_keys": ["permit_number", "project_id", "masterpermitnum", "tcad_id"],
+      "status": "live", "verified": "live", "verified_on": "2026-11-13", "basis": "measured",
+      "scores": { "early": 1, "unique": 1, "action": 4, "contact": 5, "fresh": 3, "coverage": 5, "reliability": 4, "legal": 5, "cost": 5 },
+      "notes": "Baseline every competitor has (Zabalist resyncs it nightly)."
+    },
+    {
+      "id": "austin-plan-review-tx", "name": "Austin Plan Review Cases", "jurisdiction": "Austin, TX",
+      "category": "building_application", "url": "https://datahub.austintexas.gov/resource/n8ck-xkda.json",
+      "earliest_stage": "building_application", "access": "open_api", "terms": "Public Domain", "legal_gate": "open",
+      "cadence": "intra-day publication observed; lag not measured", "history_from": "2014",
+      "participants": "applicant org 62% (many expediters); never the contractor", "join_keys": ["folderrsn", "propertyrsn", "appraisal_id"],
+      "status": "live", "verified": "live", "verified_on": "2026-11-14", "basis": "measured",
+      "scores": { "early": 4, "unique": 4, "action": 4, "contact": 3, "fresh": 5, "coverage": 5, "reliability": 4, "legal": 5, "cost": 5 },
+      "notes": "Core of the edge. propertyrsn on 100% of cases since 2026-08 (Worker D). No competitor page claims it."
+    },
+    {
+      "id": "austin-site-plan-tx", "name": "Austin Site Plan Cases", "jurisdiction": "Austin, TX",
+      "category": "planning_case", "url": "https://datahub.austintexas.gov/resource/mavg-96ck.json",
+      "earliest_stage": "site_plan", "access": "open_api", "terms": "Public Domain", "legal_gate": "open",
+      "cadence": "daily", "history_from": "1971",
+      "participants": "applicant org 88% (mostly civil engineers), owner org 48%", "join_keys": ["folderrsn", "propertyrsn", "tcad_id", "permit_number"],
+      "status": "candidate", "verified": "live", "verified_on": "2026-11-14", "basis": "measured",
+      "scores": { "early": 5, "unique": 2, "action": 3, "contact": 3, "fresh": 4, "coverage": 3, "reliability": 4, "legal": 5, "cost": 5 },
+      "notes": "Best pre-application signal in samples (6 of 11 reached a main BP, median ~10 months lead). Zabalist already shows it."
+    },
+    {
+      "id": "austin-subdivision-tx", "name": "Austin Subdivision Cases", "jurisdiction": "Austin, TX",
+      "category": "planning_case", "url": "https://datahub.austintexas.gov/resource/s7gx-9m54.json",
+      "earliest_stage": "entitlement", "access": "open_api", "terms": "Public Domain", "legal_gate": "open",
+      "cadence": "daily", "history_from": "1981",
+      "participants": "applicant org", "join_keys": ["propertyrsn", "tcad_id (84%, parent parcel)", "case_name ~ BP legal_description"],
+      "status": "candidate", "verified": "live", "verified_on": "2026-11-14", "basis": "measured",
+      "scores": { "early": 5, "unique": 3, "action": 3, "contact": 3, "fresh": 4, "coverage": 3, "reliability": 3, "legal": 5, "cost": 4 },
+      "notes": "Lot ids change at platting, so parcel joins under-count; needs plat-name or spatial link."
+    },
+    {
+      "id": "austin-zoning-tx", "name": "Austin Zoning Cases", "jurisdiction": "Austin, TX",
+      "category": "planning_case", "url": "https://datahub.austintexas.gov/resource/edir-dcnf.json",
+      "earliest_stage": "entitlement", "access": "open_api", "terms": "Public Domain", "legal_gate": "open",
+      "cadence": "daily", "history_from": "1981",
+      "participants": "applicant org 58%, agent firm", "join_keys": ["folderrsn", "propertyrsn", "tcad_id (93%)", "case_number"],
+      "status": "candidate", "verified": "live", "verified_on": "2026-11-14", "basis": "measured",
+      "scores": { "early": 5, "unique": 2, "action": 1, "contact": 2, "fresh": 4, "coverage": 2, "reliability": 4, "legal": 5, "cost": 5 },
+      "notes": "Longest lead, worst conversion (0 of 6 approved 2022 rezonings reached a BP). related_cases is 0% filled."
+    },
+    {
+      "id": "austin-affordable-housing-tx", "name": "Austin Affordable Housing Inventory", "jurisdiction": "Austin, TX",
+      "category": "financing_incentive", "url": "https://datahub.austintexas.gov/resource/ifzc-3xz8.json",
+      "earliest_stage": "entitlement", "access": "open_api", "terms": "Public Domain (to confirm on dataset)", "legal_gate": "open",
+      "cadence": "weekly-ish edits", "history_from": "unknown",
+      "participants": "developer (company) on every row sampled", "join_keys": ["parcel_id = tcad_id"],
+      "status": "candidate", "verified": "live", "verified_on": "2026-11-14", "basis": "measured",
+      "scores": { "early": 4, "unique": 3, "action": 3, "contact": 3, "fresh": 3, "coverage": 2, "reliability": 4, "legal": 5, "cost": 5 },
+      "notes": "Loan Awarded 13, Certified 181. Lead time to site plan / plan review unmeasured; some rows stall for years."
+    },
+    {
+      "id": "austin-demolition-derived-tx", "name": "Demolition to new build (derived from 3syk-w9eu)", "jurisdiction": "Austin, TX",
+      "category": "derived_signal", "url": "https://datahub.austintexas.gov/resource/3syk-w9eu.json",
+      "earliest_stage": "issued_permit", "access": "already_ingested", "terms": "Public Domain", "legal_gate": "open",
+      "cadence": "daily", "history_from": "1921",
+      "participants": "demo contractor", "join_keys": ["tcad_id"],
+      "status": "candidate", "verified": "live", "verified_on": "2026-11-14", "basis": "measured",
+      "scores": { "early": 2, "unique": 3, "action": 3, "contact": 3, "fresh": 4, "coverage": 3, "reliability": 4, "legal": 5, "cost": 5 },
+      "notes": "Converts well (7 of 9 final demos) but rarely early: median 88 d; new-home application often precedes the demo issue."
+    },
+    {
+      "id": "austin-work-zones-tx", "name": "Austin Roadway Work Zones (ROW permits)", "jurisdiction": "Austin, TX",
+      "category": "construction_activity", "url": "https://datahub.austintexas.gov/resource/qyfh-gwei.json",
+      "earliest_stage": "construction_activity", "access": "open_api", "terms": "Public Domain (to confirm)", "legal_gate": "open",
+      "cadence": "daily or better", "history_from": "current and future only",
+      "participants": "contractor in free text on a minority of rows (27 of 39 were 'WorkZone Event')", "join_keys": ["folderrsn", "geometry"],
+      "status": "candidate", "verified": "live", "verified_on": "2026-11-14", "basis": "measured",
+      "scores": { "early": 2, "unique": 3, "action": 3, "contact": 2, "fresh": 5, "coverage": 3, "reliability": 4, "legal": 5, "cost": 5 },
+      "notes": "Confirms construction starts; not early discovery."
+    },
+    {
+      "id": "austin-row-contractors-tx", "name": "Austin ROW Contractor Licence Holders", "jurisdiction": "Austin, TX",
+      "category": "entity_reference", "url": "https://datahub.austintexas.gov/resource/8d92-wsiw.json",
+      "earliest_stage": "none", "access": "open_api", "terms": "Public Domain (to confirm)", "legal_gate": "open",
+      "cadence": "daily", "history_from": "unknown",
+      "participants": "firm name + licence number (names carry staff prefixes and people in brackets)", "join_keys": ["license_number"],
+      "status": "candidate", "verified": "live", "verified_on": "2026-11-14", "basis": "measured",
+      "scores": { "early": 1, "unique": 3, "action": 2, "contact": 3, "fresh": 4, "coverage": 3, "reliability": 4, "legal": 5, "cost": 5 },
+      "notes": "Entity-resolution key, not a lead source."
+    },
+    {
+      "id": "austin-boards-agendas-tx", "name": "Austin boards and commissions agendas (Planning, HLC, ZAP)", "jurisdiction": "Austin, TX",
+      "category": "agenda_document", "url": "https://www.austintexas.gov/boards-commissions/meetings/",
+      "earliest_stage": "entitlement", "access": "html_and_pdf", "terms": "site terms unread; robots does not disallow /boards-commissions/ or /edims/", "legal_gate": "open",
+      "cadence": "per meeting (weekly-ish)", "history_from": "unknown",
+      "participants": "applicant / agent firms; HLC demolition applicants", "join_keys": ["case_number (exact pattern)"],
+      "status": "candidate", "verified": "live", "verified_on": "2026-11-14", "basis": "measured",
+      "scores": { "early": 4, "unique": 2, "action": 2, "contact": 2, "fresh": 4, "coverage": 2, "reliability": 3, "legal": 4, "cost": 4 },
+      "notes": "Adds proposed use, postponements, opposition, HLC demolition applications. Agenda AI is a crowded category (GatherGov)."
+    },
+    {
+      "id": "austin-legistar-api-tx", "name": "Austin Legistar Web API (Council only)", "jurisdiction": "Austin, TX",
+      "category": "agenda_document", "url": "https://webapi.legistar.com/v1/austintexas/matters",
+      "earliest_stage": "entitlement", "access": "open_api", "terms": "no API terms published", "legal_gate": "open",
+      "cadence": "per meeting", "history_from": "unknown",
+      "participants": "owner/agent in matter titles", "join_keys": ["case_number"],
+      "status": "candidate", "verified": "live", "verified_on": "2026-11-14", "basis": "measured",
+      "scores": { "early": 3, "unique": 1, "action": 2, "contact": 2, "fresh": 4, "coverage": 2, "reliability": 4, "legal": 4, "cost": 5 },
+      "notes": "Only Council and committees; land-use boards are not on it. Duplicates zoning cases."
+    },
+    {
+      "id": "austin-legistar-pdfs-tx", "name": "Austin Legistar attachment PDFs", "jurisdiction": "Austin, TX",
+      "category": "agenda_document", "url": "https://austintexas.legistar1.com/",
+      "earliest_stage": "entitlement", "access": "blocked_robots", "terms": "robots.txt Disallow: /", "legal_gate": "blocked",
+      "cadence": "n/a", "history_from": "n/a", "participants": "n/a", "join_keys": [],
+      "status": "excluded", "verified": "live", "verified_on": "2026-11-14", "basis": "measured",
+      "scores": { "early": 3, "unique": 2, "action": 2, "contact": 2, "fresh": 3, "coverage": 2, "reliability": 2, "legal": 1, "cost": 4 },
+      "notes": "Rule 4: no automated download. By hand or public-information request only."
+    },
+    {
+      "id": "tx-tabc-pending", "name": "TABC pending original applications", "jurisdiction": "Texas",
+      "category": "indirect_business", "url": "https://data.texas.gov/resource/mxm5-tdpj.json",
+      "earliest_stage": "construction_activity", "access": "open_api", "terms": "unread", "legal_gate": "counsel",
+      "cadence": "daily", "history_from": "current only",
+      "participants": "trade name, owner (business or person)", "join_keys": ["address"],
+      "status": "candidate", "verified": "live", "verified_on": "2026-11-13", "basis": "estimated",
+      "scores": { "early": 2, "unique": 3, "action": 2, "contact": 2, "fresh": 5, "coverage": 1, "reliability": 4, "legal": 3, "cost": 5 },
+      "notes": "Late in a finish-out; better as tenant identity than as an early signal (Worker C)."
+    },
+    {
+      "id": "tx-tdlr-tabs", "name": "TDLR TABS project registrations", "jurisdiction": "Texas",
+      "category": "design_registration", "url": "https://www.tdlr.texas.gov/TABS/Search",
+      "earliest_stage": "site_plan", "access": "portal_search", "terms": "no automation clause found; decision needed", "legal_gate": "counsel",
+      "cadence": "unknown", "history_from": "unknown",
+      "participants": "owner, design firm, estimated cost, start date", "join_keys": ["address", "TABS number"],
+      "status": "candidate", "verified": "page", "verified_on": "2026-11-13", "basis": "estimated",
+      "scores": { "early": 4, "unique": 2, "action": 3, "contact": 3, "fresh": 3, "coverage": 2, "reliability": 2, "legal": 3, "cost": 3 },
+      "notes": "Only Austin-area source that names architects. Zabalist republishes the archive (335K projects)."
+    },
+    {
+      "id": "travis-clerk-records", "name": "Travis County Clerk official records index (deeds, plats, deeds of trust, liens, affidavits of commencement)", "jurisdiction": "Travis County, TX",
+      "category": "land_record", "url": "https://countyclerk.traviscountytx.gov/",
+      "earliest_stage": "land", "access": "portal_search", "terms": "unread; bulk product and price unknown", "legal_gate": "counsel",
+      "cadence": "daily recording", "history_from": "mid-1980s (index)",
+      "participants": "grantor/grantee, lender, contractor on affidavits, lien claimants", "join_keys": ["legal description", "instrument number"],
+      "status": "candidate", "verified": "search_result", "verified_on": "2026-11-14", "basis": "estimated",
+      "scores": { "early": 5, "unique": 4, "action": 3, "contact": 3, "fresh": 4, "coverage": 4, "reliability": 3, "legal": 3, "cost": 2 },
+      "notes": "Ask for bulk price and terms. Displaying company buyers needs a new ADR (rule 5). Mechanic's liens = sub-to-GC history."
+    },
+    {
+      "id": "miami-dade-clerk-noc", "name": "Miami-Dade Clerk Notices of Commencement (bulk Official Records)", "jurisdiction": "Miami-Dade, FL",
+      "category": "land_record", "url": "https://www.miamidadeclerk.gov/",
+      "earliest_stage": "construction_activity", "access": "paid_bulk", "terms": "registration agreement unread", "legal_gate": "counsel",
+      "cadence": "daily", "history_from": "unknown",
+      "participants": "owner, contractor, surety, lender, folio", "join_keys": ["folio"],
+      "status": "on_hold", "verified": "page", "verified_on": "2026-11-13", "basis": "estimated",
+      "scores": { "early": 3, "unique": 4, "action": 4, "contact": 3, "fresh": 4, "coverage": 4, "reliability": 3, "legal": 3, "cost": 2 },
+      "notes": "$110 per folder per month. On hold until Austin passes (owner, 2026-11-13)."
+    },
+    {
+      "id": "tx-comptroller-franchise", "name": "Texas Comptroller active franchise tax permit holders", "jurisdiction": "Texas",
+      "category": "entity_reference", "url": "https://data.texas.gov/resource/9cir-efmm.json",
+      "earliest_stage": "none", "access": "open_api", "terms": "unread", "legal_gate": "open",
+      "cadence": "unknown", "history_from": "current",
+      "participants": "legal entity name, taxpayer number, SOS file number (to verify)", "join_keys": ["taxpayer_number", "sos_file_number"],
+      "status": "candidate", "verified": "search_result", "verified_on": "2026-11-14", "basis": "estimated",
+      "scores": { "early": 1, "unique": 2, "action": 1, "contact": 2, "fresh": 3, "coverage": 4, "reliability": 4, "legal": 4, "cost": 4 },
+      "notes": "Legal-entity verification for builders and GCs. Columns unverified."
+    },
+    {
+      "id": "tx-sos-bulk", "name": "Texas Secretary of State bulk business filings", "jurisdiction": "Texas",
+      "category": "entity_reference", "url": "https://www.sos.state.tx.us/corp/bulk-order.shtml",
+      "earliest_stage": "land", "access": "paid_bulk", "terms": "read price page only", "legal_gate": "open",
+      "cadence": "daily feed $60/mo", "history_from": "full snapshot $1,750",
+      "participants": "entity, registered agent, officers (individuals, hidden)", "join_keys": ["sos_file_number"],
+      "status": "deferred", "verified": "page", "verified_on": "2026-11-14", "basis": "estimated",
+      "scores": { "early": 2, "unique": 2, "action": 1, "contact": 2, "fresh": 4, "coverage": 5, "reliability": 5, "legal": 4, "cost": 2 },
+      "notes": "Permits carry no SOS number, so matching is by name only."
+    },
+    {
+      "id": "tx-tceq-wq-pending", "name": "TCEQ water-quality individual permits, active and pending", "jurisdiction": "Texas",
+      "category": "environmental", "url": "https://catalog.data.gov/ (TCEQ harvest)",
+      "earliest_stage": "land", "access": "open_api", "terms": "unread", "legal_gate": "open",
+      "cadence": "unknown", "history_from": "unknown",
+      "participants": "applicant (MUD or developer)", "join_keys": ["location"],
+      "status": "probe", "verified": "search_result", "verified_on": "2026-11-14", "basis": "estimated",
+      "scores": { "early": 5, "unique": 4, "action": 2, "contact": 2, "fresh": 3, "coverage": 1, "reliability": 4, "legal": 4, "cost": 5 },
+      "notes": "Tens of events a year regionally; master-planned scale. One probe."
+    },
+    {
+      "id": "tx-tceq-construction-noi", "name": "TCEQ construction stormwater NOIs (TXR15)", "jurisdiction": "Texas",
+      "category": "environmental", "url": "https://www.tceq.texas.gov/",
+      "earliest_stage": "construction_activity", "access": "portal_search", "terms": "unread", "legal_gate": "counsel",
+      "cadence": "unknown", "history_from": "unknown",
+      "participants": "operator (often the GC)", "join_keys": ["address"],
+      "status": "deferred", "verified": "live", "verified_on": "2026-11-13", "basis": "estimated",
+      "scores": { "early": 3, "unique": 3, "action": 3, "contact": 3, "fresh": 3, "coverage": 3, "reliability": 2, "legal": 3, "cost": 2 },
+      "notes": "Not in open data (6pm5-am5m is industrial). Lawful route: public-information request."
+    },
+    {
+      "id": "wilco-commissioners", "name": "Williamson County Commissioners Court agendas", "jurisdiction": "Williamson County, TX",
+      "category": "agenda_document", "url": "https://public.destinyhosted.com/94526/agenda/",
+      "earliest_stage": "land", "access": "html_and_pdf", "terms": "unread; robots unchecked", "legal_gate": "counsel",
+      "cadence": "weekly", "history_from": "unknown",
+      "participants": "MUD consents, preliminary plats", "join_keys": ["plat name"],
+      "status": "probe", "verified": "search_result", "verified_on": "2026-11-14", "basis": "estimated",
+      "scores": { "early": 4, "unique": 3, "action": 2, "contact": 2, "fresh": 4, "coverage": 3, "reliability": 3, "legal": 3, "cost": 3 },
+      "notes": "Growth-county entitlement signal; PDF parsing."
+    },
+    {
+      "id": "georgetown-planning-gis", "name": "City of Georgetown planning ArcGIS layers", "jurisdiction": "Georgetown, TX",
+      "category": "planning_case", "url": "https://gis.georgetowntexas.gov/arcgis/rest/services/PublicWebMaps/Planning_WebMap/MapServer",
+      "earliest_stage": "entitlement", "access": "open_api", "terms": "unread; some services token-gated (stay off)", "legal_gate": "counsel",
+      "cadence": "unknown", "history_from": "unknown",
+      "participants": "unknown", "join_keys": ["parcel"],
+      "status": "probe", "verified": "search_result", "verified_on": "2026-11-14", "basis": "estimated",
+      "scores": { "early": 3, "unique": 3, "action": 3, "contact": 2, "fresh": 3, "coverage": 2, "reliability": 3, "legal": 3, "cost": 5 },
+      "notes": "One probe for case number, applicant, dates."
+    },
+    {
+      "id": "austin-pia-dsd", "name": "City of Austin public information request (DSD, Austin Water SER log)", "jurisdiction": "Austin, TX",
+      "category": "public_records_request", "url": "https://austintx.govqa.us/",
+      "earliest_stage": "land", "access": "records_request", "terms": "$0.10/page, $15/h staff, $28.50/h programming; estimate over $40", "legal_gate": "open",
+      "cadence": "one-off (10 business days target)", "history_from": "as released",
+      "participants": "as released (e.g. SER engineer, contractor-of-record at intake)", "join_keys": ["folderrsn"],
+      "status": "candidate", "verified": "page", "verified_on": "2026-11-14", "basis": "estimated",
+      "scores": { "early": 4, "unique": 5, "action": 3, "contact": 3, "fresh": 1, "coverage": 3, "reliability": 2, "legal": 4, "cost": 4 },
+      "notes": "Tests what the portal hides, cheaply. Not a feed: recurring exports probably cannot be required."
+    },
+    {
+      "id": "austin-energy-pia", "name": "Austin Energy service applications (records request)", "jurisdiction": "Austin, TX",
+      "category": "utility", "url": "https://austintx.govqa.us/",
+      "earliest_stage": "site_plan", "access": "records_request", "terms": "likely withheld (Gov. Code 552.133)", "legal_gate": "counsel",
+      "cadence": "n/a", "history_from": "n/a", "participants": "unknown", "join_keys": [],
+      "status": "deferred", "verified": "page", "verified_on": "2026-11-14", "basis": "estimated",
+      "scores": { "early": 4, "unique": 5, "action": 3, "contact": 2, "fresh": 1, "coverage": 3, "reliability": 1, "legal": 2, "cost": 3 },
+      "notes": "Counsel first."
+    },
+    {
+      "id": "austin-procurement", "name": "City of Austin Finance Online solicitations, AISD/UT bond schedules, TxDOT lettings", "jurisdiction": "Austin, TX",
+      "category": "procurement", "url": "https://financeonline.austintexas.gov/",
+      "earliest_stage": "site_plan", "access": "html_and_pdf", "terms": "varies; ESBD robots refused our fetcher", "legal_gate": "open",
+      "cadence": "daily", "history_from": "varies",
+      "participants": "agency; awardees after award", "join_keys": [],
+      "status": "excluded", "verified": "search_result", "verified_on": "2026-11-14", "basis": "estimated",
+      "scores": { "early": 3, "unique": 1, "action": 2, "contact": 2, "fresh": 3, "coverage": 2, "reliability": 3, "legal": 4, "cost": 4 },
+      "notes": "Public works, aggregated by every bid service; outside our slice."
+    },
+    {
+      "id": "austin-capital-budget", "name": "Austin Capital Open Budget", "jurisdiction": "Austin, TX",
+      "category": "procurement", "url": "https://datahub.austintexas.gov/resource/ad5y-pg42.json",
+      "earliest_stage": "land", "access": "open_api", "terms": "Public Domain", "legal_gate": "open",
+      "cadence": "daily", "history_from": "unknown",
+      "participants": "none", "join_keys": [],
+      "status": "excluded", "verified": "live", "verified_on": "2026-11-14", "basis": "measured",
+      "scores": { "early": 3, "unique": 1, "action": 1, "contact": 1, "fresh": 4, "coverage": 2, "reliability": 4, "legal": 5, "cost": 5 },
+      "notes": "No location, contractor or stage."
+    },
+    {
+      "id": "austin-water-meters", "name": "Austin residential water meter installs", "jurisdiction": "Austin, TX",
+      "category": "utility", "url": "https://datahub.austintexas.gov/resource/6zcs-yxb3.json",
+      "earliest_stage": "construction_activity", "access": "open_api", "terms": "Public Domain", "legal_gate": "open",
+      "cadence": "stale since 2026-05", "history_from": "2026-04",
+      "participants": "none", "join_keys": ["address"],
+      "status": "excluded", "verified": "live", "verified_on": "2026-11-14", "basis": "measured",
+      "scores": { "early": 1, "unique": 1, "action": 1, "contact": 1, "fresh": 1, "coverage": 1, "reliability": 1, "legal": 5, "cost": 5 },
+      "notes": "47 rows. Dead."
+    },
+    {
+      "id": "philadelphia-permits", "name": "Philadelphia permits (OpenDataPhilly)", "jurisdiction": "Philadelphia, PA",
+      "category": "issued_permit", "url": "https://opendataphilly.org/",
+      "earliest_stage": "issued_permit", "access": "open_api", "terms": "no commercial use without written permission", "legal_gate": "blocked",
+      "cadence": "daily", "history_from": "n/a", "participants": "contractor", "join_keys": [],
+      "status": "excluded", "verified": "page", "verified_on": "2026-11-13", "basis": "measured",
+      "scores": { "early": 1, "unique": 1, "action": 4, "contact": 4, "fresh": 4, "coverage": 4, "reliability": 4, "legal": 1, "cost": 5 },
+      "notes": "Blocked in docs/COMPLIANCE.md."
+    }
+  ]
+}

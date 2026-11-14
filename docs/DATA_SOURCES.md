@@ -716,3 +716,38 @@ the issued permit and the trade permits, with the GC-sub history** for a
 specific metro. That combination is the defensible slice, and it is
 unverified that they lack it: a side-by-side on the same Austin filings is the
 only proof (ROADMAP E1).
+
+## Corrections and new finds (2026-11-14)
+
+From the early-signal research (`docs/DATA_STRATEGY.md`; worker reports in
+`docs/research/2026-11-14-early-signals/`). Scored seed of every source:
+`docs/research/source_registry.json`.
+
+- **Legistar `austintexas` holds only City Council and its committees** (its
+  `/bodies` list, 23 bodies). Planning Commission, Zoning and Platting,
+  Historic Landmark Commission and Board of Adjustment publish on
+  `austintexas.gov/boards-commissions/meetings/` with PDFs on
+  `services.austintexas.gov/edims/` (verified 2026-11-14).
+- **`austintexas.legistar1.com/robots.txt` is `Disallow: /`.** The Legistar
+  JSON API may be read; its agenda and attachment PDFs may not be downloaded
+  automatically (rule 4).
+- **AMANDA keys in the open data:** `propertyrsn` on 2,840 of 2,840
+  plan-review cases applied since 2026-08-01; `folderrsn` and `propertyrsn` on
+  site-plan and zoning cases; `project_id` on issued permits (verified
+  2026-11-14). `masterpermitnum` is a parent pointer and is not always a
+  plan-review case.
+- **Join-key fill, cases 2019-2024:** `tcad_id` 99.4% on BPs and plan review,
+  94.4% site plans, 93.3% zoning, 84.4% subdivisions; zoning `related_cases`
+  0% (verified 2026-11-14).
+- **New open Austin datasets:** Affordable Housing Inventory `ifzc-3xz8`
+  (developer, parcel, status incl. Loan Awarded and Certified); Roadway Work
+  Zones `qyfh-gwei` (ROW permits with `folderrsn`, future dates; contractor
+  named on a minority of rows); ROW Contractor Licence Holders `8d92-wsiw`
+  (verified 2026-11-14). Not yet integrated.
+- **Dead ends:** demolition datasets are views of `3syk-w9eu`; water meter
+  installs `6zcs-yxb3` has 47 rows and stopped in May; no historic-review case
+  dataset (verified 2026-11-14).
+- **Competitor:** Zabalist sells Austin issued permits, site plans, TCAD,
+  TDLR TABS, deeds and contractor history from $49 a month (its pages, read
+  2026-11-14; plan-review intake not seen, untested).
+

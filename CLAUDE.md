@@ -13,6 +13,8 @@ Miami-Dade, FL.
   delete them
 - `docs/ROADMAP.md`: milestones and their exit checks. Work in this order
 - `docs/DATA_SOURCES.md`: every source, verified fields, and the date checked
+- `docs/DATA_STRATEGY.md`: early-signal strategy, source registry and scoring,
+  evidence ladder, pilot (ADR-18)
 - `docs/COMPLIANCE.md`: rules the product follows, and open legal questions
 - `docs/REPOSITORY_AUDIT.md`: what the prototype does and what to keep
 - `README.md`: the prototype's own detailed notes (UI, map, ingest gotchas)

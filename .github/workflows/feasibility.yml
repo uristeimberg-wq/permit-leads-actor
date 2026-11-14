@@ -40,6 +40,9 @@ on:
       descriptions:
         description: "Names in Austin descriptions (recon/description_names.js): months of history; runs only this"
         default: ''
+      backtest:
+        description: "Early-signal backtest (recon/early_backtest.js, DATA_STRATEGY P0): 'yes' runs only this"
+        default: ''
 
 jobs:
   measure:
@@ -82,6 +85,9 @@ jobs:
           SOQL: ${{ startsWith(inputs.preapproval, 'soql:') && inputs.preapproval_specs || '' }}
           LINK: ${{ inputs.preapproval == 'soql:link' && 'yes' || '' }}
           ONLY: ${{ inputs.preapproval != 'all' && inputs.preapproval != 'specs' && !startsWith(inputs.preapproval, 'soql:') && inputs.preapproval || ((inputs.preapproval == 'specs' || startsWith(inputs.preapproval, 'soql:')) && 'none' || '') }}
+      - if: inputs.backtest != ''
+        timeout-minutes: 25
+        run: node recon/early_backtest.js --out=feasibility-report/early-backtest
       - if: inputs.descriptions != ''
         run: node recon/description_names.js --out=feasibility-report/description-names --months="$MONTHS"
         env:
@@ -94,10 +100,10 @@ jobs:
         run: node recon/market_terms.js --only="$TERMS"
         env:
           TERMS: ${{ inputs.market_terms }}
-      - if: inputs.only == '' && inputs.markets == '' && inputs.market_links == '' && inputs.market_terms == '' && inputs.descriptions == '' && inputs.tcad == '' && inputs.preapproval == ''
+      - if: inputs.only == '' && inputs.markets == '' && inputs.market_links == '' && inputs.market_terms == '' && inputs.descriptions == '' && inputs.tcad == '' && inputs.preapproval == '' && inputs.backtest == ''
         run: node recon/plan_review.js --out=feasibility-report/plan-review --months=24
       # Inputs go through env, not inline, so they can't inject shell.
-      - if: always() && !startsWith(inputs.only, 'enrichment') && inputs.markets == '' && inputs.market_links == '' && inputs.market_terms == '' && inputs.descriptions == '' && inputs.tcad == '' && inputs.preapproval == ''
+      - if: always() && !startsWith(inputs.only, 'enrichment') && inputs.markets == '' && inputs.market_links == '' && inputs.market_terms == '' && inputs.descriptions == '' && inputs.tcad == '' && inputs.preapproval == '' && inputs.backtest == ''
         run: node recon/feasibility.js --out=feasibility-report --months="$MONTHS" ${ONLY:+--only="$ONLY"}
         env:
           MONTHS: ${{ inputs.months }}
