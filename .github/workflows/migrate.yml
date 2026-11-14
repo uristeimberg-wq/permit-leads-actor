@@ -1,0 +1,26 @@
+name: migrate
+
+# Manual: apply pending migrations to the hosted database (DATABASE_URL) now,
+# without waiting for the daily sync. Same runner and advisory lock as the
+# sync and Railway's pre-deploy step (db/apply.js), so it is safe alongside
+# them. Prints "Migrations: schema at X (was Y)".
+on:
+  workflow_dispatch:
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      - name: Apply migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: set -o pipefail; node db/apply.js | tee -a "$GITHUB_STEP_SUMMARY"
