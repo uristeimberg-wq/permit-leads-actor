@@ -336,6 +336,12 @@ async function precision() {
   out('Licence links by name or phone. O = licence address in another state; E = licence expired before the contractor\'s last permit (a renewal may not be in the file).');
   out();
   table(['provider rule', 'links', 'O', 'E'], [...lg].map(([k, g]) => [k, g.n, `${g.outState} (${pct(g.outState, g.n)})`, `${g.expired} (${pct(g.expired, g.n)})`]));
+  const { namesCompatible } = require('../src/enrichment/licences.js');
+  const phoneLinks = lics.filter((r) => r.match_rule === 'phone');
+  const clash = phoneLinks.filter((r) => !namesCompatible(r.normalized_name, r.business_name));
+  out(`Phone links whose names share no distinctive word or initials (dropped by the namesCompatible rule): ${clash.length} of ${phoneLinks.length} (${pct(clash.length, phoneLinks.length)}).`);
+  out();
+  table(['id', 'contractor', 'permits', 'licence business'], clash.slice(0, 40).map((r) => [r.id, r.display_name, r.permit_count, masked(r.business_name)]));
   for (const [k, g] of lg) {
     out(`### Sample: ${k} (30, fixed order)`);
     out();

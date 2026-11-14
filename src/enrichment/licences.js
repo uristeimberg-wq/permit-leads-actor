@@ -117,13 +117,60 @@ function mapTdlrRow(r, provider = PROVIDERS['tx-tdlr']) {
   };
 }
 
+// Words too common in trade names to show that two names are the same firm.
+const TRADE_WORDS = new Set(['electric', 'electrical', 'electrician', 'service', 'construction', 'contractor', 'contracting', 'company',
+  'co', 'plumbing', 'air', 'ac', 'heating', 'cooling', 'conditioning', 'mechanical', 'hvac', 'solution', 'system', 'group', 'home',
+  'power', 'energy', 'solar', 'texas', 'tx', 'austin', 'repair', 'llc', 'inc', 'corp', 'lp', 'ltd', 'enterprise', 'industry', 'pro',
+  'professional']);
+const LINK_WORDS = new Set(['and', 'the', 'of', 'a']);
+
+/** Words of a name: singular, punctuation gone, runs of single letters joined ("M L J", "M & G" -> "mlj", "mg"). */
+function words(name) {
+  const raw = normalizeName(name).split(' ').map((w) => w.replace(/[^a-z0-9]/g, '')).filter(Boolean)
+    .map((w) => (w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w));
+  const out = [];
+  let run = '';
+  for (let i = 0; i < raw.length; i += 1) {
+    const w = raw[i];
+    if (w.length === 1) { run += w; continue; }
+    if (run && w === 'and' && raw[i + 1] && raw[i + 1].length === 1) continue;
+    if (run) { out.push(run); run = ''; }
+    out.push(w);
+  }
+  if (run) out.push(run);
+  return out;
+}
+
+/**
+ * Whether two business names can belong to the same firm: the same words
+ * once joined ("M&G Electric" / "M & G ELECTRIC"), a shared distinctive word
+ * ("Pearson Mechanical" / "PEARSON AIR CONSTRUCTION"), or one is the other's
+ * initials ("Electrical Panel Xperts" / "EPX", "Down the Street Electric" /
+ * "DTS ELECTRIC"). A phone alone is not enough: builders and solar
+ * installers list their electrician's number (identity-recon --precision,
+ * 2026-11-14: 106 of 831 phone links had unrelated names).
+ */
+function namesCompatible(a, b) {
+  const wa = words(a);
+  const wb = words(b);
+  if (!wa.length || !wb.length) return false;
+  if (wa.join('') === wb.join('')) return true;
+  const da = wa.filter((w) => !TRADE_WORDS.has(w) && !LINK_WORDS.has(w));
+  const db = wb.filter((w) => !TRADE_WORDS.has(w) && !LINK_WORDS.has(w));
+  if (da.length && da.join('') === db.join('')) return true;
+  if (da.some((w) => w.length >= 2 && db.includes(w))) return true;
+  const inits = (ws) => [ws.map((w) => w[0]).join(''), ws.filter((w) => !TRADE_WORDS.has(w)).map((w) => w[0]).join('')].filter((x) => x.length >= 2);
+  return inits(wa).some((i) => db.includes(i)) || inits(wb).some((i) => da.includes(i));
+}
+
 /**
  * Links our contractors to licences.
  * @param {{id, identityKey, normalizedName, state, partyKind, phones: string[]}[]} contractors
  * @param {object[]} licences mapped rows from one provider
  * @returns {{contractorId, licenceKey, rule, confidence}[]}
  *   licence: the permit's own licence number (FL)              0.95
- *   phone:   the contractor's shown phone is the licence's      0.90
+ *   phone:   the contractor's shown phone is the licence's, and
+ *            the two names are compatible (namesCompatible)    0.90
  *   name_state: same normalized business name, same state      0.80
  */
 function matchLicences(contractors, licences, state) {
@@ -148,7 +195,9 @@ function matchLicences(contractors, licences, state) {
     const lic = c.identityKey.startsWith(`lic:${state}:`) ? normalizeFlLicence(c.identityKey.split(':').slice(2).join(':')) : null;
     if (lic && byKey.has(lic)) add(c, byKey.get(lic), 'licence', 0.95);
     if (c.partyKind !== 'business') continue; // names and phones of people are not matched (rule 5)
-    for (const p of c.phones || []) for (const l of byPhone.get(p) || []) add(c, l, 'phone', 0.9);
+    for (const p of c.phones || []) {
+      for (const l of byPhone.get(p) || []) if (namesCompatible(c.normalizedName, l.businessName)) add(c, l, 'phone', 0.9);
+    }
     // A name shared by several licences is ambiguous: no match rather than a guess.
     const named = byName.get(c.normalizedName) || [];
     if (named.length === 1) add(c, named[0], 'name_state', 0.8);
@@ -156,4 +205,4 @@ function matchLicences(contractors, licences, state) {
   return out;
 }
 
-module.exports = { PROVIDERS, usDate, normalizeFlLicence, parseCsvLine, mapDbprRow, mapTdlrRow, matchLicences };
+module.exports = { PROVIDERS, usDate, normalizeFlLicence, parseCsvLine, mapDbprRow, mapTdlrRow, matchLicences, namesCompatible };

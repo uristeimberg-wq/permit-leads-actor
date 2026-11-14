@@ -77,3 +77,45 @@ this sample; splits are 9.0% after v5, so the target is not met. The rest:
 
 Re-run the sample after the first sync with v5 and Sunbiz loaded to measure
 v5 on its own records rather than by simulation.
+
+## Precision of name- and phone-based links (2026-11-14, evening)
+
+`recon/identity_recon.js --precision` on the live database (identity-recon
+run 43638898914). These links are class C and hidden on screens (ADR-26); the
+numbers say how far they could be trusted. Labelled by hand on fixed samples
+(md5 order), plus two checks that need no judgement.
+
+| Link | Links | Hand-labelled sample | Objective checks |
+| --- | --- | --- | --- |
+| Texas Comptroller, exact name, one taxpayer | 1,298 | 39 of 40 plausible. Doubtful: "M & C ELECTRIC Inc" (Taylor) -> a Dallas company from 1972 whose franchise tax ended | Registered after the contractor's last permit: 3 (0.2%). Registry address outside Texas: 56 (4.3%) |
+| TDLR, phone | 831 | 29 of 30. Wrong: "Legacy Falls Development" on POWERTECH ELECTRIC's phone (a builder listing its electrician) | Licence expired before the last permit: 32 (3.9%) |
+| TDLR, exact name | 735 | 28 of 30. Doubtful: generic names far apart ("Mitchell Electric" Austin -> Fort Davis; "White Construction" Austin -> Clinton) | |
+| DBPR, exact name | 955 | 30 of 30 | Licence address outside Florida: 23 (2.4%), mostly typos ("MIAMI GA") |
+| Sunbiz | 0 | Not yet linked in production: every Sunbiz run failed on the SFTP host key until PR #76 | |
+
+Change made: a phone link now also needs the two names to share a distinctive
+word or initials (`namesCompatible`, `src/enrichment/licences.js`). It drops
+the builder-on-electrician's-phone case and keeps "Pearson Mechanical" ->
+"PEARSON AIR CONSTRUCTION" and "Electrical Panel Xperts" -> "EPX ENERGY".
+Against all 831 live phone links, a first version flagged 106 (12.8%); about
+a third of those were the same firm spelled differently ("M&G" / "M & G",
+"MLJ" / "M L J"), so the rule now joins single letters and compares the
+names whole before looking for a shared word. The rest are other firms on the
+same number: builders and solar installers listing their electrician
+("Security Solar" on FACILITY INNOVATIONS GROUP's phone, "Triangle Electrical"
+on PROTO ELECTRIC's). With the refined rule, 57 of 831 live phone links
+(6.9%) are dropped (identity-recon run 43640776098). By hand, 33 of the first
+40 dropped are another firm; about 7 are the same firm with a typo or a
+second trading name ("POWER ENTERPRIZES", "AUSTIN ELECTRIC SERV"), which we
+now lose. Net: roughly 1 phone link in 17 pointed at another firm, which the
+sample of 30 had under-counted.
+
+What official keys can and cannot do here:
+
+- Austin publishes no contractor licence or registry number, so no Texas link
+  can rest on an official key. Raising the Comptroller match rate (it grows by
+  about 500 names a night as the backlog is worked) does not change what
+  screens show under ADR-26.
+- City of Miami publishes no licence number either, so the Florida splits
+  that remain (9.0%) can only be closed by name rules. Those would be class C,
+  so the 3% split target is not pursued by adding name merges.

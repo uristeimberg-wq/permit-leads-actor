@@ -57,3 +57,28 @@ check('matching: licence number, then phone, then a unique name; people are matc
   // Twin: two licences share the name, so no match. The individual: nothing.
   assert.deepStrictEqual(tx, [[2, 'Electrical Contractor:1', 'phone']]);
 });
+
+check('phone links need compatible names (identity-recon --precision sample, 2026-11-14)', () => {
+  assert.strictEqual(L.namesCompatible('legacy falls development', 'POWERTECH ELECTRIC LLC'), false);
+  assert.strictEqual(L.namesCompatible('pearson mechanical', 'PEARSON AIR CONSTRUCTION LLC'), true);
+  assert.strictEqual(L.namesCompatible('electrical panel xperts', 'EPX ENERGY'), true);
+  assert.strictEqual(L.namesCompatible('stans heating air plumbing', "STAN'S HEATING & AIR CONDITIONING LLC"), true);
+  assert.strictEqual(L.namesCompatible('austin electric', 'TEXAS ELECTRIC SERVICES'), false);
+  // Same firm, written differently (the first version of the rule dropped these).
+  for (const [a, b] of [['M&G Electric Contractor LLC', 'M&G ELECTRIC CONTRACTOR LLC'], ['MLJ Electric', 'M L J ELECTRIC'],
+    ['Austin Homes Systems', 'AUSTIN HOME SYSTEMS INC'], ['Down the Street Electric', 'DTS ELECTRIC'], ['F 5 Electric LLC', 'F5 ELECTRIC LLC'],
+    ['Suntech Electric Inc.', 'SUN TECH ELECTRICAL CONTRACTORS INC'], ['S and S Electrical Services', 'S & S ELECTRICAL']]) {
+    assert.strictEqual(L.namesCompatible(a, b), true, `${a} / ${b}`);
+  }
+  // Another firm on the same phone.
+  for (const [a, b] of [['Security Solar, LLC', 'FACILITY INNOVATIONS GROUP, INC.'], ['Triangle Electrical Contractors', 'PROTO ELECTRIC'],
+    ['Big Six Electrical Services LLC', 'G&M ELECTRIC'], ['G5 Electric LLC', 'TTT SERVICES INC']]) {
+    assert.strictEqual(L.namesCompatible(a, b), false, `${a} / ${b}`);
+  }
+  const licences = [{ licenceKey: 'Electrical Contractor:9', businessName: 'POWERTECH ELECTRIC LLC', phone: '+15125550100' }];
+  const cs = [
+    { id: 7, identityKey: 'name:TX:legacy falls development', normalizedName: 'legacy falls development', state: 'TX', partyKind: 'business', phones: ['+15125550100'] },
+    { id: 8, identityKey: 'name:TX:powertech electric', normalizedName: 'powertech electric', state: 'TX', partyKind: 'business', phones: ['+15125550100'] },
+  ];
+  assert.deepStrictEqual(L.matchLicences(cs, licences, 'TX').map((m) => [m.contractorId, m.rule]), [[8, 'phone']]);
+});
