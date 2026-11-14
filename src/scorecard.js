@@ -12,7 +12,7 @@
 // v3 (2026-11-14): the four brief metrics that were missing: pre-issue
 // capture, discovery latency (p50, p90), property enrichment depth and the
 // duplicate rate. `lower: true` marks a metric where lower is better.
-const METHOD_VERSION = 'scorecard-v3';
+const METHOD_VERSION = 'scorecard-v4';
 
 // Events we were watching for: the source's own date on or after the day of
 // that source's first successful sync. Rows dated earlier came in the first
@@ -153,7 +153,8 @@ const METRICS = {
                    + (coalesce(c.assessed_value, c.land_value, c.improvement_value) IS NOT NULL)::int
                    + (coalesce(c.bedrooms, c.bathrooms) IS NOT NULL)::int AS n
               FROM permits p JOIN permit_parcels x ON x.permit_id = p.id JOIN parcels c ON c.id = x.parcel_id AND c.found
-             ORDER BY p.id, c.id) t GROUP BY 1`,
+             -- The richest linked parcel: a map-point-only parcel (austin-parcels) has no facts.
+             ORDER BY p.id, n DESC, c.id) t GROUP BY 1`,
   },
   duplicate_rate: {
     unit: 'share', target30: null, target90: 0.01, lower: true,

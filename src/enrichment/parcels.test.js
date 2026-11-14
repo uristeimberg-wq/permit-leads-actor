@@ -93,3 +93,17 @@ check('a polygon centroid: a unit square, with or without a hole, and nothing fo
   assert.strictEqual(polygonCentroid(null), null);
   assert.strictEqual(polygonCentroid({ rings: [[[0, 0], [1, 1], [0, 0]]] }), null);
 });
+
+check('Austin parcel geometry: point only, keyed by the 10-digit geo id, and only its two fields asked', () => {
+  const A = PROVIDERS['austin-parcels'];
+  assert.ok(A.pointOnly);
+  assert.deepStrictEqual(A.outFields, ['PID_10', 'PROP_ID']);
+  assert.strictEqual(A.normalizeKey('0172150101'), '0172150101');
+  assert.strictEqual(A.normalizeKey('R000222'), null, 'a property id is not a geo id');
+  const p = mapParcel({ attributes: { PID_10: '0172150101', PROP_ID: 176276 },
+    geometry: { rings: [[[-97.8, 30.4], [-97.8, 30.402], [-97.798, 30.402], [-97.798, 30.4], [-97.8, 30.4]]] } }, A);
+  assert.strictEqual(p.parcelKey, '0172150101');
+  assert.ok(Math.abs(p.lat - 30.401) < 1e-9 && Math.abs(p.lng + 97.799) < 1e-9);
+  assert.strictEqual(p.yearBuilt, undefined, 'no property facts');
+  assert.deepStrictEqual(p.payload, { PID_10: '0172150101', PROP_ID: 176276 });
+});

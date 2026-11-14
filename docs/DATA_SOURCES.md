@@ -517,6 +517,27 @@ files).
 **Recommendation: use**, joined on pin. Closes the audit's Raleigh gap
 (0% parcel linked) and gives unlocated Raleigh permits a parcel point.
 
+### City of Austin parcel geometry (`austin-parcels`, connected 2026-11-14)
+
+| Field | Value |
+| --- | --- |
+| Why | 10,146 of 58,741 Austin permits (17.3%) had no map point (sync run 43618444328): no source coordinates, and the Census found no match (mostly plain street lines, likely new streets). The Travis CAD export has no coordinates |
+| Endpoint | `https://services.arcgis.com/0L95CJ0VTaxqcmED/arcgis/rest/services/EXTERNAL_tcad_parcel/FeatureServer/0` (ArcGIS item `6f5f919cf5c948cfaa3b3c326af3fba3`, owner `CTM.Publisher`, City of Austin org, public) |
+| Reachable | From Actions, yes (feasibility runs 43623531336, 43623969955, 43625080989, 2026-11-14) |
+| Type | Polygon feature layer, `maxRecordCount` 2000, last edited 2026-11-02 |
+| Volume | 386,682 parcels |
+| Key | `PID_10`, the 10-digit Travis CAD geo id as a string. Austin permits carry the same id as `tcad_id` (97.6% of distinct ids from recent unlocated permits have that shape; the rest are the `R000222` property-id form, which is not asked). **280 of 300 (93.3%) recent unlocated permits' ids found**, with no duplicate `PID_10` rows in a 40-id sample |
+| Loaded | `PID_10`, `PROP_ID` and the polygon, generalised to about 2 m. The parcel point is the polygon's area centroid. Nothing else: property facts stay with Travis CAD |
+| Never loaded | Every other field. `ZONING` exists but was 0% filled in a 38-parcel sample; `LAND_VALUE` duplicates Travis CAD |
+| Compared | The county's own `gis.traviscountytx.gov/.../TCAD_public/MapServer/0` (copyright TCAD, 389,622 parcels) found 84.7% of the same ids, and a situs number + street match on it found 69% |
+| Caveats | A centroid can fall outside an L-shaped lot. It is a parcel point, not a building point. Condo and multi-lot geo ids are one polygon here |
+| Terms | The item's licence text is a disclaimer only (informational purposes, approximate boundaries, no warranty), read 2026-11-14. There is no licence grant or restriction. The geometry is Travis CAD's, whose release is covered by COMPLIANCE 1.11. Credit: "City of Austin (CTM), Travis Central Appraisal District parcels" |
+| Fixture | `test/fixtures/enrichment/austin-parcels.json` (three parcels named by unlocated permits) |
+
+**Recommendation: use** for map points only, joined on `tcad_id`. This should
+close most of the Austin location gap. Confirm with the scorecard after the
+next sync.
+
 ### Texas Comptroller, franchise tax (`tx-comptroller`, connected 2026-11-14)
 
 | Field | Value |

@@ -151,6 +151,14 @@ jobs:
         env:
           DATABASE_URL: ${{ env.DB_URL }}
         run: set -o pipefail; node ingest/enrich_parcels.js --provider=wake-parcels | tee -a "$GITHUB_STEP_SUMMARY"
+      # Austin parcel centroids (City of Austin copy of the Travis CAD
+      # polygons), by the permit's tcad_id, so Locate permits can place the
+      # Austin permits the Census misses. Point only, no property facts.
+      - name: Austin parcel points
+        if: always() && steps.secret.outputs.ready == 'true'
+        env:
+          DATABASE_URL: ${{ env.DB_URL }}
+        run: set -o pipefail; node ingest/enrich_parcels.js --provider=austin-parcels | tee -a "$GITHUB_STEP_SUMMARY"
       # Travis CAD property facts for Austin (ADR-15 step 3b; use rules in
       # docs/COMPLIANCE.md). Downloads a ~510 MB zip and streams it.
       - name: Enrich Travis CAD

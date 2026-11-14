@@ -9,7 +9,7 @@
 // - Every run is a sync_runs row for the provider's source, with its error
 //   class, so source_health and the health alarm watch it (rule 3).
 //
-//   node ingest/enrich_parcels.js [--provider=miami-dade-pa|wake-parcels] [--max=20000]
+//   node ingest/enrich_parcels.js [--provider=miami-dade-pa|wake-parcels|austin-parcels] [--max=20000]
 
 const db = require('../db/index.js');
 const { PROVIDERS, buildParcelQuery, mapParcel } = require('../src/enrichment/parcels.js');

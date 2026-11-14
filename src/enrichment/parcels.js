@@ -8,6 +8,12 @@
 //   - wake-parcels: Wake County's parcel polygons, keyed by 10-digit PIN,
 //     joined to Raleigh permits' `pin` (94.3% of recent pins found, probe run
 //     43593964325). The point is the polygon's area centroid.
+//   - austin-parcels: the City of Austin's copy of the Travis CAD parcel
+//     polygons (EXTERNAL_tcad_parcel), keyed by the 10-digit geo id that
+//     Austin permits carry as `tcad_id` (93.3% of recent unlocated permits'
+//     ids found, probe run 43623969955). Point only (`pointOnly`): it gives
+//     the permit a map point from the parcel centroid; property facts stay
+//     with travis-cad. ZONING exists but was 0% filled (run 43625080989), so it is not asked.
 //
 // Owner, mailing, deed, sale and exemption fields exist on these layers and
 // are never requested (rule 5): outFields is an explicit list, not '*', and
@@ -49,7 +55,28 @@ const PROVIDERS = {
     normalizeKey: (v) => normalizePin(v),
     map: (f) => mapWake(f),
   },
+  'austin-parcels': {
+    label: 'City of Austin parcel geometry (Travis CAD parcels)',
+    layerUrl: 'https://services.arcgis.com/0L95CJ0VTaxqcmED/arcgis/rest/services/EXTERNAL_tcad_parcel/FeatureServer/0',
+    keyField: 'PID_10',
+    permitKeyFields: { 'austin-tx': 'tcad_id' },
+    // Parcel lines change rarely; the city republishes the layer every few weeks.
+    refreshDays: 30,
+    outFields: ['PID_10', 'PROP_ID'],
+    polygon: true,
+    // A map point, not property facts: never chosen for the property panel
+    // or counted for enrichment depth.
+    pointOnly: true,
+    matchRule: 'tcad_geo_id',
+    // Austin writes the Travis CAD geo id as 10 digits; the letter + digits
+    // form (R000222) is a property id, which this layer is not keyed by.
+    normalizeKey: (v) => normalizePin(v),
+    map: (f) => mapAustinGeometry(f),
+  },
 };
+
+/** Providers that only place a permit on the map. */
+const POINT_ONLY = Object.keys(PROVIDERS).filter((k) => PROVIDERS[k].pointOnly);
 
 // Never requested, never kept in a payload: owner and mailing names and
 // addresses, ownership and billing class (they say whether the owner is a
@@ -83,16 +110,22 @@ function normalizePin(value) {
  */
 function polygonCentroid(geometry) {
   const rings = (geometry && geometry.rings) || [];
+  if (!rings.length || !rings[0].length) return null;
+  // Relative to the first vertex: in raw lng/lat the cross products are
+  // ~3,000 while a city lot's area is ~1e-7, and the cancellation moved a
+  // 200 m test square's centroid by 0.4 m.
+  const [ox, oy] = rings[0][0];
   let a = 0; let cx = 0; let cy = 0;
   for (const ring of rings) {
     for (let i = 0; i < ring.length - 1; i += 1) {
-      const [x0, y0] = ring[i]; const [x1, y1] = ring[i + 1];
+      const x0 = ring[i][0] - ox; const y0 = ring[i][1] - oy;
+      const x1 = ring[i + 1][0] - ox; const y1 = ring[i + 1][1] - oy;
       const cross = x0 * y1 - x1 * y0;
       a += cross; cx += (x0 + x1) * cross; cy += (y0 + y1) * cross;
     }
   }
-  if (!rings.length || Math.abs(a) < 1e-14) return null;
-  return { lng: cx / (3 * a), lat: cy / (3 * a) };
+  if (Math.abs(a) < 1e-14) return null;
+  return { lng: ox + cx / (3 * a), lat: oy + cy / (3 * a) };
 }
 
 /**
@@ -199,4 +232,16 @@ function mapWake(feature) {
   };
 }
 
-module.exports = { PROVIDERS, OWNER_FIELD, normalizeFolio, normalizePin, polygonCentroid, buildParcelQuery, mapParcel };
+/** City of Austin parcel geometry: the centroid and nothing else as a fact. */
+function mapAustinGeometry(feature) {
+  const a = feature.attributes || {};
+  const c = polygonCentroid(feature.geometry);
+  return {
+    parcelKey: normalizePin(a.PID_10),
+    lat: c ? c.lat : null,
+    lng: c ? c.lng : null,
+    payload: cleanPayload(a),
+  };
+}
+
+module.exports = { PROVIDERS, POINT_ONLY, OWNER_FIELD, normalizeFolio, normalizePin, polygonCentroid, buildParcelQuery, mapParcel };

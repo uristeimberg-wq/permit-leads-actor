@@ -11,6 +11,7 @@
 
 const { query } = require('./index.js');
 const { valueBand } = require('../src/value_bands.js');
+const { POINT_ONLY } = require('../src/enrichment/parcels.js');
 const { publicAliases } = require('../src/privacy.js');
 const { maskDescription } = require('../src/description_names.js');
 const { SEGMENTS, segmentOf, pickFiler } = require('../src/filers.js');
@@ -392,8 +393,8 @@ async function propertyFor(permitId) {
            pc.match_rule, s.slug, s.endpoint_url, s.attribution_text
       FROM permit_parcels pc JOIN parcels c ON c.id = pc.parcel_id
       JOIN sources s ON s.slug = pc.provider
-     WHERE pc.permit_id = $1 AND c.found
-     ORDER BY pc.provider LIMIT 1`, [permitId]);
+     WHERE pc.permit_id = $1 AND c.found AND pc.provider <> ALL($2::text[])
+     ORDER BY pc.provider LIMIT 1`, [permitId, POINT_ONLY]);
   if (!r) return null;
   const num = (v) => (v == null ? null : Number(v));
   return {
