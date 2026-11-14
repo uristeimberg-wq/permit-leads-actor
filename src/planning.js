@@ -91,6 +91,13 @@ function mapCase(source, row) {
   if (!out.address && p.addressParts) {
     out.address = clean(p.addressParts.map((k) => clean(row[k])).filter(Boolean).join(' '));
   }
+  // A key built from several columns: one DERM allocation number covers a
+  // group of lots, one row per lot (hand check 2026-11-14), so the case is the
+  // allocation's lot, not the allocation.
+  if (p.caseNumberParts) {
+    const parts = p.caseNumberParts.map((k) => clean(row[k]));
+    out.caseNumber = parts[0] ? parts.map((x) => x || '-').join(' | ') : null;
+  }
   if (!out.caseNumber) return null;
   if (p.addressMustStartWithNumber && out.address && !/^\d/.test(out.address)) out.address = null;
   if (p.recordUrlTemplate && out.caseNumber && !out.recordUrl) out.recordUrl = p.recordUrlTemplate.replace('{id}', encodeURIComponent(out.caseNumber));
@@ -112,7 +119,11 @@ function validatePlanning(slug, source) {
   const problems = [];
   const p = source.planning;
   if (!p || !p.fields) return [`${slug}: kind 'planning' needs a planning.fields block`];
-  if (!p.fields.caseNumber) problems.push(`${slug}: planning.fields.caseNumber is required`);
+  if (!p.fields.caseNumber && !p.caseNumberParts) problems.push(`${slug}: planning.fields.caseNumber or planning.caseNumberParts is required`);
+  for (const l of p.links || []) {
+    if (l.enabled === false && !l.offReason) problems.push(`${slug}: a disabled link needs offReason`);
+    if (l.kind === 'parcel_window' && l.enabled !== false && !(l.measured && l.measured.read > 0)) problems.push(`${slug}: a parcel_window link needs a measured hand check before it is enabled`);
+  }
   for (const k of Object.keys(p.fields)) if (!ATTRIBUTES.includes(k)) problems.push(`${slug}: unknown planning field "${k}"`);
   if (p.caseKind && !CASE_KINDS.includes(p.caseKind)) problems.push(`${slug}: unknown caseKind "${p.caseKind}"`);
   for (const [raw, kind] of Object.entries(p.caseKinds || {})) {

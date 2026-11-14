@@ -632,8 +632,12 @@ const SOURCES = {
       parties: [{ role: 'applicant', field: 'applicant_organization_name' }, { role: 'owner', field: 'owner_organization_name' }],
       // 81 of the newest 200 site plans share a propertyrsn with a plan-review
       // case (probe 2026-11-14). Same property, not the same project: inferred.
+      // Hand check 2026-11-14 (recon/planning_checks.js austin-site): of 30
+      // linked pairs read side by side, 18 were the same project, 9 a
+      // different job on the same lot, 3 unclear. Confidence = 18/30.
       links: [{ kind: 'parcel_window', to: 'austin-plan-review-tx', caseColumn: 'property_ref', permitField: 'propertyrsn',
-        days: 1095, confidence: 0.6, detail: 'plan review propertyrsn = site plan propertyrsn, filed within 3 years after' }],
+        days: 1095, confidence: 0.6, detail: 'plan review propertyrsn = site plan propertyrsn, filed within 3 years after',
+        measured: { checkedOn: '2026-11-14', read: 30, same: 18, different: 9, unclear: 3 } }],
     },
     lifecycle: { statuses: AUSTIN_CASE_STATUSES },
   },
@@ -675,8 +679,13 @@ const SOURCES = {
       addressParts: ['street_number', 'street_prefix', 'street_name', 'street_type', 'street_direction'],
       parties: [{ role: 'applicant', field: 'applicant_organization_name' }, { role: 'owner', field: 'owner_organization_name' }],
       // 43 of the newest 200 share a propertyrsn with a plan-review case.
+      // Off after the hand check 2026-11-14 (austin-subdiv): houses are filed
+      // on their own new lot ids, so the subdivision's propertyrsn almost
+      // never reappears (2 of 724 house cases on 20 recorded subdivisions).
       links: [{ kind: 'parcel_window', to: 'austin-plan-review-tx', caseColumn: 'property_ref', permitField: 'propertyrsn',
-        days: 1095, confidence: 0.5, detail: 'plan review propertyrsn = subdivision propertyrsn, filed within 3 years after' }],
+        days: 1095, confidence: 0.5, detail: 'plan review propertyrsn = subdivision propertyrsn, filed within 3 years after',
+        enabled: false, offReason: 'houses are filed on new lot ids: 2 of 724 matched (hand check 2026-11-14)',
+        measured: { checkedOn: '2026-11-14', read: 724, same: 2 } }],
     },
     lifecycle: { statuses: AUSTIN_CASE_STATUSES },
   },
@@ -716,8 +725,17 @@ const SOURCES = {
       // Building permits name the parcel PIN; devplanid is not a key of either
       // plan layer (integer vs GUID plplanid, probe 2026-11-14), so the link is
       // by parcel and time only.
+      // Hand check 2026-11-14 (raleigh): any later permit on the PIN was the
+      // plan's project in only 8 of 30 pairs (11 different, 11 unclear); many
+      // plans are minor site reviews. Restricted to new-construction permits
+      // (workclassmapped = New, 789 of 3,112 link rows) the same check read 30
+      // evenly sampled pairs: 24 same, 4 different, 2 unclear. Many first
+      // "new" permits are accessory structures (dumpster pads, enclosures) of
+      // the right project, so the link says "same site", not "the building".
       links: [{ kind: 'parcel_window', to: 'raleigh-nc', caseColumn: 'parcel_id', permitField: 'pin',
-        days: 1095, confidence: 0.6, detail: 'permit pin = plan main_parcel_number, filed within 3 years after' }],
+        permitFilter: { field: 'workclassmapped', equals: 'New' },
+        days: 1095, confidence: 0.8, detail: 'permit pin = plan main_parcel_number, new-construction permit filed within 3 years after',
+        measured: { checkedOn: '2026-11-14', read: 30, same: 24, different: 4, unclear: 2, anyPermit: { read: 30, same: 8 } } }],
     },
     lifecycle: { statuses: RALEIGH_PLAN_STATUSES },
   },
@@ -795,10 +813,17 @@ const SOURCES = {
     fieldMap: { permitNumber: 'EEOSALLCNO', filedDate: 'SWRCRTDATE' },
     planning: {
       caseKind: 'utility_allocation',
+      // One allocation number covers a group of lots, one row per lot, often
+      // each with its own process number (36 allocations in a year, a median
+      // 4 lots; hand check 2026-11-14). Keyed by allocation number alone, all
+      // but one lot was dropped. The case is the lot: allocation, folio and
+      // address; the allocation number is the case_ref. An address the county
+      // re-types makes a new case; the old one stops being seen (last_seen_at).
+      caseNumberParts: ['EEOSALLCNO', 'FOLIO', 'ADDRESS'],
       fields: {
         // SWRCRTDATE is the certification date. The request date SWRRCTDATE is
         // on 0.2% of rows, so it is not used as the filing date.
-        caseNumber: 'EEOSALLCNO', status: 'SWRAPVCODE', filedOn: 'SWRCRTDATE', expiresOn: 'EXPDT90DAY',
+        caseRef: 'EEOSALLCNO', status: 'SWRAPVCODE', filedOn: 'SWRCRTDATE', expiresOn: 'EXPDT90DAY',
         description: 'EEOSPRJDSC', address: 'ADDRESS', parcel: 'FOLIO', officialRef: 'BLDPROCNO',
         flowGpd: 'PRPDFLWGPD',
       },

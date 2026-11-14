@@ -77,7 +77,8 @@ check('Raleigh plan details: developer stored with its kind; a person-shaped nam
 check('DERM sewer certification: utility allocation, flow, folio, process number as the official ref', () => {
   const src = SOURCES['miami-derm-sewer-fl'];
   const c = mapCase(src, fixture('miami-derm-sewer-fl')[0]);
-  assert.strictEqual(c.caseNumber, '2026-ALLOCATION-03641');
+  assert.strictEqual(c.caseNumber, '2026-ALLOCATION-03641 | 3050160190080 | 8846 SW 129 TER');
+  assert.strictEqual(c.caseRef, '2026-ALLOCATION-03641');
   assert.strictEqual(c.caseKind, 'utility_allocation');
   assert.strictEqual(c.parcel, '3050160190080');
   assert.strictEqual(c.officialRef, 'U2026004290');
@@ -87,6 +88,36 @@ check('DERM sewer certification: utility allocation, flow, folio, process number
   assert.strictEqual(mapCase(src, { EEOSALLCNO: 'A', SWRAPVCODE: 'APP' }).lifecycleStage, 'approved');
   assert.strictEqual(mapCase(src, { EEOSALLCNO: 'A', SWRAPVCODE: 'BPEXP' }).lifecycleStage, 'expired');
   assert.strictEqual(mapCase(src, { EEOSALLCNO: 'A', BLDPROCNO: 'N/A' }).officialRef, null);
+});
+
+check('one DERM allocation over several lots is one case per lot, each with its own process number', () => {
+  const src = SOURCES['miami-derm-sewer-fl'];
+  const lot = (address, proc) => ({ EEOSALLCNO: '2025-ALLOCATION-04612', FOLIO: '3069350000080', ADDRESS: address, BLDPROCNO: proc, SWRAPVCODE: 'APP' });
+  const a = mapCase(src, lot('13339 SW 265 TER', 'C2025154944'));
+  const b = mapCase(src, lot('13374 SW 265 TER', 'C2025154949'));
+  assert.notStrictEqual(a.caseNumber, b.caseNumber);
+  assert.deepStrictEqual([a.caseRef, a.officialRef, b.officialRef], ['2025-ALLOCATION-04612', 'C2025154944', 'C2025154949']);
+  assert.strictEqual(mapCase(src, lot('13339 SW 265 TER', 'C2025154944')).caseNumber, a.caseNumber, 'stable on re-runs');
+  assert.strictEqual(mapCase(src, { FOLIO: '1', ADDRESS: 'x' }), null, 'no allocation number: no case');
+});
+
+check('links: a parcel rule needs a hand check to be on, and a rule that failed one is off with its reason', () => {
+  for (const [slug, s] of Object.entries(SOURCES).filter(([, x]) => x.kind === 'planning')) {
+    for (const l of s.planning.links || []) {
+      if (l.kind !== 'parcel_window') continue;
+      assert.ok(l.measured && l.measured.read > 0, `${slug}: no hand check`);
+      if (l.enabled !== false) assert.ok(l.measured.same / l.measured.read >= 0.6, `${slug}: on below the 60% bar`);
+    }
+  }
+  assert.strictEqual(SOURCES['austin-subdivisions-tx'].planning.links[0].enabled, false);
+  const ral = SOURCES['raleigh-plan-areas-nc'].planning.links[0];
+  assert.notStrictEqual(ral.enabled, false, 'Raleigh is on for new construction only');
+  assert.deepStrictEqual(ral.permitFilter, { field: 'workclassmapped', equals: 'New' });
+  const base = { planning: { fields: { caseNumber: 'a' } } };
+  assert.deepStrictEqual(validatePlanning('x', { planning: { ...base.planning, links: [{ kind: 'parcel_window' }] } }),
+    ['x: a parcel_window link needs a measured hand check before it is enabled']);
+  assert.deepStrictEqual(validatePlanning('x', { planning: { ...base.planning, links: [{ kind: 'parcel_window', enabled: false }] } }),
+    ['x: a disabled link needs offReason']);
 });
 
 check('a row without a case number is skipped, not stored under a made-up key', () => {

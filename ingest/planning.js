@@ -102,7 +102,11 @@ const planningSources = () => Object.entries(SOURCES).filter(([, s]) => s.kind =
  *     devplanid). Confidence 1.00.
  *   parcel_window: the same property or parcel, and the permit was submitted
  *     on or after the case was filed, within `days`. Inferred: a property can
- *     hold several projects, so confidence is below 1 and it is never merged.
+ *     hold several projects, so it is never merged. Its confidence is the
+ *     share of hand-checked pairs that were the same project (`measured`);
+ *     a rule below the bar has `enabled: false` and writes no links.
+ *   permitFilter { field, equals }: only permits whose latest raw payload
+ *     field equals this (Raleigh: new construction only).
  */
 const CASE_COLUMNS = new Set(['case_number', 'case_ref', 'official_ref', 'property_ref', 'parcel_id']);
 
@@ -114,10 +118,14 @@ async function rebuildLinks(client) {
       if (!['official', 'parcel_window'].includes(l.kind)) throw new Error(`${slug}: unknown link kind "${l.kind}"`);
       await client.query(`DELETE FROM planning_case_links k USING planning_cases c
         WHERE k.case_id = c.id AND c.source_area = $1 AND k.basis_detail = $2`, [slug, l.detail]);
+      // A rule whose hand check failed writes nothing, and its old links are
+      // gone (the delete above), so no screen can show them.
+      if (l.enabled === false) { out[`${slug} -> ${l.to} (${l.detail})`] = `off: ${l.offReason}`; continue; }
+      if (l.permitFilter && !/^[a-z_]+$/i.test(l.permitFilter.field)) throw new Error(`${slug}: bad permitFilter field`);
       const official = l.kind === 'official';
       const { rowCount } = await client.query(`
         WITH latest AS (
-          SELECT DISTINCT ON (r.source_key) r.source_key, trim(r.payload ->> $3) AS k
+          SELECT DISTINCT ON (r.source_key) r.source_key, trim(r.payload ->> $3) AS k, r.payload
             FROM raw_records r JOIN sources s ON s.id = r.source_id
            WHERE s.slug = $2 AND nullif(trim(r.payload ->> $3), '') IS NOT NULL
            ORDER BY r.source_key, r.fetched_at DESC, r.id DESC)
@@ -127,10 +135,12 @@ async function rebuildLinks(client) {
           JOIN latest x ON x.k = c.${l.caseColumn}
           JOIN permits p ON p.source_area = $2 AND p.permit_number = x.source_key
          WHERE c.source_area = $1
+           AND ($8::text IS NULL OR lower(trim(x.payload ->> $8)) = lower($9))
            AND ($7::int IS NULL OR (c.filed_on IS NOT NULL
                 AND COALESCE(p.submitted_on, p.filed_date) BETWEEN c.filed_on AND c.filed_on + $7::int))
         ON CONFLICT DO NOTHING`, [slug, l.to, l.permitField, l.detail,
-        official ? 'official_reference' : 'parcel_window', official ? 1 : l.confidence, official ? null : l.days]);
+        official ? 'official_reference' : 'parcel_window', official ? 1 : l.confidence, official ? null : l.days,
+        l.permitFilter ? l.permitFilter.field : null, l.permitFilter ? l.permitFilter.equals : null]);
       out[`${slug} -> ${l.to} (${l.detail})`] = rowCount;
     }
   }

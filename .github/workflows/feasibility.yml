@@ -44,7 +44,7 @@ on:
         description: "Early-signal backtest (recon/early_backtest.js, DATA_STRATEGY P0): 'yes' runs only this"
         default: ''
       planning:
-        description: "Planning-source probe (recon/planning_probe.js): 'all' or a comma list of raleigh-devplans,raleigh-plan-areas,austin-site-plans,austin-subdivisions,miami-derm-sewer,miami-derm-lead,miami-wasd-allocation; runs only this"
+        description: "Planning-source probe (recon/planning_probe.js): 'all' or a comma list of raleigh-devplans,raleigh-plan-areas,austin-site-plans,austin-subdivisions,miami-derm-sewer,miami-derm-lead,miami-wasd-allocation, or 'checks[:austin-site,austin-subdiv,derm-dupes,derm-codes,derm-lead,raleigh]' for the link hand checks; runs only this"
         default: ''
 
 jobs:
@@ -92,7 +92,13 @@ jobs:
         timeout-minutes: 25
         run: node recon/early_backtest.js --out=feasibility-report/early-backtest
       - if: inputs.planning != ''
-        run: node recon/planning_probe.js --only="$PLANNING" --pad
+        # 'checks' or 'checks:<list>' runs the link hand checks (recon/planning_checks.js).
+        run: |
+          case "$PLANNING" in
+            checks) node recon/planning_checks.js --pad ;;
+            checks:*) node recon/planning_checks.js --only="${PLANNING#checks:}" --pad ;;
+            *) node recon/planning_probe.js --only="$PLANNING" --pad ;;
+          esac
         env:
           PLANNING: ${{ inputs.planning }}
       - if: inputs.descriptions != ''

@@ -100,6 +100,32 @@ async function main() {
       // 2026-2 PR shares the property but was filed years before the site plan.
       assert.deepStrictEqual(links.map((l) => [l.case_number, l.permit_number, l.link_basis, l.confidence]), [['1', '2026-1 PR', 'parcel_window', 0.6]]);
     });
+    await check('a link rule that failed its hand check writes nothing and removes its old links', async () => {
+      const [{ id: caseId }] = await q(`INSERT INTO planning_cases (source_area, case_number, case_kind, lifecycle_stage, first_seen_stage, content_hash)
+        VALUES ('austin-subdivisions-tx', 'S1', 'subdivision', 'unknown', 'unknown', 'x') RETURNING id`);
+      const [{ id: permitId }] = await q('SELECT id FROM permits ORDER BY id LIMIT 1');
+      const detail = 'plan review propertyrsn = subdivision propertyrsn, filed within 3 years after';
+      await q(`INSERT INTO planning_case_links (case_id, permit_id, link_basis, basis_detail, confidence) VALUES ($1, $2, 'parcel_window', $3, 0.5)`, [caseId, permitId, detail]);
+      const out = await db.withTransaction(rebuildLinks);
+      assert.match(String(out[`austin-subdivisions-tx -> austin-plan-review-tx (${detail})`]), /^off: /);
+      const [{ n }] = await q('SELECT count(*)::int AS n FROM planning_case_links WHERE basis_detail = $1', [detail]);
+      assert.strictEqual(n, 0);
+    });
+    await check('Raleigh links new-construction permits only (permitFilter on the raw payload)', async () => {
+      await q(`INSERT INTO planning_cases (source_area, case_number, case_kind, lifecycle_stage, first_seen_stage, content_hash, parcel_id, filed_on)
+        VALUES ('raleigh-plan-areas-nc', 'SR-1', 'site_plan', 'unknown', 'unknown', 'x', '1700000001', '2026-01-01')`);
+      const [{ id: srcId }] = await q("SELECT id FROM sources WHERE slug = 'raleigh-nc'");
+      const [{ id: runId }] = await q('SELECT id FROM sync_runs ORDER BY id LIMIT 1');
+      for (const [num, wc] of [['R-NEW', 'New'], ['R-OLD', 'Existing']]) {
+        await q(`INSERT INTO permits (source_area, permit_number, submitted_on) VALUES ('raleigh-nc', $1, '2026-03-01')`, [num]);
+        await q(`INSERT INTO raw_records (source_id, source_key, payload_hash, payload, sync_run_id) VALUES ($1, $2, $3, $4, $5)`,
+          [srcId, num, num, JSON.stringify({ permitnum: num, pin: '1700000001', workclassmapped: wc }), runId]);
+      }
+      await db.withTransaction(rebuildLinks);
+      const rows = await q(`SELECT p.permit_number, k.confidence::float AS confidence FROM planning_case_links k
+        JOIN planning_cases c ON c.id = k.case_id JOIN permits p ON p.id = k.permit_id WHERE c.case_number = 'SR-1'`);
+      assert.deepStrictEqual(rows.map((r) => [r.permit_number, r.confidence]), [['R-NEW', 0.8]]);
+    });
   } finally {
     await db.close();
     await admin.query(`DROP DATABASE IF EXISTS ${DB_NAME}`);

@@ -827,8 +827,12 @@ status only, so this history is ours).
 - **Not a window:** `update_date` is rewritten on every row daily.
 - **Link:** `propertyrsn` is shared with a plan-review case for 77 to 81 of
   the newest 200 (two probes). Same property, not the same project, so the
-  link is `parcel_window` (confidence 0.6, plan review filed within 3 years
-  after the site plan). `3syk-w9eu` has no `propertyrsn`.
+  link is `parcel_window` (plan review filed within 3 years after the site
+  plan). `3syk-w9eu` has no `propertyrsn`.
+- **Hand check (2026-11-14, `recon/planning_checks.js`):** 30 linked pairs
+  read side by side: 18 the same project, 9 different, 3 unclear. Confidence
+  is the measured 0.60 (18/30). The linked plan-review cases are mostly
+  commercial and multifamily, not single-family houses.
 
 ### Austin, TX: Subdivision Cases (`austin-subdivisions-tx`, `s7gx-9m54`)
 
@@ -840,8 +844,12 @@ status only, so this history is ours).
   `desc_of_proposed_development` (12%). Owners name the developer (Tri Pointe
   Homes, Brookfield Properties, Spur Mirador Development); applicants are
   engineers (LJA, Carlson Brigance & Doering, Quiddity).
-- **Link:** `propertyrsn` shared with plan review for 43 to 75 of the newest
-  200; `parcel_window`, confidence 0.5.
+- **Link: off (hand check 2026-11-14).** `propertyrsn` is shared with plan
+  review for 43 to 75 of the newest 200, but those are old cases on the
+  parent tract. The houses are filed on the new lots' own property ids: 2 of
+  724 recent subdivision cases matched a later house plan review. The rule
+  stays in `src/sources.js` with `enabled: false` and writes no links;
+  linking needs a lot-to-subdivision key we do not have.
 
 ### Raleigh, NC: Development Plan Areas (`raleigh-plan-areas-nc`)
 
@@ -856,9 +864,18 @@ status only, so this history is ours).
   `main_parcel_number` (PIN, 99.4%). `square_feet` is 0 on every row (NULL).
 - **Link:** the plan PIN has a building permit applied on or after the plan
   for 70 of the newest 300 plans; median 210 days (p25 69, p75 364).
-  `parcel_window`, confidence 0.6, 3 years. Building permits' `devplanid` is
+  `parcel_window`, 3 years. Building permits' `devplanid` is
   an integer key of neither plan layer (`plplanid` is a GUID; probe
   2026-11-14), so there is no official link.
+- **Hand check (2026-11-14):** any later permit on the PIN was the plan's
+  project in only 8 of 30 pairs (11 different, 11 unclear): a PIN holds
+  many small jobs. Restricted to new-construction permits
+  (`workclassmapped = New`, 789 of 3,112 link rows), 30 evenly sampled
+  pairs read 24 same, 4 different, 2 unclear. The link now uses only new
+  construction, confidence 0.80. Many first "new" permits are accessory
+  structures (dumpster pads, enclosures) of the right project, so the link
+  means "same site", not "the main building". 306 plans have a later
+  new-construction permit; median 242 days to the first (p25 123, p75 404).
 
 ### Raleigh, NC: Development Plans (`raleigh-devplans-nc`)
 
@@ -891,7 +908,11 @@ status only, so this history is ours).
     issued county permit with that process yet (municipal processes, or not
     issued). Miami-Dade otherwise publishes issued permits only, so this is
     its earliest signal we have.
-  - **Connected** as a planning source: key `EEOSALLCNO`, filed on
+  - **Connected** as a planning source: key `EEOSALLCNO` + `FOLIO` +
+    `ADDRESS` (one allocation number repeats once per lot; keying on the
+    number alone kept one lot and dropped the others' links, fixed by
+    migration 028 and a re-backfill; the allocation number stays as
+    `case_ref`), filed on
     `SWRCRTDATE` (the request date `SWRRCTDATE` is on 0.2% of rows),
     expires `EXPDT90DAY`, parcel `FOLIO`, official reference `BLDPROCNO`
     (`N/A` is NULL), flow `PRPDFLWGPD`. Linked to `miami-dade-fl` permits
@@ -899,7 +920,18 @@ status only, so this history is ours).
   - **Statuses** (`SWRAPVCODE`, a year): APP 1,238 approved, COALLOC 493,
     CODEALALLOC 213, DEAL 25, BPEXP 11 expired, DEN 8 denied, EXP 2
     expired, WITHDRAWN 1. COALLOC, CODEALALLOC and DEAL are allocation
-    bookkeeping the county does not define, so they stay `unknown`.
+    bookkeeping the county does not define, so they stay `unknown`. What
+    the data shows (2026-11-14): CODEALALLOC has a deallocation date on
+    415 of 418 and a previous flow on 411; DEAL has a deallocation date on
+    52 of 57; COALLOC has a previous flow on 246 of 253 and no deallocation
+    date. Likely meanings (change of allocation, deallocation) are not
+    confirmed by the county.
+  - **Expiry:** 783 of 1,240 APP rows are past `EXPDT90DAY` and still say
+    APP, so the status is not updated on expiry.
+  - **Lead re-measured** against the first issued county building permit
+    (BLDG/MBLD) on the same process: median 36 days (p25 21, p75 74;
+    n = 257) on a live sample biased to recent, fast cases; about 62 days
+    over the year's backfill.
   - Redistribution is unknown (same county terms as `miami-dade-fl`).
 - **Permits Requiring Allocation (WASD)** (`PermitsRequiringAllocation_gdb`,
   439,082 rows, weekly batches): one row per building process, 98.4% of new
