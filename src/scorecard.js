@@ -12,7 +12,10 @@
 // v3 (2026-11-14): the four brief metrics that were missing: pre-issue
 // capture, discovery latency (p50, p90), property enrichment depth and the
 // duplicate rate. `lower: true` marks a metric where lower is better.
-const METHOD_VERSION = 'scorecard-v4';
+// v5 (2026-11-14): exact duplicates (a tighter bound than duplicate_rate),
+// and the rolling re-read (migration 030): share confirmed against the source
+// in 30 days, and permits the source no longer returns.
+const METHOD_VERSION = 'scorecard-v5';
 
 // Events we were watching for: the source's own date on or after the day of
 // that source's first successful sync. Rows dated earlier came in the first
@@ -164,6 +167,28 @@ const METRICS = {
              WHERE ${PERMITS} AND p.address IS NOT NULL AND p.filed_date IS NOT NULL
              GROUP BY 1, upper(regexp_replace(p.address, '[^A-Za-z0-9]', '', 'g')), p.permit_type, p.filed_date) g
            GROUP BY 1`,
+  },
+  exact_duplicate_rate: {
+    unit: 'share', target30: null, target90: 0.005, lower: true,
+    label: 'Permits identical to another in the same market on every published fact but the permit number (address, type, date, description, contractor, value)',
+    sql: `SELECT source_area AS market, coalesce(sum(c - 1), 0) AS num, sum(c) AS den FROM (
+            SELECT p.source_area, count(*) AS c FROM permits p
+             WHERE ${PERMITS} AND p.address IS NOT NULL AND p.filed_date IS NOT NULL
+             GROUP BY 1, upper(regexp_replace(p.address, '[^A-Za-z0-9]', '', 'g')), p.permit_type, p.filed_date,
+                      p.work_description, upper(p.contractor_name), p.valuation) g
+           GROUP BY 1`,
+  },
+  reread_30d: {
+    unit: 'share', target30: 0.99, target90: 0.99,
+    label: 'Stored permits confirmed against their source in the last 30 days (window sync or rolling re-read)',
+    sql: `SELECT p.source_area AS market,
+                 count(*) FILTER (WHERE coalesce(p.source_checked_at, p.last_seen_at) > now() - interval '30 days') AS num, count(*) AS den
+            FROM permits p GROUP BY 1`,
+  },
+  gone_from_source: {
+    unit: 'count', target30: null, target90: null,
+    label: 'Stored permits the source no longer returns (kept and marked, never deleted)',
+    sql: `SELECT p.source_area AS market, count(*) FILTER (WHERE p.source_missing_since IS NOT NULL) AS value FROM permits p GROUP BY 1`,
   },
   open_pre_issue: {
     unit: 'count', target30: null, target90: null,

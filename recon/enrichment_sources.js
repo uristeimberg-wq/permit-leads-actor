@@ -910,6 +910,56 @@ sections.comptroller = async () => {
   log('names with at least one franchise-tax record', `${hit} of ${results.length} (${pct(hit, results.length)})`);
 };
 
+// Gaps the fidelity check listed (2026-11-14): fees, site ZIPs and official
+// record links in the Miami and Raleigh feeds, and the size of the new City
+// of Miami Statusdate window. Prints field metadata (name, alias, type,
+// description), the layer's own description, and for fees the ratio of fee to
+// declared value on recent permits, so the unit (dollars or cents) is read
+// from the source rather than assumed. No person data is printed.
+sections.feedGaps = async () => {
+  const LAYERS = {
+    'miami-dade': 'https://services.arcgis.com/8Pc9XBTAsYuxx9Ny/arcgis/rest/services/miamidade_permit_data/FeatureServer/0',
+    'miami-city': 'https://services1.arcgis.com/CvuPhqcTQpZPT9qY/arcgis/rest/services/Building_Permits_Since_2014/FeatureServer/0',
+    'raleigh-building': 'https://services.arcgis.com/v400IkDOw1ad7Yad/arcgis/rest/services/Building_Permits/FeatureServer/0',
+    'raleigh-trade': 'https://services.arcgis.com/v400IkDOw1ad7Yad/arcgis/rest/services/Permits_Other_Than_Buildings/FeatureServer/0',
+  };
+  const interesting = /fee|zip|url|link|web|hyper|status|date/i;
+  for (const [name, url] of Object.entries(LAYERS)) {
+    try {
+      const layer = await http(`${url}?f=json`);
+      log(`${name} layer description`, String(layer.description || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 600));
+      table(layer.fields.filter((f) => interesting.test(`${f.name} ${f.alias}`)).map((f) => [f.name, f.alias, f.type, String(f.description || '').slice(0, 160)]));
+    } catch (err) { log(`${name} failed`, err.message); }
+  }
+  // Fee unit: the ratio fee / declared value on recent rows with both.
+  const ratio = async (name, url, dateField, valueField, feeField) => {
+    const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 19).replace('T', ' ');
+    const r = await arcgis(url, { where: `${dateField} >= timestamp '${since}'`, outFields: `${valueField},${feeField}`, returnGeometry: 'false', resultRecordCount: 2000 });
+    const pairs = (r.features || []).map((f) => [Number(f.attributes[valueField]), Number(f.attributes[feeField])]).filter(([v, fee]) => v > 0 && fee > 0);
+    const rs = pairs.map(([v, fee]) => fee / v).sort((a, b) => a - b);
+    const q = (p) => (rs.length ? rs[Math.floor(p * (rs.length - 1))].toFixed(4) : null);
+    const fees = pairs.map((x) => x[1]).sort((a, b) => a - b);
+    const fq = (p) => (fees.length ? fees[Math.floor(p * (fees.length - 1))] : null);
+    log(`${name} fee/value ratio`, `n ${rs.length}; p10 ${q(0.1)} p50 ${q(0.5)} p90 ${q(0.9)}; fee p10 ${fq(0.1)} p50 ${fq(0.5)} p90 ${fq(0.9)}; integer fees ${pct(fees.filter((x) => Number.isInteger(x)).length, fees.length)}%`);
+  };
+  try { await ratio('miami-dade', LAYERS['miami-dade'], 'PermitIssuedDate', 'EstimatedValue', 'PermitTotalFee'); } catch (err) { log('miami-dade ratio failed', err.message); }
+  try { await ratio('raleigh-building', LAYERS['raleigh-building'], 'issueddate', 'estprojectcost', 'fee'); } catch (err) { log('raleigh ratio failed', err.message); }
+  // The City of Miami Statusdate window: rows per 14 days, and how many of them
+  // fall outside the 14-day issue window (the edits the sync used to miss).
+  try {
+    const since = new Date(Date.now() - 14 * 864e5).toISOString().slice(0, 19).replace('T', ' ');
+    const all = await arcgis(LAYERS['miami-city'], { where: `Statusdate >= timestamp '${since}'`, returnCountOnly: 'true' });
+    const outside = await arcgis(LAYERS['miami-city'], { where: `Statusdate >= timestamp '${since}' AND IssuedDate < timestamp '${since}'`, returnCountOnly: 'true' });
+    const issued = await arcgis(LAYERS['miami-city'], { where: `IssuedDate >= timestamp '${since}'`, returnCountOnly: 'true' });
+    log('miami-city 14 days', `Statusdate ${all.count}; of which issued earlier ${outside.count}; IssuedDate ${issued.count}`);
+  } catch (err) { log('miami-city window failed', err.message); }
+  // Austin: fee-like columns in the dataset metadata.
+  try {
+    const meta = await http(AUSTIN_META);
+    log('austin fee/zip/link columns', meta.columns.filter((c) => /fee|zip|link|url/i.test(c.fieldName)).map((c) => `${c.fieldName}:${c.dataTypeName}`));
+  } catch (err) { log('austin meta failed', err.message); }
+};
+
 async function main() {
   const only = (process.argv.find((a) => a.startsWith('--only=')) || '').slice(7).split(',').filter(Boolean);
   for (const [name, fn] of Object.entries(sections)) {

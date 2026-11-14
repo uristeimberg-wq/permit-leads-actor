@@ -11,10 +11,14 @@
 //   permitOnlyNotConflict: PR #75 (fields-v3). While held, permits alone
 //     that disagree are an open conflict again, as under fields-v2.
 
+// Released 2026-11-14 (owner lifted the freeze; the verification audit found
+// all three rest on official keys: TCAD geo id, TCAD property id, and permits
+// alone disagreeing is not a property conflict). Kept as switches so any one
+// can be held again in one line.
 const HOLDS = {
-  austinParcelPoints: true,
-  tcadLotSize: true,
-  permitOnlyNotConflict: true,
+  austinParcelPoints: false,
+  tcadLotSize: false,
+  permitOnlyNotConflict: false,
 };
 
 /** Parcel providers whose points Locate permits must not use while held. */

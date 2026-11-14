@@ -221,6 +221,9 @@ async function upsertPermits(permits, sourceArea) {
       -- The source's date for the CURRENT status: a new status without one
       -- must not keep the old status's date.
       stage_since        = EXCLUDED.stage_since,
+      -- Seen at the source just now: confirmed, and not gone (030).
+      source_checked_at    = now(),
+      source_missing_since = NULL,
       last_seen_at     = now()
     RETURNING (xmax = 0) AS inserted`;
 

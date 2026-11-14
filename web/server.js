@@ -23,8 +23,19 @@ const PORT = Number(process.env.PORT || 3000);
 app.get('/healthz', (_req, res) => res.type('text').send('ok'));
 // The applied migration number, so a deploy check can confirm the pre-deploy
 // migrations ran (railway.json). A number only; no database detail.
+// `code`: the newest migration this deployed code ships, and `commit` the
+// commit Railway built (RAILWAY_GIT_COMMIT_SHA). code > schema means the
+// deploy is live but its migrations did not run; an old commit means the new
+// deploy never went live.
+const CODE_MIGRATION = (() => {
+  try {
+    return Math.max(0, ...require('node:fs').readdirSync(require('node:path').join(__dirname, '../db/migrations'))
+      .map((f) => Number((f.match(/^(\d+)_/) || [])[1]) || 0));
+  } catch { return null; }
+})();
+const COMMIT = (process.env.RAILWAY_GIT_COMMIT_SHA || '').slice(0, 12) || null;
 app.get('/healthz/schema', async (_req, res) => {
-  try { res.json({ schema: await db.schemaVersion() }); } catch { res.status(503).json({ schema: null }); }
+  try { res.json({ schema: await db.schemaVersion(), code: CODE_MIGRATION, commit: COMMIT }); } catch { res.status(503).json({ schema: null, code: CODE_MIGRATION, commit: COMMIT }); }
 });
 
 // Railway (and most hosts) put one proxy in front: trust it for req.ip (the

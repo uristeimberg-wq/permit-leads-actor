@@ -178,6 +178,10 @@ const SOURCES = {
     // A backfill (--kind=backfill --days=N) may pull more; 12 months of Austin
     // is roughly 150k permits.
     backfillMaxPerRun: 200000,
+    // Rolling re-read (ingest/refresh.js, migration 030): stored permits
+    // re-fetched by number per run, 50 per request. Austin's store is the
+    // largest, so it gets the most.
+    refreshPerRun: 10000,
     // Health alarm (ingest/health.js): the newest issue date we hold should be
     // at most this old. Austin publishes 2-3 days after issue, plus weekends.
     maxDataAgeDays: 5,
@@ -465,6 +469,13 @@ const SOURCES = {
     },
     dateField: 'IssuedDate',
     orderByFields: 'IssuedDate DESC, ObjectId',
+    // New permits by issue date, and status changes by Statusdate: the
+    // fidelity check (2026-11-14) found the City moving old permits from
+    // "Active" to "Final" with a new Statusdate, outside the issue window.
+    syncWindows: [
+      { field: 'IssuedDate', days: 14 },
+      { field: 'Statusdate', days: 14 },
+    ],
     defaultState: 'FL',
     fieldMap: {
       permitNumber: 'PermitNumber',

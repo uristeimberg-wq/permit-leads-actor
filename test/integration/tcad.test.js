@@ -123,7 +123,7 @@ async function main() {
     });
 
     await check('while held (src/holds.js), lot size is not read: stored as missing', async () => {
-      await enrichTcad({ files: files(baseProps), minPropRows: 1 });
+      await enrichTcad({ files: files(baseProps), minPropRows: 1, holds: { tcadLotSize: true } });
       const rows = await q("SELECT lot_sqft FROM parcels WHERE provider = 'travis-cad'");
       assert.ok(rows.length && rows.every((r) => r.lot_sqft == null));
     });

@@ -719,7 +719,7 @@ what would make us revisit it. Never delete an entry; supersede it.
      trade". The search page has no trade filter (it read fit scores). The
      tour and sign-in page describe records, not leads. The static mock pages
      under `/pilot/*.html` (sample data, lead framing) are removed.
-  2. Access is by personal invite code (`npm run invite`; migration 029).
+  2. Access is by personal invite code (`npm run invite`; migration 030).
      Only a code's SHA-256 is stored; revoking stops it, sessions included,
      within a minute. Sign-in asks, optionally, for the person's industry
      (subcontractor, builder, supplier, insurance, real estate or investor,
@@ -729,3 +729,29 @@ what would make us revisit it. Never delete an entry; supersede it.
   to subscribers by trade; it sends nothing until docs/EMAIL.md is done.
 - **Revisit:** when sign-ins show which industries use the data, decide what
   each needs before building anything for one of them.
+## ADR-28: Every stored permit is re-read from its source on a rolling cycle
+
+- **Status:** accepted, 2026-11-14 (owner: "verify that all displayed
+  information is real, accurate, and sourced"; fidelity check, PR #81).
+  Extends ADR-11 (date windows).
+- **Context:** the daily sync reads date windows, so a permit outside every
+  window is never fetched again. The fidelity check measured the cost: 36%
+  of sampled Austin permits kept a record link written by an old mapping,
+  and City of Miami showed "Active" on old permits the City now marks
+  "Final" (2 of 39 older permits in about a day). Deletions would go unseen
+  the same way.
+- **Decision:** `ingest/refresh.js` (migration 030) runs after each sync. Per
+  permit source it re-fetches by number the stored permits least recently
+  confirmed (`refreshPerRun`, 5,000 by default, Austin 10,000), through the
+  same raw-record, mapping and upsert path as the sync. A permit the source no
+  longer returns gets `source_missing_since` and a `missing_at_source` event;
+  nothing is deleted. A run where the source returns none of the permits
+  asked for, or more than 20% (and at least 10) are missing, fails as
+  `bad_data` and marks nothing. City of Miami also gains a `Statusdate`
+  window. Re-read runs are `kind = 'refresh'` in `sync_runs` and do not count
+  as a sync for freshness (`source_health`). Health alarms on a failed re-read
+  and on any permit unconfirmed for 30 days; the scorecard tracks the share
+  confirmed in 30 days and the count gone from source.
+- **Consequences:** about 100 extra requests a day per large source. Austin's
+  store cycles in about two weeks. Screens do not yet say "removed from the
+  source"; the mark is recorded and counted first.

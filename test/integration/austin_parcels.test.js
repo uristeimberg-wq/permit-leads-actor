@@ -111,7 +111,7 @@ async function main() {
         const lines = text.trim().split('\n').map((l) => l.split('","').map((f) => f.replace(/"/g, '')));
         return { ok: true, status: 200, text: async () => lines.map(([id, street]) => `"${id}","${street}","No_Match"`).join('\n') };
       };
-      const s = await geocodePermits({ fetchImpl: csv });
+      const s = await geocodePermits({ fetchImpl: csv, holds: { austinParcelPoints: true } });
       assert.strictEqual(s.byMethod.parcel, undefined);
       const [{ n }] = await q("SELECT count(*)::int AS n FROM permit_locations WHERE method = 'parcel'");
       assert.strictEqual(n, 0);

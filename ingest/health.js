@@ -8,6 +8,8 @@
 //   - a mapped field vanished from a source in the last 7 days (schema drift)
 //   - the contractor resolver failed or has not succeeded in 36 hours
 //   - the database is above STORAGE_ALERT_PCT of DB_SIZE_LIMIT_MB
+//   - the rolling re-read (ingest/refresh.js) failed in the last 36 hours, or
+//     a source holds a permit not confirmed against it in REREAD_MAX_DAYS
 //
 //   node ingest/health.js            (DATABASE_URL)
 
@@ -20,10 +22,19 @@ const { SOURCES } = require('../src/sources.js');
 // $1.75 a month, and 80% of it means growth worth a look.
 const LIMIT_MB = Number(process.env.DB_SIZE_LIMIT_MB || 5120);
 const ALERT_PCT = Number(process.env.STORAGE_ALERT_PCT || 80);
+// Austin's store (~150k permits) at 10,000 a day cycles in about 15 days;
+// twice that means the re-read is not keeping up.
+const REREAD_MAX_DAYS = Number(process.env.REREAD_MAX_DAYS || 30);
 
 /** Pure: turns the measurements into problems. Exported for tests. */
-function evaluate({ sources, dataAge, events, resolver, sizeBytes, now = new Date() }) {
+function evaluate({ sources, dataAge, events, resolver, sizeBytes, reread = null, now = new Date() }) {
   const problems = [];
+  for (const r of reread || []) {
+    if (r.last_refresh_status === 'failed') problems.push(`${r.slug}: the last re-read failed (${r.last_refresh_error || 'unknown'})`);
+    if (r.oldest_days != null && r.oldest_days > REREAD_MAX_DAYS) {
+      problems.push(`${r.slug}: a stored permit was last confirmed against the source ${r.oldest_days} days ago, limit ${REREAD_MAX_DAYS}`);
+    }
+  }
   for (const s of sources) {
     if (s.stale) {
       problems.push(`${s.slug}: no successful sync since ${s.last_success_at ? new Date(s.last_success_at).toISOString() : 'ever'}`
@@ -60,8 +71,30 @@ async function measure() {
   ]);
   return {
     sources: sources.rows, dataAge: dataAge.rows, events: events.rows,
-    resolver: resolver.rows[0], sizeBytes: Number(size.rows[0].bytes),
+    resolver: resolver.rows[0], sizeBytes: Number(size.rows[0].bytes), reread: await measureReread(),
   };
+}
+
+/** Re-read cycle per permit source; null before migration 030 is applied. */
+async function measureReread() {
+  try {
+    const { rows } = await db.query(
+      `SELECT p.source_area AS slug,
+              (current_date - min(coalesce(p.source_checked_at, p.last_seen_at))::date)::int AS oldest_days,
+              count(*) FILTER (WHERE p.source_missing_since IS NOT NULL)::int AS missing,
+              (SELECT r.status FROM sync_runs r JOIN sources s ON s.id = r.source_id
+                WHERE s.slug = p.source_area AND r.kind = 'refresh' AND r.started_at > now() - interval '36 hours'
+                ORDER BY r.started_at DESC LIMIT 1) AS last_refresh_status,
+              (SELECT r.error_class FROM sync_runs r JOIN sources s ON s.id = r.source_id
+                WHERE s.slug = p.source_area AND r.kind = 'refresh' AND r.started_at > now() - interval '36 hours'
+                ORDER BY r.started_at DESC LIMIT 1) AS last_refresh_error
+         FROM permits p WHERE p.source_area = ANY($1) GROUP BY 1 ORDER BY 1`,
+      [Object.keys(SOURCES).filter((k) => SOURCES[k].refreshPerRun !== 0 && SOURCES[k].kind !== 'planning')]);
+    return rows;
+  } catch (err) {
+    if (err.code === '42703' || err.code === '42P01') return null; // column or table not there yet
+    throw err;
+  }
 }
 
 function report(m, { problems, usedPct }) {
@@ -72,6 +105,12 @@ function report(m, { problems, usedPct }) {
   for (const s of m.sources) {
     const age = m.dataAge.find((d) => d.source_area === s.slug);
     lines.push(`| ${cell(s.slug)} | ${cell(s.last_success_at && new Date(s.last_success_at).toISOString().slice(0, 16))} | ${cell(s.last_status)} | ${s.consecutive_failures} | ${s.new_records_7d} | ${cell(age && `${age.newest.toISOString ? age.newest.toISOString().slice(0, 10) : age.newest} (${age.days_old}d)`)} | ${s.warnings_7d} |`);
+  }
+  if (m.reread) {
+    lines.push('', '| Source | Oldest confirmation against the source (days) | Marked gone from the source | Last re-read (36h) |', '| --- | --- | --- | --- |');
+    for (const r of m.reread) lines.push(`| ${cell(r.slug)} | ${cell(r.oldest_days)} | ${r.missing} | ${cell(r.last_refresh_status || 'none')} |`);
+  } else {
+    lines.push('', 'Re-read: not measured (migration 030 not applied).');
   }
   lines.push('', `Storage: ${(m.sizeBytes / 1048576).toFixed(0)} MB of ${LIMIT_MB} MB (${usedPct.toFixed(0)}%).`);
   return lines.join('\n');

@@ -101,3 +101,28 @@ were seen in one day. With about one day of exposure, that is weak evidence.
 2. Close the re-read gap: a periodic full re-read per source, so status changes on old permits (City of Miami 5.1% in a day) and any deletions reach us.
 3. Fill the cheap gaps from data we already receive: ZIP for both Miami feeds, official record links for Miami-Dade, City of Miami and Raleigh, and fees where published.
 4. Re-run this check weekly. Persist its results to the scorecard, so the numbers are tracked rather than read from logs.
+
+## Follow-up, same day (ADR-28, migration 030)
+
+1. **Austin record links:** migration 030 rewrites every stored link held as
+   JSON text to the URL inside it. The same rows are also re-read (below).
+2. **Re-read gap:** `ingest/refresh.js` re-reads each source's least recently
+   confirmed permits by number after every sync. City of Miami also gains a
+   `Statusdate` window. Measured live 2026-11-14 (feasibility run
+   43639194975, `enrichment:feedGaps`): in 14 days 2,830 City of Miami
+   permits had a new `Statusdate`, and 1,687 of them (60%) were issued
+   earlier than the 14-day issue window, so the old sync missed them.
+3. **Cheap gaps, read off the live layers the same day:**
+   - Site ZIP: neither Miami layer publishes one (only the contractor's ZIP).
+     Not available from the permit feeds; the property panel shows the
+     appraiser's site ZIP where the parcel is linked by folio.
+   - Official record link: no URL field in the Miami-Dade, City of Miami or
+     either Raleigh layer. Not built: a link pattern we make up is not the
+     source's link.
+   - Fees: Miami-Dade `PermitTotalFee` (text) and Raleigh `fee` (integer),
+     both without a documented unit. On 966 recent Miami-Dade permits the fee
+     is a median 1.9 times the declared value (p10 $20,380 if read as
+     dollars), so the unit is probably cents; Raleigh's median is 1.3% of the
+     value, consistent with dollars. Neither is mapped until the unit is
+     confirmed against the county's or city's own permit page (rule 1).
+     City of Miami and Austin publish no fee.

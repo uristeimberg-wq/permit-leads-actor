@@ -65,3 +65,21 @@ check('storage above the alert threshold is a problem', () => {
   m.sizeBytes = 900 * 1048576; // the old Free-plan alarm level is fine on Launch
   assert.deepStrictEqual(evaluate(m).problems, []);
 });
+
+check('a failed re-read, or a permit unconfirmed for too long, is a problem', () => {
+  const m = healthy();
+  m.reread = [
+    { slug: 'austin-tx', oldest_days: 3, missing: 0, last_refresh_status: 'succeeded' },
+    { slug: 'miami-city-fl', oldest_days: 31, missing: 2, last_refresh_status: 'failed', last_refresh_error: 'bad_data' },
+  ];
+  const ps = evaluate(m).problems;
+  assert.strictEqual(ps.length, 2);
+  assert.match(ps[0], /miami-city-fl: the last re-read failed \(bad_data\)/);
+  assert.match(ps[1], /miami-city-fl: .*31 days ago, limit 30/);
+});
+
+check('before migration 030 the re-read is not measured and raises nothing', () => {
+  const m = healthy();
+  m.reread = null;
+  assert.deepStrictEqual(evaluate(m).problems, []);
+});

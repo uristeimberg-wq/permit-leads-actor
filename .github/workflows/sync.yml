@@ -84,6 +84,16 @@ jobs:
             if [ "$attempt" = 1 ]; then echo "::warning::Sync attempt 1 failed; retrying in 10 minutes"; sleep 600; fi
           done
           exit 1
+      # Rolling re-read (migration 030): each source's least recently
+      # confirmed stored permits, re-fetched by number, so status changes and
+      # deletions outside the date windows reach us. Marks, never deletes.
+      - name: Re-read older permits
+        if: always() && steps.secret.outputs.ready == 'true' && !inputs.backfill_days
+        timeout-minutes: 30
+        env:
+          DATABASE_URL: ${{ env.DB_URL }}
+          SOCRATA_APP_TOKEN: ${{ secrets.SOCRATA_APP_TOKEN }}
+        run: set -o pipefail; node ingest/refresh.js | tee -a "$GITHUB_STEP_SUMMARY"
       # One-off history pull for the GC relationships view. Inputs go through
       # env and are validated, never interpolated into the shell.
       - name: Backfill
@@ -154,9 +164,9 @@ jobs:
       # Austin parcel centroids (City of Austin copy of the Travis CAD
       # polygons), by the permit's tcad_id, so Locate permits can place the
       # Austin permits the Census misses. Point only, no property facts.
-      # Held until the verification audit passes it (src/holds.js, 2026-11-14).
+      # Released 2026-11-14 with the other holds (src/holds.js).
       - name: Austin parcel points
-        if: false
+        if: always() && steps.secret.outputs.ready == 'true'
         env:
           DATABASE_URL: ${{ env.DB_URL }}
         run: set -o pipefail; node ingest/enrich_parcels.js --provider=austin-parcels | tee -a "$GITHUB_STEP_SUMMARY"
