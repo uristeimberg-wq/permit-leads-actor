@@ -16,11 +16,22 @@ const DEFAULT_URL = 'postgres://permits:permits@localhost:5433/permits';
 
 let pool;
 
+/**
+ * pg 8 treats sslmode prefer, require and verify-ca as verify-full and warns
+ * on every start that pg 9 will weaken them to libpq's meaning. Saying
+ * verify-full keeps today's behaviour and stops the warning. A URL that opts
+ * into libpq semantics (uselibpqcompat) is left alone.
+ */
+function explicitSsl(url) {
+  if (!url || /[?&]uselibpqcompat=/i.test(url)) return url;
+  return url.replace(/([?&]sslmode=)(prefer|require|verify-ca)(?=&|$)/i, '$1verify-full');
+}
+
 /** Lazily created so importing this module never opens a connection. */
 function getPool() {
   if (!pool) {
     pool = new Pool({
-      connectionString: process.env.DATABASE_URL || DEFAULT_URL,
+      connectionString: explicitSsl(process.env.DATABASE_URL || DEFAULT_URL),
       max: Number(process.env.PGPOOL_MAX || 10),
     });
     // An idle client can be dropped by the server (Neon suspends idle
@@ -406,6 +417,7 @@ async function withTransaction(fn) {
 }
 
 module.exports = {
+  explicitSsl,
   getPool, query, close, applySchema, schemaVersion, maskStoredDescriptions, withTransaction,
   upsertPermits, existingPermitNumbers,
   startIngestRun, finishIngestRun,

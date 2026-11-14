@@ -14,4 +14,9 @@ RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 COPY . .
 USER node
 EXPOSE 3000
-CMD ["node", "web/server.js"]
+# Migrations first, then the server. Railway's pre-deploy command
+# (railway.json) was proved not to run on 2026-11-14: code that shipped
+# migrations 029-030 went live on a schema-28 database. db/apply.js is
+# idempotent and takes the same advisory lock as the sync; if it fails the
+# container exits and Railway keeps the previous deploy serving.
+CMD ["sh", "-c", "node db/apply.js start && exec node web/server.js"]

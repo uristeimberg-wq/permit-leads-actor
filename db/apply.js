@@ -12,7 +12,10 @@ async function main() {
   const before = await db.schemaVersion().catch(() => 0);
   await db.applySchema();
   const after = await db.schemaVersion();
-  console.log(`Migrations: schema at ${after} (was ${before}).`);
+  // The caller names itself (the container start passes "start"), so a deploy
+  // log shows which step applied what; no argument is Railway's pre-deploy.
+  const from = process.argv[2] || 'pre-deploy or manual';
+  console.log(`Migrations (${from}): schema at ${after} (was ${before}).`);
   await db.close();
 }
 

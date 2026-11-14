@@ -3,7 +3,7 @@
   "build": { "builder": "DOCKERFILE", "dockerfilePath": "Dockerfile.web" },
   "deploy": {
     "preDeployCommand": ["node db/apply.js"],
-    "startCommand": "node web/server.js",
+    "startCommand": "sh -c 'node db/apply.js start && exec node web/server.js'",
     "healthcheckPath": "/healthz",
     "healthcheckTimeout": 60,
     "restartPolicyType": "ON_FAILURE",

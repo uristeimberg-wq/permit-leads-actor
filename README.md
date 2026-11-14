@@ -121,12 +121,18 @@ No secret is committed. Set them where each process runs.
 | `SOCRATA_APP_TOKEN` | GitHub Actions secret (optional) | Higher Socrata rate limits |
 | `EMAIL_API_KEY`, `LINK_SECRET` | GitHub Actions secret (unused until email ships) | Digest sending and signed lead links |
 
-Railway builds `Dockerfile.web` and runs `node web/server.js`, with
-`/healthz` as its health check (`railway.json`). It auto-deploys from `main`.
-Before each deploy goes live, Railway runs `node db/apply.js` (its
-pre-deploy command), which applies pending migrations; if one fails, the
-previous deploy stays live. `/healthz/schema` returns the applied migration
-number, and the smoke workflow prints it.
+Railway builds `Dockerfile.web` and starts it with `node db/apply.js` then
+`node web/server.js`, with `/healthz` as its health check (`railway.json`).
+It auto-deploys from `main`. The container applies pending migrations before
+the server starts; if one fails, the container exits and the previous deploy
+stays live. Railway's pre-deploy command (`node db/apply.js`) is set in the
+service's dashboard settings; on 2026-11-14 it was found empty, and
+`railway.json` is not read by the service, so the image's own CMD is what
+runs. The log names the step: `Migrations (start)` from the container,
+`Migrations (pre-deploy or manual)` from the pre-deploy command. `/healthz/schema` returns `{schema, code, commit}`:
+the applied migration, the newest one the deployed code ships, and the
+commit Railway built; the smoke workflow prints it. To apply migrations
+without a deploy or a sync, run the `migrate` workflow.
 
 ## Repository map
 
