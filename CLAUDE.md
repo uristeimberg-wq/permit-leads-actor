@@ -17,7 +17,8 @@ Miami-Dade, FL.
   evidence ladder, pilot (ADR-18)
 - `docs/COMPLIANCE.md`: rules the product follows, and open legal questions
 - `docs/REPOSITORY_AUDIT.md`: what the prototype does and what to keep
-- `README.md`: the prototype's own detailed notes (UI, map, ingest gotchas)
+- `README.md`: what the system is today, setup and secrets
+- `docs/PROTOTYPE_NOTES.md`: the prototype's detailed notes (UI, map, ingest gotchas)
 
 ## Commands
 
