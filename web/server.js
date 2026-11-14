@@ -13,6 +13,7 @@ const { router: overviewApi, warmList } = require('./overview_api.js');
 const { cache } = require('./cache.js');
 const { demoGate } = require('./access.js');
 const digestRoutes = require('./digest_routes.js');
+const { imageryConfig } = require('./imagery.js');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -185,6 +186,16 @@ app.get('/api/credits', cache.route(async () => ({ enrichment: await queries.enr
 app.get('/api/filters', cache.route(() => queries.listFilterOptions()));
 
 app.get('/api/freshness', cache.route(async () => ({ sources: await queries.getFreshness() })));
+
+// Photo sources for the job page (web/public/pilot/live/photos.js, ADR-24).
+// The Google key is a browser key: it reaches every viewer by design, so it
+// must be restricted to this site's referrer and the Street View Static API,
+// with a daily quota cap (docs/IMAGERY.md). Unset, the Street View photo is
+// hidden. Behind the demo gate, like every /api route.
+app.get('/api/pilot/imagery', (_req, res) => {
+  res.set('Cache-Control', 'private, max-age=300');
+  res.json(imageryConfig(process.env));
+});
 
 app.use('/api/pilot', overviewApi);
 app.use('/api/pilot', pilotApi);

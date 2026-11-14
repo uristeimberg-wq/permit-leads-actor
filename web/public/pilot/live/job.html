@@ -15,6 +15,7 @@
 <main id="main"><div class="state">Loading…</div></main>
 <script src="../../links.js"></script>
 <script src="live.js"></script>
+<script src="photos.js"></script>
 <script>
 (function () {
   const L = window.Live;
@@ -24,7 +25,12 @@
   const main = document.getElementById('main');
   if (!/^\d+$/.test(p.id || '')) { L.fail(main, new Error('No permit given')); return; }
 
-  L.api(`/api/pilot/jobs/${p.id}?${L.qs({ trade })}`).then(render).catch((e) => L.fail(main, e));
+  // The photo config is fetched beside the job; a failure only hides photos.
+  const imagery = L.api('/api/pilot/imagery').catch(() => null);
+  L.api(`/api/pilot/jobs/${p.id}?${L.qs({ trade })}`).then((d) => {
+    render(d);
+    imagery.then((cfg) => window.Photos && window.Photos.card(document.getElementById('photos'), cfg, d.location, d.permit.filed_date));
+  }).catch((e) => L.fail(main, e));
 
   // Hover text saying where a value came from (rule 6).
   const prov = (d, field) => d.provenance
@@ -142,6 +148,7 @@
 
     <div class="grid2">
     ${L.propertyCard(d.property, pm.source_area)}
+    <div class="card" id="photos"></div>
     <div class="card">
       <h2>Trade permits on this job</h2>
       <table><thead><tr><th>Trade</th><th>Permit</th><th>Issued</th><th>Pulled by</th></tr></thead><tbody>${tradeRows}</tbody></table>

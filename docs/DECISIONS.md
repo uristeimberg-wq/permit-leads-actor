@@ -639,3 +639,22 @@ what would make us revisit it. Never delete an entry; supersede it.
 - **Consequences:** about $0-75 a month in new spend; every sign-up needs
   the owner's go. Eight worker roles, at most four concurrent lanes.
 
+## ADR-24: Job-site photos from Street View only, live and labelled
+
+- **Status:** accepted, 2026-11-14 (owner: "Add the street view photos and
+  add any relevant photos"). Supersedes the "defer imagery" part of ADR-23
+  item 2 and item 4; the conditions there (live, labelled, never stored,
+  capped key) still hold.
+- **Decision:** the job page shows one Google Street View Static photo,
+  chosen by the free metadata call, turned toward the job-site point, with a
+  high/medium/low tier, capture date, distance and Google attribution
+  (`docs/IMAGERY.md`). No key, no card. No other photo source ships: Mapillary
+  terms are unclear for commercial display, assessor photos are barred
+  (Texas §25.027) or reserved, and the USGS aerial is too coarse.
+- **Consequences:** $0 within 10,000 images a month, held there by a daily
+  quota cap on the key. No map or aerial may share a screen with a Street
+  View photo. Public Terms of Use and Privacy Policy pages are needed before
+  customers outside the pilot see photos. Removal requests for a photo are
+  handled by hiding the card for that permit once `suppressions` gains an
+  image kind (not built; Google also takes blur requests directly).
+
