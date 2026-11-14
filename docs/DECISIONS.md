@@ -610,3 +610,32 @@ what would make us revisit it. Never delete an entry; supersede it.
   Interiors") is shown, as "Smith Electric" already was (COMPLIANCE 2.2, 2.3).
   `recon/party_kind_diff.js` measures what a change makes visible before the
   data is re-resolved.
+
+## ADR-23: The data engine comes first; validation runs beside it
+
+- **Status:** accepted, 2026-11-14 (owner: "Approve the plans. Skip. The
+  rest do what you think"). Plan: `docs/DATA_ENGINE_PLAN.md`, section 12 has
+  the decisions as taken.
+- **Context:** the owner made the dataset, not the interface, the product.
+  The read-only audit (`recon/data_audit.js`) found one day of history, fields
+  we receive but drop (Raleigh emails on 92% of rows, Miami-Dade floors and
+  units), no property data for Raleigh, and no official record link in three
+  of four markets. Shovels' Terms bar using it to build a competing product.
+- **Decision:**
+  1. UI frozen to data inspection. Engineering goes to mapping dropped fields,
+     official links, Wake parcels, field-level provenance for multi-source
+     attributes (`field_observations`, `field_conflicts`, tiered confidence),
+     new early signals (Raleigh development plans, Miami-Dade sewer
+     allocation, Austin planning cases) and legal-entity keys.
+  2. County records over paid property vendors; no vendor in the pilot.
+     Street View only live, labelled, never stored, after a capped key is
+     approved.
+  3. A weekly data-quality scorecard with numeric day-30 and day-90 targets
+     replaces record counts as the measure of progress.
+  4. The 4-week builder/supplier list (E8/P2) starts in sprint 1, not
+     Phase 6; paid sources, imagery and a data API wait for its result.
+  5. No record-level Shovels benchmark: skipped by the owner. Public-claims
+     comparison and our own measured lag only.
+- **Consequences:** about $0-75 a month in new spend; every sign-up needs
+  the owner's go. Eight worker roles, at most four concurrent lanes.
+

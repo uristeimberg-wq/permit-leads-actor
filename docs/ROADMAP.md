@@ -129,6 +129,17 @@ suppliers, not subs.
 | Orlando or New Orleans as the third market (both PADAS 87-89) | Terms read (Orlando) |
 | NYC DOB NOW filings | Terms read; a reason to enter a crowded market |
 
+## D: Data engine (ADR-23, accepted 2026-11-14)
+
+The owner made the dataset the product. Order of work, exit checks and the
+scorecard targets are in `docs/DATA_ENGINE_PLAN.md` sections 7 and 10:
+sprint 1 maps dropped fields and official links, adds Wake parcels and
+field-level provenance, and starts the weekly scorecard; sprint 2 adds
+Raleigh development plans, Miami-Dade sewer allocation and Austin planning
+cases; sprint 3 builds properties and projects; sprint 4 validates. E8 / P2
+(the 4-week builder/supplier list) runs from sprint 1 in parallel. UI work is
+limited to data inspection until the scorecard and the pilot show value.
+
 ## M3: Pilot delivery (about 2 weeks)
 
 | Item | Priority | Complexity | Exit check |
