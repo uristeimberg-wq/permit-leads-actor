@@ -772,3 +772,33 @@ Contractor emails (contractors-v4) are `contact_points` rows of kind
 `email`, under the same display policy and corroboration rules as phones.
 Raleigh is the only source that publishes them today.
 
+
+## Field observations and conflicts (migration 023, ADR-23)
+
+Field-level provenance where more than one source can supply the same
+attribute (DATA_ENGINE_PLAN 6.3). Single-source permit fields keep row-level
+provenance through `raw_record_id`.
+
+- `properties`: one row per official parcel key in a county
+  (`county`, `parcel_key`), stable across appraiser re-loads.
+- `field_observations`: every value a source gave for a property field,
+  with the source, the source record (`source_ref`: parcel key or permit
+  number), `raw_record_id` when there is one, method, confidence tier,
+  the source's own date and when we retrieved it. Unique per entity, field,
+  source, source record and value, so a repeat writes nothing and a change
+  adds a row; the old value stays as history. The current observation of a
+  source record is its newest `last_seen_at`. A NULL value means the source
+  publishes the field and says unknown; no row means it does not publish it.
+- `field_conflicts`: one row per entity and field whose current
+  observations disagree beyond tolerance. `auto_resolved` when precedence
+  settles it (the losing value is named in `resolution`), `open` when two
+  sources of the same precedence disagree (the resolved value is then NULL).
+  A `reviewed` status survives re-runs while the same observations are in
+  conflict.
+
+Vocabulary, precedence and tolerances are in `src/fields.js`
+(`fields-v1`): appraiser beats permit; sq ft within 10%; units, floors,
+year and values exact. Sources today: Miami-Dade PA, Travis CAD and Wake
+parcels (confidence high: joined by the permit's own parcel key) and the
+units and floors of the permits linked to the parcel (medium). Businesses
+and projects use the same tables later.
