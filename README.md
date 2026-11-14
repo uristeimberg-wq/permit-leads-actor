@@ -149,6 +149,7 @@ number, and the smoke workflow prints it.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md): milestones and exit checks
 - [`docs/DATA_ENGINE_PLAN.md`](docs/DATA_ENGINE_PLAN.md): the data engine and scorecard
 - [`docs/DATA_STRATEGY.md`](docs/DATA_STRATEGY.md): early-signal strategy (ADR-18)
+- [`docs/DATA_VALUE.md`](docs/DATA_VALUE.md): why the data is worth paying for: sources, what we add, competitors, limits
 - [`docs/DATA_SOURCES.md`](docs/DATA_SOURCES.md): every source and its verified fields
 - [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md): rules the product follows, open legal questions
 - [`docs/IMAGERY.md`](docs/IMAGERY.md): job-site photos
