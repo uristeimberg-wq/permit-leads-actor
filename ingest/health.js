@@ -14,7 +14,11 @@
 const db = require('../db/index.js');
 const { SOURCES } = require('../src/sources.js');
 
-const LIMIT_MB = Number(process.env.DB_SIZE_LIMIT_MB || 1024); // Neon Free: 1 GB per project (neon.com/docs/introduction/plans, read 2026-11-13)
+// Neon Launch (upgraded 2026-11-14) has no storage cap: "Storage is unlimited
+// on paid plans", billed at $0.35/GB-month (neon.com/docs/introduction/plans,
+// read 2026-11-14). So this is a budget alarm, not a wall: 5 GB is about
+// $1.75 a month, and 80% of it means growth worth a look.
+const LIMIT_MB = Number(process.env.DB_SIZE_LIMIT_MB || 5120);
 const ALERT_PCT = Number(process.env.STORAGE_ALERT_PCT || 80);
 
 /** Pure: turns the measurements into problems. Exported for tests. */

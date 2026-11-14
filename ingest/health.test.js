@@ -60,6 +60,8 @@ check('a failed or overdue resolver is a problem', () => {
 });
 
 check('storage above the alert threshold is a problem', () => {
-  const m = healthy(); m.sizeBytes = 900 * 1048576;
-  assert.match(evaluate(m).problems[0], /storage: 900 MB of 1024 MB/);
+  const m = healthy(); m.sizeBytes = 4500 * 1048576;
+  assert.match(evaluate(m).problems[0], /storage: 4500 MB of 5120 MB/);
+  m.sizeBytes = 900 * 1048576; // the old Free-plan alarm level is fine on Launch
+  assert.deepStrictEqual(evaluate(m).problems, []);
 });

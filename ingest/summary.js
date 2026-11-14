@@ -27,7 +27,7 @@ async function main() {
       ? `${s.contractors} contractors from ${s.rawPermits} permits (${JSON.stringify(s.byRule)}); ${s.phonesShown} of ${s.phones} phones shown, ${s.phonesCorroborated} corroborated; ${s.relationships} GC-sub links.`
       : `Status **${rr.status}**: ${cell(rr.error)}`);
   }
-  // Storage: Neon Free allows 1 GB per project; show where we are.
+  // Storage: Neon Launch bills $0.35/GB-month with no cap; show size and cost.
   const { rows: [size] } = await db.query(`
     SELECT pg_database_size(current_database()) AS total,
            (SELECT pg_total_relation_size('raw_records')) AS raw,
@@ -35,7 +35,7 @@ async function main() {
            (SELECT count(*) FROM permits) AS permit_rows`).catch(() => ({ rows: [] }));
   if (size) {
     const mb = (b) => `${(Number(b) / 1048576).toFixed(0)} MB`;
-    lines.push('', '## Storage', '', `Database ${mb(size.total)} of the 1 GB Neon Free limit (raw_records ${mb(size.raw)}, permits ${mb(size.permits)}, ${Number(size.permit_rows).toLocaleString('en-US')} permits).`);
+    lines.push('', '## Storage', '', `Database ${mb(size.total)}, about $${((Number(size.total) / 1073741824) * 0.35).toFixed(2)} a month at Neon Launch storage rates (raw_records ${mb(size.raw)}, permits ${mb(size.permits)}, ${Number(size.permit_rows).toLocaleString('en-US')} permits).`);
   }
   console.log(lines.join('\n'));
   await db.close();
