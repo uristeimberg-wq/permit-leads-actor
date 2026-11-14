@@ -37,7 +37,8 @@ app.set('trust proxy', 1);
 app.use(digestRoutes.publicRouter());
 
 // A hosted demo sets DEMO_PASSWORD; see web/access.js.
-app.use(demoGate());
+// Invite-only access (ADR-27): personal codes from `npm run invite`.
+app.use(demoGate(undefined, { invites: require('./invites.js').pgStore(db.query) }));
 
 // Digest email previews, behind the gate.
 app.use(digestRoutes.previewRouter());
@@ -54,7 +55,9 @@ const FILTER_PARAMS = [
 
 function pickFilters(query) {
   const filters = {};
-  for (const key of FILTER_PARAMS) {
+  // The trade filter selects by keyword fit scores, an inference (ADR-26).
+  const keys = trust.showInferences() ? FILTER_PARAMS : FILTER_PARAMS.filter((k) => k !== 'trade' && k !== 'minScore');
+  for (const key of keys) {
     const value = query[key];
     if (value !== undefined && value !== '') filters[key] = value;
   }

@@ -44,8 +44,11 @@ router.get('/leads', trusted('leads', async (req) => {
   const f = pq.parseFilters(req.query);
   const days = [7, 14, 30].includes(Number(req.query.days)) ? Number(req.query.days) : 7;
   const minValuation = /^\d{1,9}$/.test(String(req.query.minValuation || '')) ? Number(req.query.minValuation) : null;
-  const [leads, meta] = await Promise.all([pq.listLeads(f, { days, minValuation, order: ranked() ? 'date' : 'score' }), pq.sourceMeta(f.source)]);
-  return { filters: f, days, minValuation, meta, leads };
+  // No trade unless asked for: "without" narrows to jobs with no permit for
+  // that trade on record. Without it, every new building permit is listed.
+  const without = ['electrical', 'plumbing', 'mechanical'].includes(req.query.without) ? req.query.without : null;
+  const [leads, meta] = await Promise.all([pq.listLeads({ ...f, trade: without }, { days, minValuation, order: ranked() || !without ? 'date' : 'score' }), pq.sourceMeta(f.source)]);
+  return { filters: { ...f, trade: without }, without, days, minValuation, meta, leads };
 }));
 
 router.get('/early', trusted('early', async (req) => {

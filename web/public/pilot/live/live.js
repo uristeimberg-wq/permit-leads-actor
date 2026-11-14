@@ -58,7 +58,7 @@
   }
 
   // One shell for every screen. `current` is the page's own file name.
-  const NAV = [['index.html', 'Overview'], ['early.html', 'Early filings'], ['momentum.html', 'Builder momentum'], ['gcs.html', 'GC relationships'], ['digest.html', 'Weekly digest'], ['/search.html', 'Permit search']];
+  const NAV = [['index.html', 'Overview'], ['early.html', 'Early filings'], ['momentum.html', 'Builder activity'], ['gcs.html', 'GC relationships'], ['digest.html', 'New permits'], ['/search.html', 'Permit search']];
   function topBar(current) {
     const here = current || location.pathname.split('/').pop() || 'index.html';
     return `<header class="top"><div class="top-in">

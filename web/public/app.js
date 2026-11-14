@@ -37,7 +37,8 @@ const PAGE_SIZE = 25;
 const TYPING_DELAY = 300;
 
 const TEXT_FILTERS = ['contractor', 'minValuation', 'q'];
-const PICK_FILTERS = ['where', 'jurisdiction', 'permitType', 'trade', 'from', 'to'];
+// No trade filter: it read our keyword fit scores, an inference (ADR-26).
+const PICK_FILTERS = ['where', 'jurisdiction', 'permitType', 'from', 'to'];
 
 /* `where` is one control standing in for two API params. Its value is an area
    key — `z:78704` or `c:MIAMI|FL`, the same vocabulary the map's pins use — and

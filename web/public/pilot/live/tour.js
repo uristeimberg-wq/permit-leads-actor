@@ -26,7 +26,7 @@
     {
       title: 'What Contractos is',
       body: [
-        'Construction permits from public city and county records, organised for subcontractors: who is building, where, the business on each permit and its phone as published.',
+        'Construction permit records from public city and county sources: what is being built, where, when each step was filed, and the business named on each permit, with the source behind every value.',
         'Markets: Austin, Miami-Dade, City of Miami and Raleigh. Data syncs daily, and every screen shows the last sync and how far behind the city publishes.',
       ],
     },
@@ -58,7 +58,7 @@
       ],
     },
     {
-      title: 'Builder momentum',
+      title: 'Builder activity',
       page: 'momentum.html',
       href: 'momentum.html',
       body: [
@@ -94,11 +94,11 @@
       ],
     },
     {
-      title: 'Weekly digest',
+      title: 'New permits',
       page: 'digest.html',
       href: 'digest.html',
       body: [
-        'This week\'s list for one trade: new building permits with no permit for that trade on record yet, newest first.',
+        'Building permits we first saw in the last 7, 14 or 30 days, newest first. You can narrow it to jobs with no electrical, plumbing or HVAC permit on record yet.',
       ],
     },
     {

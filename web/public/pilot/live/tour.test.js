@@ -46,7 +46,7 @@ for (const s of T.STEPS) {
 
 // Features the tour must cover.
 const all = T.STEPS.map((s) => `${s.title} ${s.body.join(' ')}`).join(' ').toLowerCase();
-for (const k of ['early filings', 'filed by', 'tap one to call', 'momentum', 'gc relationships',
+for (const k of ['early filings', 'filed by', 'tap one to call', 'builder activity', 'gc relationships',
   'appraiser', 'licence', 'permit search', 'austin', 'miami-dade', 'city of miami', 'raleigh']) {
   assert.ok(all.includes(k), `tour covers "${k}"`);
 }

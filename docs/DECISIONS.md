@@ -705,3 +705,27 @@ what would make us revisit it. Never delete an entry; supersede it.
   that implied intent was rewritten.
 - **Revisit:** a class C item comes back only with a measured accuracy the
   owner accepts, shown beside it; Raleigh links come back with a real job key.
+
+## ADR-27: Audience-neutral screens, invite-only access with an optional industry
+
+- **Status:** accepted, 2026-11-14 (owner: "do not assume our target
+  customers"; "avoid forcing users into a specific workflow"). Builds on
+  ADR-26; supersedes the subcontractor framing of ADR-1's screens and the
+  shared-password gate of ADR-13 (the password stays as the owner's key).
+- **Decision:**
+  1. No screen is built around one audience. The weekly "leads" list is now
+     "New permits" (every new building permit, newest first; narrowing to
+     jobs with no permit for a trade is optional). The job page has no "your
+     trade". The search page has no trade filter (it read fit scores). The
+     tour and sign-in page describe records, not leads. The static mock pages
+     under `/pilot/*.html` (sample data, lead framing) are removed.
+  2. Access is by personal invite code (`npm run invite`; migration 029).
+     Only a code's SHA-256 is stored; revoking stops it, sessions included,
+     within a minute. Sign-in asks, optionally, for the person's industry
+     (subcontractor, builder, supplier, insurance, real estate or investor,
+     finance, property services, public sector, other). It is recorded in
+     `access_signins` and never changes what anyone sees.
+- **Not changed:** the email digest stays parked (ADR-20) and still speaks
+  to subscribers by trade; it sends nothing until docs/EMAIL.md is done.
+- **Revisit:** when sign-ins show which industries use the data, decide what
+  each needs before building anything for one of them.

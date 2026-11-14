@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Builder momentum · Contractos</title>
+<title>Builder activity · Contractos</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500&amp;family=Archivo:wght@400;700&amp;family=Oswald:wght@700&amp;display=swap" rel="stylesheet">
@@ -16,7 +16,7 @@
 <main>
   <div class="head">
     <div>
-      <h1 id="title">Builder momentum</h1>
+      <h1 id="title">Builder activity</h1>
       <span class="context">Building permits per business, in two equal windows</span>
       <p class="lede" id="lede">Loading…</p>
     </div>
@@ -62,7 +62,7 @@
   function render(d) {
     const area = L.AREA[f.source];
     const w = d.windowDays;
-    $('title').textContent = `Builder momentum in ${area}`;
+    $('title').textContent = `Builder activity in ${area}`;
     $('fresh').innerHTML = L.freshness(d.meta);
     if (!d.segmentable) form.elements.segment.closest('label').hidden = true;
     const what = d.segment ? `${SEGMENT[d.segment]}` : 'building work';
@@ -72,7 +72,7 @@
       ${hid ? '' : d.historyCovers ? `<br><span class="sub">${(c.rising || 0) + (c.new || 0)} rising or new · ${c.slowing || 0} slowing · ${c.steady || 0} steady.</span>`
         : `<br><span class="sub err">Our history for this market starts ${L.esc(L.date(d.meta && d.meta.historyFrom))}, after the earlier window begins (${L.esc(L.date(d.priorFrom))}), so no change is shown. Pick a shorter window.</span>`}`;
     const tabs = [['up', 'Rising and new'], ['down', 'Slowing'], ['all', 'All']];
-    $('tabs').hidden = hid;
+    if (hid) $('tabs').style.display = 'none';
     $('tabs').innerHTML = hid ? '' : tabs.map(([k, label]) => `<a href="?${L.qs({ ...f, tab: k })}"${k === tab ? ' aria-current="true"' : ''}>${label}</a>`).join('');
     const keep = hid ? () => true : { up: (b) => b.trend === 'rising' || b.trend === 'new', down: (b) => b.trend === 'slowing', all: () => true }[tab];
     const list = d.builders.filter(keep);

@@ -116,5 +116,89 @@ const cookieOf = (r) => (r.headers.get('set-cookie') || '').split(';')[0];
     assert.match(r.headers.get('set-cookie'), /demo_session=;/);
   }));
 
+  // Invite-only access (ADR-27), over an in-memory store.
+  const memStore = () => {
+    const invites = new Map([['ABCD-EFGH-JK23', { id: 7, revoked: false }]]);
+    const signins = [];
+    return {
+      invites, signins,
+      find: async (code) => { const i = invites.get(String(code).trim().toUpperCase()); return i && !i.revoked ? { id: i.id } : null; },
+      isLive: async (id) => [...invites.values()].some((i) => i.id === id && !i.revoked),
+      record: async (r) => { signins.push(r); },
+    };
+  };
+  const signIn = (go, body, ip = '10.0.0.9') => go('/login', {
+    method: 'POST', body: new URLSearchParams({ next: '/page', ...body }),
+    headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-forwarded-for': ip },
+  });
+
+  await check('invites: the page asks for an access code and an optional industry', async () => {
+    const st = memStore();
+    await withApp('s3cret', async (go) => {
+      const html = await (await go('/login')).text();
+      assert.match(html, /Access code/);
+      assert.match(html, /name="industry"/);
+      assert.match(html, /Insurance/);
+      assert.ok(!/lead/i.test(html), 'no lead language');
+    }, { invites: st });
+  });
+
+  await check('invites: a live code signs in and records the industry; nothing else is recorded', async () => {
+    const st = memStore();
+    await withApp('s3cret', async (go) => {
+      const r = await signIn(go, { password: 'abcd-efgh-jk23', industry: 'insurance', industryOther: 'ignored' });
+      assert.strictEqual(r.status, 303);
+      const cookie = cookieOf(r);
+      assert.match(cookie, /^demo_session=\d+\.7\./);
+      assert.strictEqual((await go('/page', { headers: { cookie } })).status, 200);
+      assert.deepStrictEqual(st.signins, [{ inviteId: 7, industry: 'insurance', industryOther: null }]);
+    }, { invites: st });
+  });
+
+  await check('invites: industry is optional, "other" keeps short free text, unknown values become null', async () => {
+    const st = memStore();
+    await withApp('s3cret', async (go) => {
+      await signIn(go, { password: 'ABCD-EFGH-JK23' });
+      await signIn(go, { password: 'ABCD-EFGH-JK23', industry: 'other', industryOther: '  solar   installer ' });
+      await signIn(go, { password: 'ABCD-EFGH-JK23', industry: 'hacker<script>' });
+      assert.deepStrictEqual(st.signins.map((x) => [x.industry, x.industryOther]), [[null, null], ['other', 'solar installer'], [null, null]]);
+    }, { invites: st });
+  });
+
+  await check('invites: a wrong or revoked code is refused, and revoking ends an open session', async () => {
+    let t = 1_800_000_000_000;
+    const st = memStore();
+    await withApp('s3cret', async (go) => {
+      assert.strictEqual((await signIn(go, { password: 'ZZZZ-ZZZZ-ZZZZ' })).status, 401);
+      const cookie = cookieOf(await signIn(go, { password: 'ABCD-EFGH-JK23' }));
+      assert.strictEqual((await go('/api/x', { headers: { cookie } })).status, 200);
+      st.invites.get('ABCD-EFGH-JK23').revoked = true;
+      t += 61_000; // past the one-minute cache
+      assert.strictEqual((await go('/api/x', { headers: { cookie } })).status, 401);
+      assert.strictEqual((await signIn(go, { password: 'ABCD-EFGH-JK23' })).status, 401);
+    }, { invites: st, now: () => t });
+  });
+
+  await check('invites: the owner password still signs in, recorded without an invite', async () => {
+    const st = memStore();
+    await withApp('s3cret', async (go) => {
+      const r = await signIn(go, { password: 's3cret', industry: 'builder' });
+      assert.strictEqual(r.status, 303);
+      assert.match(cookieOf(r), /^demo_session=\d+\.0\./);
+      assert.deepStrictEqual(st.signins, [{ inviteId: null, industry: 'builder', industryOther: null }]);
+    }, { invites: st });
+  });
+
+  await check('invites: a store failure refuses the code but never crashes', async () => {
+    const st = { find: async () => { throw new Error('db down'); }, isLive: async () => false, record: async () => {} };
+    const err = console.error; console.error = () => {};
+    try {
+      await withApp('s3cret', async (go) => {
+        assert.strictEqual((await signIn(go, { password: 'ABCD-EFGH-JK23' })).status, 401);
+        assert.strictEqual((await signIn(go, { password: 's3cret' })).status, 303);
+      }, { invites: st });
+    } finally { console.error = err; }
+  });
+
   if (failures) process.exitCode = 1;
 })();

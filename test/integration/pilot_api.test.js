@@ -120,10 +120,19 @@ async function main() {
       assert.strictEqual(body.property, null);
     });
 
-    await check('leads: new building permits with no electrical permit yet', async () => {
-      const { body } = await get('/api/pilot/leads?trade=electrical');
+    await check('new permits: narrowed to jobs with no electrical permit on record', async () => {
+      const { body } = await get('/api/pilot/leads?without=electrical');
       assert.deepStrictEqual(body.leads.map((l) => l.permit_number), ['2026-6 BP']);
       assert.strictEqual(body.leads[0].gc.name, 'Acme Builders LLC');
+      assert.ok(!('score' in body.leads[0]), 'no fit score (ADR-26)');
+    });
+
+    await check('new permits: without a trade, every new building permit, newest issue first (ADR-27)', async () => {
+      const { body } = await get('/api/pilot/leads?trade=electrical');
+      assert.strictEqual(body.without, null, 'trade alone no longer narrows the list');
+      assert.ok(body.leads.length > 1 && body.leads.map((l) => l.permit_number).includes('2026-6 BP'));
+      const dates = body.leads.map((l) => String(l.issuedOn || ''));
+      assert.deepStrictEqual(dates, [...dates].sort().reverse());
     });
 
     await check('contractor profile; an individual returns a withheld stub', async () => {

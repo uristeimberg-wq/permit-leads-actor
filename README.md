@@ -115,6 +115,7 @@ No secret is committed. Set them where each process runs.
 | `DATABASE_URL` | GitHub Actions secret, Railway | Neon Postgres connection string |
 | `TX_COMPTROLLER_API_KEY` | GitHub Actions secret | Texas Comptroller franchise-tax lookups; without it the step skips and says so |
 | `GOOGLE_MAPS_BROWSER_KEY` | Railway | Street View photos on job pages; restrict it to the demo's domain |
+| (none) | Railway | Access is invite-only (ADR-27): `npm run invite -- --label="who"` prints a personal code; `--list` shows sign-ins and the industries people gave; `--revoke=<id>` stops a code. `DEMO_PASSWORD` remains the owner's key |
 | `SHOW_INFERENCES` | Railway | Unset (default): screens show recorded facts and counts only (ADR-26). `1` brings back estimates, fit scores, role tags, name matches, Street View and Raleigh job links |
 | `DEMO_PASSWORD` | Railway, GitHub Actions (smoke, perf) | Shared password for the hosted demo (ADR-13) |
 | `SOCRATA_APP_TOKEN` | GitHub Actions secret (optional) | Higher Socrata rate limits |
