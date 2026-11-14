@@ -20,6 +20,11 @@ const PORT = Number(process.env.PORT || 3000);
 
 // Liveness for the host's health check. Before the gate, and touches no data.
 app.get('/healthz', (_req, res) => res.type('text').send('ok'));
+// The applied migration number, so a deploy check can confirm the pre-deploy
+// migrations ran (railway.json). A number only; no database detail.
+app.get('/healthz/schema', async (_req, res) => {
+  try { res.json({ schema: await db.schemaVersion() }); } catch { res.status(503).json({ schema: null }); }
+});
 
 // Railway (and most hosts) put one proxy in front: trust it for req.ip (the
 // sign-in rate limit) and req.secure (the Secure cookie flag).

@@ -28,6 +28,7 @@ jobs:
           code() { curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$@"; }
           fail=0
           h=$(code "$BASE/healthz"); echo "healthz: $h"; [ "$h" = 200 ] || fail=1
+          echo "schema: $(curl -s --max-time 30 "$BASE/healthz/schema")"
           for p in / /pilot/live/ /pilot/live/early.html /pilot/live/gcs.html; do
             c=$(code -H 'accept: text/html' "$BASE$p"); echo "no session $p: $c (want 302 to /login)"; [ "$c" = 302 ] || fail=1
           done

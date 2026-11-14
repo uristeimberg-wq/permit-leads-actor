@@ -774,6 +774,67 @@ sections.austinPoints = async () => {
     log(`join: ${l.title}`, `${hit} of ${sample.length} unlocated keys found (${pct(hit, sample.length)}%) via ${l.num} + ${l.street}`);
   }
   for (const l of layers.filter((x) => !(x.num && x.street))) log(`join skipped: ${l.title}`, `no separate number/street fields (full-address field: ${l.full || 'none'})`);
+
+  // Join by the permit's own tcad_id (run 43623531336 found two official
+  // parcel layers with PROP_ID): the county's TCAD_public MapServer and the
+  // City of Austin's EXTERNAL_tcad_parcel. Terms text for both, then the
+  // share of unlocated permits whose tcad_id is a PROP_ID or geo_id there.
+  const OFFICIAL = [
+    { name: 'county TCAD_public', url: 'https://gis.traviscountytx.gov/server1/rest/services/Boundaries_and_Jurisdictions/TCAD_public/MapServer/0', svc: 'https://gis.traviscountytx.gov/server1/rest/services/Boundaries_and_Jurisdictions/TCAD_public/MapServer', geo: 'geo_id' },
+    { name: 'city EXTERNAL_tcad_parcel', url: 'https://services.arcgis.com/0L95CJ0VTaxqcmED/arcgis/rest/services/EXTERNAL_tcad_parcel/FeatureServer/0', svc: 'https://services.arcgis.com/0L95CJ0VTaxqcmED/arcgis/rest/services/EXTERNAL_tcad_parcel/FeatureServer', geo: 'PID_10' },
+  ];
+  const cityItem = candidates.find((c) => c.owner === 'CTM.Publisher' && /EXTERNAL_tcad_parcel/.test(c.title));
+  if (cityItem) {
+    const it = await http(`https://www.arcgis.com/sharing/rest/content/items/${cityItem.id}?f=json`);
+    log('city item', `${it.id} | owner ${it.owner} | org ${it.orgId} | access ${it.access}`);
+    log('city item licence', String(it.licenseInfo || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 800));
+    log('city item access info', String(it.accessInformation || '').slice(0, 300));
+  }
+  for (const o of OFFICIAL) {
+    try {
+      const svc = await http(`${o.svc}?f=json`);
+      log(`${o.name} service`, `${String(svc.serviceDescription || svc.description || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 500)} | copyright ${String(svc.copyrightText || '').slice(0, 200)} | maxRecordCount ${svc.maxRecordCount}`);
+    } catch (err) { log(`${o.name} service failed`, err.message.slice(0, 160)); }
+  }
+  const tc = await soql(AUSTIN, { $select: 'tcad_id', $where: `issue_date >= '${since}' AND latitude IS NULL AND tcad_id IS NOT NULL`, $limit: 5000 });
+  const ids = [...new Set(tc.map((r) => String(r.tcad_id).trim()).filter(Boolean))];
+  const tp = profile();
+  ids.forEach((x) => tp.add([x]));
+  log('unlocated tcad_id', `${tc.length} of ${rows.length} rows carry one; ${ids.length} distinct; shapes ${JSON.stringify(tp.report(ids.length, { shapes: [0] })[0].shapes)}`);
+  const sampleIds = ids.slice(0, 300);
+  const digitsOnly = (x) => x.replace(/\D/g, '');
+  for (const o of OFFICIAL) {
+    let byProp = 0;
+    let byGeo = 0;
+    for (let i = 0; i < sampleIds.length; i += 50) {
+      const chunk = sampleIds.slice(i, i + 50);
+      const nums = [...new Set(chunk.map((x) => digitsOnly(x).replace(/^0+/, '')).filter(Boolean))];
+      const geos = chunk.filter((x) => /^\d{10}$/.test(x));
+      try {
+        const where = `PROP_ID IN (${nums.join(',')})${geos.length ? ` OR ${o.geo} IN (${geos.map((g) => `'${g}'`).join(',')})` : ''}`;
+        const r = await http(`${o.url}/query`, { method: 'POST', body: new URLSearchParams({ f: 'json', where, outFields: `PROP_ID,${o.geo}`, returnGeometry: 'false' }) });
+        const props = new Set((r.features || []).map((f) => String(f.attributes.PROP_ID)));
+        const gs = new Set((r.features || []).map((f) => String(f.attributes[o.geo] || '').trim()));
+        for (const x of chunk) {
+          if (gs.has(x)) byGeo += 1;
+          else if (props.has(digitsOnly(x).replace(/^0+/, ''))) byProp += 1;
+        }
+      } catch (err) { log(`${o.name} join failed`, err.message.slice(0, 200)); break; }
+    }
+    log(`join by tcad_id: ${o.name}`, `${byGeo + byProp} of ${sampleIds.length} (${pct(byGeo + byProp, sampleIds.length)}%): geo ${byGeo}, prop ${byProp}`);
+  }
+  // Fixture (rule 10): three unlocated permits' parcels from the city layer,
+  // the fields the connector asks for (PID_10, PROP_ID, ZONING) and polygons.
+  const geoSample = ids.filter((x) => /^\d{10}$/.test(x)).slice(0, 40);
+  const city = OFFICIAL[1];
+  const fr = await http(`${city.url}/query`, { method: 'POST', body: new URLSearchParams({ f: 'json', where: `PID_10 IN (${geoSample.map((g) => `'${g}'`).join(',')})`, outFields: 'PID_10,PROP_ID,ZONING', returnGeometry: 'true', outSR: '4326', maxAllowableOffset: '0.00002', geometryPrecision: '6' }) });
+  const layerMeta = await http(`${city.url}?f=json`);
+  const picked = [];
+  for (const f of fr.features || []) if (!picked.some((x) => x.attributes.PID_10 === f.attributes.PID_10) && picked.length < 3) picked.push(f);
+  const dupes = (fr.features || []).length - new Set((fr.features || []).map((f) => f.attributes.PID_10)).size;
+  log('city layer: features for 40 geo ids / duplicate PID_10 rows', `${(fr.features || []).length} / ${dupes}`);
+  log('city layer zoning fill in that sample', pct((fr.features || []).filter((f) => filled(f.attributes.ZONING)).length, (fr.features || []).length));
+  console.log(`  FIXTURE ${JSON.stringify({ fields: layerMeta.fields.filter((f) => ['PID_10', 'PROP_ID', 'ZONING'].includes(f.name)).map((f) => ({ name: f.name, type: f.type })), lastEditDate: layerMeta.editingInfo && layerMeta.editingInfo.lastEditDate, features: picked })}`);
 };
 
 // Texas Comptroller public-data API (ADR-23 sprint 2; owner registered the

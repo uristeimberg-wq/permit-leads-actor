@@ -121,6 +121,10 @@ No secret is committed. Set them where each process runs.
 
 Railway builds `Dockerfile.web` and runs `node web/server.js`, with
 `/healthz` as its health check (`railway.json`). It auto-deploys from `main`.
+Before each deploy goes live, Railway runs `node db/apply.js` (its
+pre-deploy command), which applies pending migrations; if one fails, the
+previous deploy stays live. `/healthz/schema` returns the applied migration
+number, and the smoke workflow prints it.
 
 ## Repository map
 

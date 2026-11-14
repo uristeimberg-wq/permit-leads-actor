@@ -41,6 +41,12 @@ async function applySchema() {
   await migrate(getPool());
 }
 
+/** The highest applied migration number, or 0 on a database never migrated. */
+async function schemaVersion() {
+  const { rows: [r] } = await query(`SELECT coalesce(max(version), 0)::int AS v FROM schema_migrations`);
+  return r.v;
+}
+
 async function close() {
   if (pool) {
     await pool.end();
@@ -397,7 +403,7 @@ async function withTransaction(fn) {
 }
 
 module.exports = {
-  getPool, query, close, applySchema, maskStoredDescriptions, withTransaction,
+  getPool, query, close, applySchema, schemaVersion, maskStoredDescriptions, withTransaction,
   upsertPermits, existingPermitNumbers,
   startIngestRun, finishIngestRun,
   getSourceId, startSyncRun, finishSyncRun, insertRawRecords,
