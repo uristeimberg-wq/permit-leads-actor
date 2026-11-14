@@ -19,8 +19,9 @@ async function main() {
   for (const r of rows) {
     lines.push(`| ${cell(r.slug)} | ${cell(r.status || 'never run')} | ${cell(r.started_at && r.started_at.toISOString().slice(0, 16))} | ${cell(r.requests_made)} | ${cell(r.records_fetched)} | ${cell(r.records_new)} | ${cell(r.records_changed)} | ${cell(r.records_failed)} | ${cell(r.error_class ? `${r.error_class}: ${r.error_detail}` : '')} |`);
   }
+  // resolver_runs also holds the filers job (ADR-19); this line is the contractor resolver's.
   const { rows: [rr] } = await db.query(
-    "SELECT status, finished_at, stats, left(error_detail, 200) AS error FROM resolver_runs ORDER BY id DESC LIMIT 1").catch(() => ({ rows: [] }));
+    "SELECT status, finished_at, stats, left(error_detail, 200) AS error FROM resolver_runs WHERE resolver_version LIKE 'contractors-%' ORDER BY id DESC LIMIT 1").catch(() => ({ rows: [] }));
   if (rr) {
     const s = rr.stats || {};
     lines.push('', '## Contractor resolution', '', rr.status === 'succeeded'
