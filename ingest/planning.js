@@ -113,6 +113,12 @@ const CASE_COLUMNS = new Set(['case_number', 'case_ref', 'official_ref', 'proper
 async function rebuildLinks(client) {
   const out = {};
   for (const [slug, s] of planningSources()) {
+    // Links written under a rule that no longer exists (its detail changed or
+    // it was removed) are dropped too, or they would outlive the rule.
+    const { rowCount: stale } = await client.query(`DELETE FROM planning_case_links k USING planning_cases c
+      WHERE k.case_id = c.id AND c.source_area = $1 AND NOT (k.basis_detail = ANY($2::text[]))`,
+      [slug, (s.planning.links || []).map((l) => l.detail)]);
+    if (stale) out[`${slug} stale links removed`] = stale;
     for (const l of (s.planning.links || [])) {
       if (!CASE_COLUMNS.has(l.caseColumn)) throw new Error(`${slug}: link caseColumn "${l.caseColumn}" is not allowed`);
       if (!['official', 'parcel_window'].includes(l.kind)) throw new Error(`${slug}: unknown link kind "${l.kind}"`);

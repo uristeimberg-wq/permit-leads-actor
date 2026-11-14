@@ -121,7 +121,12 @@ async function main() {
         await q(`INSERT INTO raw_records (source_id, source_key, payload_hash, payload, sync_run_id) VALUES ($1, $2, $3, $4, $5)`,
           [srcId, num, num, JSON.stringify({ permitnum: num, pin: '1700000001', workclassmapped: wc }), runId]);
       }
-      await db.withTransaction(rebuildLinks);
+      const [{ id: caseId }] = await q("SELECT id FROM planning_cases WHERE case_number = 'SR-1'");
+      const [{ id: oldId }] = await q("SELECT id FROM permits WHERE permit_number = 'R-OLD'");
+      await q(`INSERT INTO planning_case_links (case_id, permit_id, link_basis, basis_detail, confidence)
+        VALUES ($1, $2, 'parcel_window', 'permit pin = plan main_parcel_number, filed within 3 years after', 0.6)`, [caseId, oldId]);
+      const out = await db.withTransaction(rebuildLinks);
+      assert.strictEqual(out['raleigh-plan-areas-nc stale links removed'], 1, 'a link from the old any-permit rule is removed');
       const rows = await q(`SELECT p.permit_number, k.confidence::float AS confidence FROM planning_case_links k
         JOIN planning_cases c ON c.id = k.case_id JOIN permits p ON p.id = k.permit_id WHERE c.case_number = 'SR-1'`);
       assert.deepStrictEqual(rows.map((r) => [r.permit_number, r.confidence]), [['R-NEW', 0.8]]);
