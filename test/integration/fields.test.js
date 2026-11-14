@@ -41,6 +41,7 @@ async function main() {
   const { enrichParcels } = require('../../ingest/enrich_parcels.js');
   const { runFacts } = require('../../ingest/facts.js');
   const { runFields } = require('../../ingest/fields.js');
+  const { resolveAll } = require('../../ingest/resolve.js');
   const q = async (sql, p) => (await db.query(sql, p)).rows;
   let failures = 0;
   const check = async (name, fn) => {
@@ -54,6 +55,7 @@ async function main() {
     await ingestArea('raleigh-nc', { days: 14, max: 100, allDetails: false });
     await enrichParcels({ providerSlug: 'wake-parcels', fetchImpl: wakeFetch });
     await runFacts();
+    await resolveAll();  // marks building permits (permit_parties.is_building), as the sync does before this step
     let first;
 
     await check('one property per found parcel; parcel and permit observations with their tiers', async () => {
@@ -77,6 +79,18 @@ async function main() {
       assert.strictEqual(u.n, 3);
       // Wake publishes no floors, so a permit's 3 floors stands alone: no conflict.
       assert.strictEqual(await conflict('1703734710', 'floors'), undefined);
+    });
+
+    await check('a trade permit never speaks for the property (fields-v2)', async () => {
+      // Turn the 120-unit permit into a trade permit: its observation stops counting, so the conflict is gone.
+      await q(`UPDATE permit_parties SET is_building = false
+                WHERE permit_id IN (SELECT f.permit_id FROM permit_facts f WHERE f.units = 120)`);
+      await runFields();
+      const c = await conflict('1703290757', 'units');
+      assert.strictEqual(c, undefined, 'without the trade permit, roll and building permit agree on 115: no conflict');
+      await q(`UPDATE permit_parties SET is_building = true
+                WHERE permit_id IN (SELECT f.permit_id FROM permit_facts f WHERE f.units = 120)`);
+      await runFields();
     });
 
     await check('a re-run writes nothing and duplicates nothing', async () => {

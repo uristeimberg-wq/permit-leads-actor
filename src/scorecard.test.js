@@ -31,4 +31,14 @@ check('targets: higher is better, except days missed', () => {
     ['met', 'below', 'met', 'below', null]);
 });
 
+check('lower-is-better metrics: latency and duplicates meet at or under the target', () => {
+  assert.deepStrictEqual([S.status('discovery_days_p50', 1, 1), S.status('discovery_days_p90', 3, 2), S.status('duplicate_rate', 0.004, 0.01), S.status('enrichment_depth', 5, 6)],
+    ['met', 'below', 'met', 'below']);
+});
+
+check('all ten brief metrics are on the scorecard', () => {
+  for (const k of ['pre_issue_capture', 'discovery_days_p50', 'property_match', 'enrichment_depth', 'contractor_resolved',
+    'phone_coverage', 'application_linked', 'duplicate_rate', 'sync_success_30', 'open_pre_issue']) assert.ok(S.METRICS[k], k);
+});
+
 if (failures) { console.error(`${failures} failed`); process.exit(1); }

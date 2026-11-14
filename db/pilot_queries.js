@@ -10,6 +10,7 @@
 // number and raw record it was taken from, and when that record was fetched.
 
 const { query } = require('./index.js');
+const { valueBand } = require('../src/value_bands.js');
 const { publicAliases } = require('../src/privacy.js');
 const { maskDescription } = require('../src/description_names.js');
 const { SEGMENTS, segmentOf, pickFiler } = require('../src/filers.js');
@@ -399,11 +400,12 @@ async function propertyFor(permitId) {
     parcelId: r.parcel_key, landUseCode: r.land_use_code, landUse: r.land_use, yearBuilt: r.year_built,
     heatedSqft: num(r.heated_sqft), buildingSqft: num(r.building_sqft), lotSqft: num(r.lot_sqft), bedrooms: num(r.bedrooms),
     bathrooms: num(r.bathrooms), units: num(r.units), floors: num(r.floors),
-    assessedValue: num(r.assessed_value), assessmentYear: r.assessment_year, siteZip: r.site_zip,
-    landValue: num(r.land_value), improvementValue: num(r.improvement_value), improvementType: r.improvement_type,
+    // Values leave the server as bands only, never exact (ADR-23 decision 3).
+    assessedValueBand: valueBand(r.assessed_value), assessmentYear: r.assessment_year, siteZip: r.site_zip,
+    landValueBand: valueBand(r.land_value), improvementValueBand: valueBand(r.improvement_value), improvementType: r.improvement_type,
     // Appraisal values are estimates for one roll year; Travis CAD asks that both be said.
-    valueNote: r.assessment_year && (r.land_value != null || r.improvement_value != null || r.assessed_value != null)
-      ? `Appraisal estimate, ${r.assessment_year} roll` : null,
+    valueNote: r.land_value != null || r.improvement_value != null || r.assessed_value != null
+      ? `Appraisal estimate${r.assessment_year ? `, ${r.assessment_year} roll` : ''}, shown as a range` : null,
     provenance: { source: r.slug, endpoint: r.endpoint_url, attribution: r.attribution_text, matchedBy: r.match_rule,
       fetchedAt: r.fetched_at, sourceEditedAt: r.source_edited_at },
   };

@@ -513,6 +513,36 @@ sections.tcad = async () => {
     d.years.sort((a, b) => a - b);
     log('yr_built sample p5/p50/p95', `${d.years[Math.floor(d.years.length * 0.05)]}/${d.years[Math.floor(d.years.length / 2)]}/${d.years[Math.floor(d.years.length * 0.95)]}`);
   }
+
+  // Land detail (lot size). Numbers only: this file holds no names. Positions
+  // from the layout (tcadLayout, run 43622711795): prop_id 1-12, land_type_cd
+  // 29-38, state_cd 64-68, size_acres 70-83 ("4 decimals"), size_square_feet 84-97.
+  const landName = entry(/LAND_DET\.TXT$|LAND_DETAIL\.TXT$/i);
+  log('land detail file', landName || 'not found');
+  if (landName) {
+    const l = { n: 0, props: new Set(), sqft: 0, acres: 0, both: 0, lens: new Map(), type: new Map(), state: new Map(), raw: [], ratios: [] };
+    await eachLine(spawn('unzip', ['-p', zip, landName]).stdout.setEncoding('latin1'), (line) => {
+      if (!line) return;
+      l.n += 1;
+      l.props.add(fixed(line, 1, 12));
+      l.lens.set(line.length, (l.lens.get(line.length) || 0) + 1);
+      const t = fixed(line, 29, 38); l.type.set(t, (l.type.get(t) || 0) + 1);
+      const st = fixed(line, 64, 68); l.state.set(st, (l.state.get(st) || 0) + 1);
+      const ac = fixed(line, 70, 83); const sf = fixed(line, 84, 97);
+      if (Number(sf) > 0) l.sqft += 1;
+      if (Number(ac) > 0) l.acres += 1;
+      if (Number(sf) > 0 && Number(ac) > 0) { l.both += 1; if (l.both % 101 === 0) l.ratios.push(Number(sf) / Number(ac)); }
+      if (l.n % 50021 === 0 && l.raw.length < 12) l.raw.push(`acres=[${ac}] sqft=[${sf}]`);
+    });
+    log('LAND_DET rows / properties', `${l.n} / ${l.props.size}`);
+    log('LAND_DET fill %', { size_square_feet: pct(l.sqft, l.n), size_acres: pct(l.acres, l.n), both: pct(l.both, l.n) });
+    log('LAND_DET record lengths', top(l.lens, 3));
+    log('land_type_cd top', top(l.type, 10));
+    log('state_cd top', top(l.state, 15));
+    log('raw number formats (sample)', l.raw);
+    l.ratios.sort((a, b) => a - b);
+    log('sqft / acres p5/p50/p95 (43560 if both are plain units)', `${l.ratios[Math.floor(l.ratios.length * 0.05)]}/${l.ratios[Math.floor(l.ratios.length / 2)]}/${l.ratios[Math.floor(l.ratios.length * 0.95)]}`);
+  }
 };
 
 // Every field of the sheets a TCAD loader reads (names and positions only, no

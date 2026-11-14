@@ -1415,7 +1415,7 @@ async function loadJobExtras(id) {
       ${row('Year built', pr.yearBuilt)}
       ${row(pr.heatedSqft != null ? 'Heated area' : 'Building area', num(pr.heatedSqft ?? pr.buildingSqft, ' sq ft'))}
       ${row('Lot', num(pr.lotSqft, ' sq ft'))}
-      ${row('Assessed value', pr.assessedValue != null ? money(pr.assessedValue) : '')}
+      ${row('Assessed value', pr.assessedValueBand ? pr.assessedValueBand.label : '')}
     </dl>
     <p class="check-count">Source: ${esc(v.attribution || v.source || 'appraiser')}${pr.valueNote ? ` · ${esc(pr.valueNote)}` : ''}. Owner, sale and exemption fields are not collected.</p>`
     : '<div class="sect">Property</div><p class="check-count">No appraiser record joined to this permit.</p>';

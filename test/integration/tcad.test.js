@@ -92,7 +92,11 @@ async function main() {
       const [{ id }] = await q("SELECT id FROM permits WHERE permit_number = '2026-1 BP'");
       const job = await getJob(id, parseFilters({ trade: 'electrical', source: 'austin-tx' }));
       assert.deepStrictEqual([job.property.yearBuilt, job.property.heatedSqft, job.property.valueNote, job.property.provenance.source],
-        [1998, 2100, 'Appraisal estimate, 2026 roll', 'travis-cad']);
+        [1998, 2100, 'Appraisal estimate, 2026 roll, shown as a range', 'travis-cad']);
+      // Values leave the server as bands only (ADR-23 decision 3): land 100,000 and improvement 250,000.
+      assert.deepStrictEqual([job.property.landValueBand.label, job.property.improvementValueBand.label], ['$100k-$250k', '$250k-$500k']);
+      const body = JSON.stringify(job.property);
+      assert.ok(!/"(assessedValue|landValue|improvementValue)"/.test(body) && !/250000\b/.test(body.replace(/"(low|high)":\d+/g, '')), 'no exact value leaves the server');
       assert.match(job.property.provenance.attribution, /Travis Central Appraisal District/);
     });
 

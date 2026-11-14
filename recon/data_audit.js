@@ -282,6 +282,41 @@ async function main() {
     table(['state', 'normalised names held by >1 contractor entity'], contractorDupes.map((r) => [r.st, r.n]));
   });
 
+  await section('Field conflicts (migration 023): what the open ones are made of', async () => {
+    const obs = `SELECT fc.entity_id, fc.field, fc.status, o.value, s.role, pp.is_building, pr.county
+                   FROM field_conflicts fc
+                   JOIN properties pr ON pr.id = fc.entity_id
+                   CROSS JOIN LATERAL unnest(fc.observation_ids) AS oid
+                   JOIN field_observations o ON o.id = oid
+                   JOIN sources s ON s.id = o.source_id
+                   LEFT JOIN permits p ON s.role <> 'enrichment' AND p.source_area = s.slug AND p.permit_number = o.source_ref
+                   LEFT JOIN LATERAL (SELECT bool_or(x.is_building) AS is_building FROM permit_parties x WHERE x.permit_id = p.id) pp ON true
+                  WHERE fc.entity_type = 'property'`;
+    const rows = await q(`
+      WITH o AS (${obs}), c AS (
+        SELECT entity_id, field, status, county,
+               bool_or(role = 'enrichment') AS has_appraiser,
+               bool_or(value::text IN ('0', '0.0')) AS has_zero,
+               bool_or(role <> 'enrichment' AND NOT coalesce(is_building, false)) AS has_trade_permit,
+               count(*) AS n_obs, count(DISTINCT value::text) AS n_values
+          FROM o GROUP BY 1, 2, 3, 4)
+      SELECT field, status, county, count(*)::int AS n,
+             count(*) FILTER (WHERE has_appraiser)::int AS with_appraiser,
+             count(*) FILTER (WHERE has_zero)::int AS with_zero,
+             count(*) FILTER (WHERE has_trade_permit)::int AS with_trade_permit,
+             round(avg(n_obs), 1) AS avg_obs, round(avg(n_values), 1) AS avg_values
+        FROM c GROUP BY 1, 2, 3 ORDER BY 1, 2, 3`);
+    table(['field', 'status', 'county', 'conflicts', 'with an appraiser value', 'a value is 0', 'a trade (non-building) permit in it', 'avg observations', 'avg distinct values'],
+      rows.map((r) => [r.field, r.status, r.county, r.n, r.with_appraiser, r.with_zero, r.with_trade_permit, r.avg_obs, r.avg_values]));
+    // The commonest value pairs in open conflicts (values only: no names or addresses).
+    const pairs = await q(`
+      WITH o AS (${obs}) SELECT field, string_agg(DISTINCT value::text, ' vs ' ORDER BY value::text) AS vals
+        FROM o WHERE status = 'open' GROUP BY entity_id, field`);
+    const freq = new Map();
+    for (const r of pairs) { const k = `${r.field}: ${r.vals}`; freq.set(k, (freq.get(k) || 0) + 1); }
+    table(['open conflict values', 'count'], [...freq].sort((a, b) => b[1] - a[1]).slice(0, 15));
+  });
+
   await db.getPool().end();
 }
 

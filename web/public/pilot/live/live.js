@@ -104,9 +104,9 @@
       ['Improvement', pr.improvementType],
     ].filter(([, x]) => x != null);
     const values = [
-      ['Assessed value', pr.assessedValue != null ? money(pr.assessedValue) : null],
-      ['Land value', pr.landValue != null ? money(pr.landValue) : null],
-      ['Improvement value', pr.improvementValue != null ? money(pr.improvementValue) : null],
+      ['Assessed value', pr.assessedValueBand ? pr.assessedValueBand.label : null],
+      ['Land value', pr.landValueBand ? pr.landValueBand.label : null],
+      ['Improvement value', pr.improvementValueBand ? pr.improvementValueBand.label : null],
     ].filter(([, x]) => x != null);
     const dl = (rows) => rows.map(([k, x]) => `<dt>${esc(k)}</dt><dd>${cell(x)}</dd>`).join('');
     return `<div class="card prop">

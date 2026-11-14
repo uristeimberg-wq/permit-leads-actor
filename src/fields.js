@@ -16,7 +16,10 @@
 
 const crypto = require('node:crypto');
 
-const RULE_VERSION = 'fields-v1';
+// v2 (2026-11-14): only building permits observe a property's units and
+// floors. Under v1, trade permits (which state their own job's scope, mostly
+// "1") made 97% of the 2,465 open conflicts on the first live run.
+const RULE_VERSION = 'fields-v2';
 
 // Appraiser providers (parcels.provider) and the county whose parcel keys
 // they publish. One appraiser per county today.

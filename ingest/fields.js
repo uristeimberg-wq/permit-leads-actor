@@ -99,6 +99,9 @@ async function permitPass(client, sourceIds, runAt) {
         JOIN unnest($1::text[], $2::text[]) AS m(provider, county) ON m.provider = c.provider
         JOIN properties pr ON pr.county = m.county AND pr.parcel_key = c.parcel_key
        WHERE (f.units IS NOT NULL OR f.floors IS NOT NULL) AND f.permit_id > $3
+         -- A trade permit's units and floors describe its own job, not the
+         -- building: only building permits speak for the property (fields-v2).
+         AND EXISTS (SELECT 1 FROM permit_parties b WHERE b.permit_id = f.permit_id AND b.is_building)
        ORDER BY f.permit_id LIMIT $4`, [providers, counties, after, CHUNK]);
     if (!rows.length) break;
     after = Number(rows[rows.length - 1].permit_id);
@@ -113,7 +116,8 @@ async function permitPass(client, sourceIds, runAt) {
 /**
  * Current observations of every property field that has more than one: the
  * newest row per source record, and a permit's only while that permit is
- * still linked to the property.
+ * still linked to the property and is a building permit (fields-v2; a trade
+ * permit's observations written under fields-v1 stay as history, unused).
  */
 async function multiObservations(client) {
   const { providers, counties } = countyValues();
@@ -131,7 +135,8 @@ async function multiObservations(client) {
            JOIN parcels c ON c.id = pp.parcel_id AND c.found
            JOIN unnest($1::text[], $2::text[]) AS m(provider, county) ON m.provider = c.provider
            JOIN properties pr ON pr.county = m.county AND pr.parcel_key = c.parcel_key
-          WHERE p.source_area = s.slug AND p.permit_number = cur.source_ref AND pr.id = cur.entity_id))
+          WHERE p.source_area = s.slug AND p.permit_number = cur.source_ref AND pr.id = cur.entity_id
+            AND EXISTS (SELECT 1 FROM permit_parties b WHERE b.permit_id = p.id AND b.is_building)))
     )
     SELECT l.* FROM live l
       JOIN (SELECT entity_id, field FROM live GROUP BY 1, 2 HAVING count(*) > 1) g USING (entity_id, field)
