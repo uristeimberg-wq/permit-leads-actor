@@ -1,0 +1,46 @@
+name: fidelity
+
+# Accuracy measurement (recon/fidelity_check.js): re-fetch a random sample of
+# permits from each official source by permit number and compare every field we
+# store and show. Also measures how often sources edit or delete records, and
+# how many edits fall outside the sync windows. Read-only against the database.
+# On demand only for now (owner, 2026-11-14: measure first, no new jobs).
+on:
+  workflow_dispatch:
+    inputs:
+      per_stratum:
+        description: 'Permits sampled per source and stratum'
+        default: '150'
+  pull_request:
+    paths:
+      - recon/fidelity.js
+      - recon/fidelity_check.js
+      - .github/workflows/fidelity.yml
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      - name: Fidelity check
+        run: |
+          if [ -z "$DATABASE_URL" ]; then echo "::warning::DATABASE_URL is not available (fork PR?); skipped"; exit 0; fi
+          set -o pipefail
+          node recon/fidelity_check.js --per-stratum=${{ inputs.per_stratum || '150' }} --json=fidelity.json | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fidelity-${{ github.run_id }}
+          path: fidelity.json
+          if-no-files-found: ignore
+          retention-days: 90
