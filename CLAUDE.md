@@ -27,6 +27,8 @@ npm run db:up        # Postgres 17 on :5433 (docker compose); 5432 is left alone
 npm run ingest       # one-off ingest; --area= --days= --max= --all-details
 npm run schedule     # interval scheduler (being replaced by pg-boss, M2)
 npm run web          # http://localhost:3000
+npm run digest       # customer email digests; dry run unless docs/EMAIL.md is done
+npm run digest:subscribe -- --email=... --area=austin-tx --trades=electrical --early=homes
 npm test             # all unit suites, offline, no DB; must stay green
 ```
 

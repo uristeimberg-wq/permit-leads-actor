@@ -151,6 +151,36 @@ jobs:
           DATABASE_URL: ${{ env.DB_URL }}
           SOCRATA_APP_TOKEN: ${{ secrets.SOCRATA_APP_TOKEN }}
         run: set -o pipefail; node ingest/enrich_licences.js | tee -a "$GITHUB_STEP_SUMMARY"
+      # Customer email digests (ADR-20), last, so the email reads the same data
+      # as the screens. A dry run (renders to digest-preview/, sends nothing)
+      # until the repo variables EMAIL_PROVIDER and EMAIL_SEND_ENABLED=yes and
+      # the other settings in docs/EMAIL.md are in place; an ephemeral run is
+      # always dry. Same-day re-runs send nothing new (digest_sends). Fails the
+      # job when any send fails, after recording why.
+      - name: Digests
+        if: always() && steps.secret.outputs.ready == 'true' && !inputs.backfill_days
+        env:
+          DATABASE_URL: ${{ env.DB_URL }}
+          EMAIL_PROVIDER: ${{ vars.EMAIL_PROVIDER }}
+          EMAIL_SEND_ENABLED: ${{ !inputs.ephemeral && vars.EMAIL_SEND_ENABLED || '' }}
+          EMAIL_ALLOWLIST: ${{ vars.EMAIL_ALLOWLIST }}
+          EMAIL_FROM: ${{ vars.EMAIL_FROM }}
+          EMAIL_REPLY_TO: ${{ vars.EMAIL_REPLY_TO }}
+          CONTACT_EMAIL: ${{ vars.CONTACT_EMAIL }}
+          MAILING_ADDRESS: ${{ vars.MAILING_ADDRESS }}
+          PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL || 'https://permits-production-9581a3c0.up.railway.app' }}
+          EMAIL_API_KEY: ${{ secrets.EMAIL_API_KEY }}
+          LINK_SECRET: ${{ secrets.LINK_SECRET }}
+          DIGEST_OUT_DIR: digest-preview
+        run: set -o pipefail; node ingest/digest.js | tee -a "$GITHUB_STEP_SUMMARY"
+      # Dry-run emails, to open in a browser. Private repo; kept 7 days.
+      - name: Keep the rendered digests
+        if: always() && hashFiles('digest-preview/*.html') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-preview
+          path: digest-preview/
+          retention-days: 7
       # One-off after a trade-rule change (src/scoring.js): writes only rows
       # whose scores change, vacuuming between batches (Neon storage limit).
       - name: Re-score trades

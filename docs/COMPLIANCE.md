@@ -32,6 +32,14 @@ are in `docs/DATA_SOURCES.md`, "Licence and terms review".
 5. **We never contact anyone on a user's behalf.** No dialing, texting or
    emailing contractors from the platform. Users get a number and make their
    own call.
+5a. **Customer emails (ADR-20).** Only to a customer who asked for them,
+   with a postal address and a working one-click unsubscribe in every email
+   (CAN-SPAM; Gmail and Yahoo bulk-sender rules). An unsubscribe stops every
+   Contractos email to that address within the same run and is never lifted
+   without the customer's own request. Emails follow the screens' rules:
+   business names only, suppressed phones never, no banned sales claims, no
+   open or click tracking. Real sending stays off until `docs/EMAIL.md` is
+   done and the owner approves the first send.
 6. **Removal and correction requests are logged and honoured** in
    `suppressions` (migration 009). See "Handling a removal request" below.
 7. **Retention.** Raw payloads are kept for traceability; superseded payloads
@@ -141,7 +149,7 @@ them at load time, not at display.
 | 3.2 | National Do Not Call | 🟡 | V (rule) / A (application) | Covers residential subscribers; contractor cells are presumptively residential (2.3). A second call in 12 months to a registered number opens private suits at $500-$1,500 per call | Scrub cells; email first if registered |
 | 3.3 | **Texas ch. 302 registration** | 🔴 before outreach scales | V (statute) / S | "Telephone solicitation" includes calls to induce someone to "receive" a service; there is no general B2B exemption. Registration costs a $10,000 security deposit. SB 140 (2025) added texts and DTPA private suits | Counsel Q6 before more than a handful of calls. Keep calls to discovery plus "may I email you?" (302.059(1)) |
 | 3.4 | Texas calling hours (ch. 301) and no-call list (ch. 304) | 🟢 | V | Consumer-focused; B2B is arguably outside. Follow the hours anyway | — |
-| 3.5 | CAN-SPAM | 🟢 with the footer | V (FTC guide) | Applies to B2B email. Needs a postal address and working opt-out | Footer on every email |
+| 3.5 | CAN-SPAM | 🟢 with the footer | V (FTC guide) | Applies to B2B email. Needs a postal address and working opt-out | Footer on every email. Built for digests (ADR-20): the send refuses without `MAILING_ADDRESS`; opt-out is one click, at once, all emails. Still to do: a real postal address (a PO box or registered mailbox counts) |
 | 3.6 | **Florida**: s. 501.059 (mini-TCPA) and the Florida Telemarketing Act (ch. 501 part IV, FDACS licence) | 🟡 | S (501.059) / A (licensing and its B2B exemption) | Miami-Dade outreach has not started. The Act requires commercial telephone sellers to hold an FDACS licence, with exemptions we have not read | Counsel Q7 before the first Florida call |
 | 3.7 | FTC Telemarketing Sales Rule | 🟢 | V | B2B calls are exempt except the misrepresentation bans (2024 amendment) | Sales claims stay inside section 5 of the brief |
 | 3.8 | **Customers calling our leads** (paid product) | 🟡 | A | We never dial (rule 5), but subscribers will cold-call numbers we supply. Liability for "assisting and facilitating" is a TSR concept; for TCPA it is the caller's | Customer terms: subscriber is responsible for TCPA, DNC and state law; no autodialing our numbers. Counsel Q8 |

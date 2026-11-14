@@ -316,7 +316,10 @@ once M1 has measured it.
 - `digest.build` picks the top 10 to 25 leads by relevance among those first
   seen since the last digest that were never sent to this subscription.
 - **Email** goes through a transactional provider (Postmark or Resend, ADR-8)
-  and carries a CSV attachment.
+  and carries a CSV attachment. *Built 2026-11-14 (ADR-20):* daily or weekly
+  digests without the CSV yet, behind `src/email/providers.js`, dry run by
+  default; signed job links are `/l/:token` and the unsubscribe `/u/:token`.
+  Setup for real sends: `docs/EMAIL.md`.
 - **Feedback links** on each lead are signed URLs, `/f/:token`. The token is
   an HMAC of `(digest_item_id, verdict)` and expires after 30 days, so one
   click records a verdict without a login. Verdicts:

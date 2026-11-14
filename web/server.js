@@ -12,6 +12,7 @@ const { router: pilotApi } = require('./pilot_api.js');
 const { router: overviewApi, warmList } = require('./overview_api.js');
 const { cache } = require('./cache.js');
 const { demoGate } = require('./access.js');
+const digestRoutes = require('./digest_routes.js');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -23,8 +24,16 @@ app.get('/healthz', (_req, res) => res.type('text').send('ok'));
 // sign-in rate limit) and req.secure (the Secure cookie flag).
 app.set('trust proxy', 1);
 
+// Signed links from digest emails (ADR-20): one job page per token, and the
+// unsubscribe. Before the gate, because a customer opens them without the
+// demo password; the token is the only key (web/digest_routes.js).
+app.use(digestRoutes.publicRouter());
+
 // A hosted demo sets DEMO_PASSWORD; see web/access.js.
 app.use(demoGate());
+
+// Digest email previews, behind the gate.
+app.use(digestRoutes.previewRouter());
 app.disable('x-powered-by');
 
 // Only these reach the query builder. Anything else a client sends is ignored

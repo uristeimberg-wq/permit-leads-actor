@@ -70,6 +70,9 @@ function measure(minTarget) {
       ['early-raleigh', '/pilot/live/early.html?source=raleigh-nc'],
       ['gcs', '/pilot/live/gcs.html'],
       ['digest', '/pilot/live/digest.html'],
+      // The customer email (ADR-20), rendered from the same data, and its preview index.
+      ['digest-email', '/digest/sample?source=austin-tx&trades=electrical,plumbing&early=homes&days=30'],
+      ['digest-previews', '/digest/preview'],
       ...(ids.job ? [['job', `/pilot/live/job.html?id=${ids.job}&trade=electrical`]] : []),
       ...(ids.gc ? [['contractor', `/pilot/live/contractor.html?id=${ids.gc}`]] : []),
       ['search', '/search.html'],

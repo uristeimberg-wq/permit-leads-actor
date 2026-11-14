@@ -97,7 +97,10 @@ what would make us revisit it. Never delete an entry; supersede it.
 
 ## ADR-8: Email provider
 
-- **Date:** 2026-11-13. **Status:** open (Postmark or Resend).
+- **Date:** 2026-11-13. **Status:** open (Postmark or Resend). *Amended
+  2026-11-14 by ADR-20:* both are built behind one interface; Resend is the
+  recommended first account. The final pick still waits on deliverability
+  measured on real sends.
 - **Criteria:**
   - deliverability to small-business inboxes (Gmail and Outlook)
   - open and click webhooks
@@ -480,3 +483,57 @@ what would make us revisit it. Never delete an entry; supersede it.
 - **Revisit when:** a design partner reports a wrong role, or the measured
   agreement between filer and later building contractor falls under 50% for
   orgs we call builders.
+
+## ADR-20: Customer email digests: dry run by default, one provider interface, signed links
+
+- **Date:** 2026-11-14. **Status:** accepted (owner approved building
+  customer email reports, digest first; saved searches with alerts and CSV
+  export follow).
+- **Context:** customers could only open the app or a shared demo password.
+  Nothing reached them. The owner has no sending domain yet, so nothing can
+  be sent today, but the digest can be built, checked and previewed now.
+- **Decision:**
+  1. A subscription (`digest_subscriptions`, migration 019) is one address,
+     one market, its trades and an optional early-filings segment (homes,
+     apartments, commercial or all), daily or weekly. Set with
+     `npm run digest:subscribe` until there is a sign-up screen.
+  2. `ingest/digest.js` runs as the last step of the daily sync. Each email
+     carries only records first seen since that subscription's last email and
+     never sent to it before (`digest_items` primary key), at most 25 per
+     section with a count of the rest. Old records a backfill marks as new are
+     kept out (issued, or submitted, in the last 30 days). An empty digest is
+     not sent. One `digest_sends` row per subscription, mode and day: a re-run
+     sends nothing new; a failed send is retried by the next run that day,
+     one left `started` is not (the provider may have accepted it).
+  3. Content: early filings first (Austin new homes by default, ADR-19) with
+     the filer and its role, an expediter flagged as not the builder, the
+     builder's tap-to-call phone and its past subs for the subscriber's
+     trades; then, per trade, new building permits with no permit for that
+     trade on the job yet, with the contractor and phone. Same privacy and
+     suppression rules as the screens (it reads `db/pilot_queries.js`). Each
+     item names its permit number with the city's link; the header states the
+     last sync, the publication lag and a failed or stale sync.
+  4. Every email has a one-click unsubscribe (footer link plus RFC 8058
+     `List-Unsubscribe` and `List-Unsubscribe-Post` headers) and the postal
+     address from `MAILING_ADDRESS`. Unsubscribing suppresses the address for
+     every Contractos email (`email_suppressions`), not one list. A GET only
+     shows a confirm button, because mail scanners open links.
+  5. Job links are signed (`/l/<token>`, HMAC-SHA256 with `LINK_SECRET`,
+     60-day expiry). A token opens one permit's page for one subscription and
+     nothing else; it is not a login. The full app stays behind the password.
+  6. Providers sit behind `send(msg)` in `src/email/providers.js`: `dryrun`
+     (default, writes files), `resend` and `postmark`. A real send needs
+     `EMAIL_SEND_ENABLED=yes` and every setting a lawful send needs; anything
+     missing makes the run refuse and list it. `EMAIL_ALLOWLIST` restricts
+     real sends to named addresses for a first test. No open or click
+     tracking.
+- **Consequences:** previews at `/digest/preview` (behind the password) and a
+  `digest-preview` artifact on every sync run. Setup steps for real sends are
+  in `docs/EMAIL.md`. SES is not built (it needs request signing); add it
+  behind the same interface if cost requires. Bounce and complaint webhooks
+  are not wired yet: until they are, check the provider dashboard and add
+  bounced addresses to `email_suppressions` by hand.
+- **Revisit when:** the first real sends show deliverability problems, a
+  customer asks for a different time of day (sends follow the 17:15 UTC
+  sync), or saved searches replace the fixed subscription fields.
+

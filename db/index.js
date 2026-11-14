@@ -380,8 +380,24 @@ async function maskStoredDescriptions(batch = 5000) {
   return updated;
 }
 
+/** Run fn(client) in one transaction; rolls back and rethrows on error. */
+async function withTransaction(fn) {
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const out = await fn(client);
+    await client.query('COMMIT');
+    return out;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
-  getPool, query, close, applySchema, maskStoredDescriptions,
+  getPool, query, close, applySchema, maskStoredDescriptions, withTransaction,
   upsertPermits, existingPermitNumbers,
   startIngestRun, finishIngestRun,
   getSourceId, startSyncRun, finishSyncRun, insertRawRecords,

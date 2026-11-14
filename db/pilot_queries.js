@@ -542,20 +542,25 @@ async function getContractor(id) {
  * area, with no permit for the trade issued on the job yet, ranked by the
  * permit's precomputed trade score. "Not issued" is all the data can say:
  * the source lists issued permits only, so one may be in review.
+ * `since` (a timestamp) narrows to permits first seen after it, and
+ * `issuedWithinDays` drops old permits a backfill has just brought in (both
+ * for the email digest, src/digest).
  */
-async function listLeads(f, { days = 7, limit = 25, minValuation = null } = {}) {
+async function listLeads(f, { days = 7, limit = 25, minValuation = null, since = null, issuedWithinDays = null } = {}) {
   const { rows } = await query(`
     SELECT ${PERMIT_COLS}, pp.contractor_id, pp.issued_on, (p.trade_scores ->> $7)::numeric AS score
       FROM permit_parties pp JOIN permits p ON p.id = pp.permit_id
      WHERE pp.is_building AND p.source_area = $1
        AND p.first_seen_at >= now() - make_interval(days => $2)
+       AND ($8::timestamptz IS NULL OR p.first_seen_at >= $8)
+       AND ($9::int IS NULL OR pp.issued_on >= current_date - $9::int)
        AND ($3::text[] IS NULL OR p.zip = ANY($3))
        AND coalesce(p.status_stage, 'unknown') NOT IN ('finished','cancelled')
        AND ($6::numeric IS NULL OR p.valuation >= $6)
        AND NOT EXISTS (SELECT 1 FROM permit_parties t JOIN permits p2 ON p2.id = t.permit_id
                         WHERE t.job_key = pp.job_key AND t.trade = $4 AND p2.source_area = $1)
      ORDER BY score DESC NULLS LAST, p.valuation DESC NULLS LAST, p.id
-     LIMIT $5`, [f.source, days, f.zips, f.trade, limit, minValuation, SCORE_KEY[f.trade]]);
+     LIMIT $5`, [f.source, days, f.zips, f.trade, limit, minValuation, SCORE_KEY[f.trade], since, issuedWithinDays]);
   const people = await contractorsById([...new Set(rows.map((r) => r.contractor_id).filter(Boolean))]);
   return rows.map((r) => ({
     ...stripInternal(r), score: r.score == null ? null : Number(r.score), issuedOn: r.issued_on,
@@ -571,19 +576,21 @@ async function listLeads(f, { days = 7, limit = 25, minValuation = null } = {}) 
  * saw the filing. A contractor is shown only where the filing names one, under
  * the same rule as every screen; applicants and owners are never selected.
  */
-async function listEarly(f, { days = 30, limit = 100, segment = null } = {}) {
+async function listEarly(f, { days = 30, limit = 100, segment = null, since = null } = {}) {
   const areas = display(f.source).early || [];
   if (!areas.length) return { available: false, filings: [], counts: [] };
   // The segments read Austin's plan-review sub types ("R- 101 ..."); other
   // feeds word their types differently, so they are not segmented.
   const segmentable = areas.includes('austin-plan-review-tx');
   const pattern = segmentable && segment && SEGMENTS[segment] ? SEGMENTS[segment].pattern : null;
+  // `since` (the email digest): only filings first seen after that moment.
   const base = `p.source_area = ANY($1::text[]) AND p.lifecycle_stage = ANY($2::text[])
        AND coalesce(p.submitted_on, p.first_seen_at::date) >= current_date - $3::int
-       AND ($4::text[] IS NULL OR p.zip = ANY($4))`;
-  const where = `${base} AND ($5::text IS NULL OR p.permit_type ~* $5)`;
-  const args = [areas, EARLY_STAGES, days, f.zips, pattern, limit];
-  const segmentCols = Object.keys(SEGMENTS).map((k, i) => `count(*) FILTER (WHERE p.permit_type ~* $${5 + i})::int AS ${k}`).join(', ');
+       AND ($4::text[] IS NULL OR p.zip = ANY($4))
+       AND ($5::timestamptz IS NULL OR p.first_seen_at >= $5)`;
+  const where = `${base} AND ($6::text IS NULL OR p.permit_type ~* $6)`;
+  const args = [areas, EARLY_STAGES, days, f.zips, since, pattern, limit];
+  const segmentCols = Object.keys(SEGMENTS).map((k, i) => `count(*) FILTER (WHERE p.permit_type ~* $${6 + i})::int AS ${k}`).join(', ');
   const [{ rows }, { rows: counts }, { rows: [segmentCounts] }] = await Promise.all([
     query(`
       SELECT ${PERMIT_COLS}, p.lifecycle_stage, p.first_seen_stage, p.submitted_on, p.stage_since, p.filing_kind,
@@ -596,9 +603,9 @@ async function listEarly(f, { days = 30, limit = 100, segment = null } = {}) {
         FROM permits p LEFT JOIN permit_parties pp ON pp.permit_id = p.id AND pp.role = 'contractor'
        WHERE ${where}
        ORDER BY coalesce(p.submitted_on, p.first_seen_at::date) DESC, p.valuation DESC NULLS LAST, p.id
-       LIMIT $6`, args),
-    query(`SELECT p.lifecycle_stage AS stage, count(*)::int AS n FROM permits p WHERE ${where} GROUP BY 1 ORDER BY 2 DESC`, args.slice(0, 5)),
-    query(`SELECT ${segmentCols} FROM permits p WHERE ${base}`, [...args.slice(0, 4), ...Object.values(SEGMENTS).map((x) => x.pattern)]),
+       LIMIT $7`, args),
+    query(`SELECT p.lifecycle_stage AS stage, count(*)::int AS n FROM permits p WHERE ${where} GROUP BY 1 ORDER BY 2 DESC`, args.slice(0, 6)),
+    query(`SELECT ${segmentCols} FROM permits p WHERE ${base}`, [...args.slice(0, 5), ...Object.values(SEGMENTS).map((x) => x.pattern)]),
   ]);
   const shown = new Map(rows.map((r) => [String(r.id), pickFiler(r.filers || [])]));
   const builderIds = [...new Set([...shown.values()].filter((x) => x && x.role === 'builder' && x.contractorId).map((x) => x.contractorId))];
@@ -644,6 +651,16 @@ function publicFiler(o) {
   };
 }
 
+/** The business shown as having filed one application (same rule as the Early screen), or null. */
+async function filersFor(permitId) {
+  const { rows } = await query(`
+    SELECT o.org_key AS key, o.display_name AS name, o.party_kind AS "partyKind", o.role, o.basis, o.filings,
+           o.contractor_id AS "contractorId", ff.raw_record_id AS "rawRecordId"
+      FROM filing_filers ff JOIN filer_orgs o ON o.org_key = ff.org_key WHERE ff.permit_id = $1 ORDER BY o.org_key`, [permitId]);
+  const filer = publicFiler(pickFiler(rows));
+  return { filer, withheld: !filer && rows.length > 0 };
+}
+
 /**
  * Each builder's past subs, top three per trade, from issued permits
  * (contractor_relationships, ADR-12). History, not a claim about this job.
@@ -668,6 +685,6 @@ async function builderSubs(gcIds, perTrade = 3) {
 }
 
 module.exports = {
-  TRADES, SOURCES, OPEN_WINDOW_DAYS, EARLY_STAGES, listEarly, publicFiler, builderSubs,
+  TRADES, SOURCES, OPEN_WINDOW_DAYS, EARLY_STAGES, SCORE_KEY, listEarly, publicFiler, builderSubs, contractorsById, filersFor,
   parseFilters, publicContractor, listGcs, marketBaseline, sourceMeta, getJob, getContractor, listLeads, lifecycleFor,
 };
