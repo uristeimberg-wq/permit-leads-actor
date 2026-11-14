@@ -12,6 +12,9 @@ on:
       seed:
         description: Sample seed (change it for a fresh sample)
         default: 'filers-check-1'
+      mode:
+        description: "'builders' (Builder-tag spot-check) or 'party-kinds' (names a person-name filter change makes visible, recon/party_kind_diff.js)"
+        default: 'builders'
 
 jobs:
   check:
@@ -26,7 +29,13 @@ jobs:
       - run: npm ci --ignore-scripts
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      - name: Names made visible
+        if: inputs.mode == 'party-kinds'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: set -o pipefail; node recon/party_kind_diff.js | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Spot-check
+        if: inputs.mode != 'party-kinds'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           N: ${{ inputs.n }}

@@ -590,3 +590,23 @@ what would make us revisit it. Never delete an entry; supersede it.
   after the 12-month plan-review backfill.
 - **Revisit when:** calibration falls outside 50-70% for a market, or a
   design partner says the windows are too wide to plan with.
+
+## ADR-22: Business names the person-name filter hid are shown (contractors-v3)
+
+- **Date:** 2026-11-14. **Status:** accepted (owner: "Go for it", 2026-11-14).
+- **Context:** `partyKind` (ADR-12) withholds any two-to-four-word name with
+  no business word, to keep people's names off screens (rule 5). The Builder
+  spot-check (ADR-19) showed it also hides plain businesses: "Bluebonnet
+  Foundation Repair", "GL Hunt Foundation Repair", "Aqua Permits".
+- **Decision:** add trade and firm words that are not common first names or
+  surnames (repair, foundation, interiors, projects, architecture, permits,
+  improvements, maintenance, consulting and similar) and treat "by" or "of"
+  inside a name as a business marker. A plain first and last name stays
+  `individual`. Resolver version `contractors-v3`; the next nightly resolve
+  re-classifies every contractor and contact. The filers' private word list
+  (ADR-19) is folded into this one.
+- **Consequences:** more contractor names and their phones are shown. A sole
+  proprietor trading under their own name plus a trade word ("Martha Nolan
+  Interiors") is shown, as "Smith Electric" already was (COMPLIANCE 2.2, 2.3).
+  `recon/party_kind_diff.js` measures what a change makes visible before the
+  data is re-resolved.

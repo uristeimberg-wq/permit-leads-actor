@@ -39,6 +39,11 @@ check('party kind: businesses shown, person-like names hidden, unclear held for 
   assert.strictEqual(C.partyKind('John Q Smith'), 'individual');
   assert.strictEqual(C.partyKind('Austin Smith'), 'individual');
   assert.strictEqual(C.partyKind('ZZQX'), 'unknown');
+  // contractors-v3 (ADR-22): trade-named businesses show; first-and-last names stay hidden.
+  for (const n of ['Bluebonnet Foundation Repair', 'Olshan Foundation Repair', 'Renewal by Andersen', 'Aqua Permits',
+    'Martha Nolan Interiors', 'Lone Star Permitting', 'Hill Country Outdoors']) assert.strictEqual(C.partyKind(n), 'business', n);
+  for (const n of ['Austin Smith', 'Taylor Morrison', 'Jane Doe', 'Mary Ann Smith', 'Maria De La Cruz', 'Jose Luis Garcia Lopez',
+    'Dallas Brooks', 'Mason Stone', 'Carter Price']) assert.strictEqual(C.partyKind(n), 'individual', n);
   assert.deepStrictEqual(['business', 'individual', 'unknown'].map(C.displayPolicy), ['show', 'hide', 'review']);
 });
 

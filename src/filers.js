@@ -93,13 +93,8 @@ function classify({ name, linked = 0, self = 0, distinct = 0, knownBuilder = fal
  * shown; a name that reads like a person ("Taylor Morrison") is shown only
  * when the same name is a business-kind contractor on building permits.
  */
-// Trade words common in filer names that the contractor resolver's list does
-// not carry. Used here only: widening the resolver's list would change which
-// contractor phones are shown everywhere.
-const FILER_BUSINESS_WORDS = /\b(permits?|permitting|expedit\w*|repairs?|foundations?|interiors?|projects|architects?|architecture|studios?|works|homebuilders?)\b/i;
-
 function filerKind(name, contractorKind) {
-  const k = FILER_BUSINESS_WORDS.test(name || '') ? 'business' : partyKind(name);
+  const k = partyKind(name);
   if (k === 'business') return 'business';
   return contractorKind === 'business' ? 'business' : k;
 }

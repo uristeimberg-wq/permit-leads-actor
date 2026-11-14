@@ -14,7 +14,7 @@
 
 const { SOURCES } = require('./sources.js');
 
-const RESOLVER_VERSION = 'contractors-v2';
+const RESOLVER_VERSION = 'contractors-v3';
 
 const NON_CONTRACTORS = new Set(['owner', 'owner builder', 'self', 'homeowner', 'na', 'n a', 'none', 'tbd', 'unknown', 'owner owner']);
 
@@ -60,10 +60,19 @@ function isOwnerBuilder(raw) {
  * reads like a person's name (two or three plain words, no business word), so
  * its phone may be a personal phone and is hidden (CLAUDE.md rule 5).
  */
+// contractors-v3 (owner's approval 2026-11-14, ADR-22): trade and firm words
+// seen on real Austin businesses that the first list missed ("Bluebonnet
+// Foundation Repair", "Waterloo Permits", "Martha Nolan Interiors"). Kept to
+// words that are not common first names or surnames, so a plain first and
+// last name ("Austin Smith", "Taylor Morrison") still reads as a person.
+const MORE_BUSINESS_WORDS = /\b(repairs?|foundations?|interiors?|projects|architects?|architecture|studios?|works|homebuilders?|builds|permits?|permitting|expedit\w*|improvements?|maintenance|installations?|installers?|plumbers|electricians|lighting|carpentry|masonry|framing|insulation|gutters|siding|irrigation|septic|drilling|surveying|consulting|consultants?|outdoors?|landscapes?|decks|patios|garages|exteriors?|millwork|cabinetry|countertops|plastering|stucco|waterproofing|remodelers?|renovators?|craftsmen|contractor)\b/i;
+// "Renewal by Andersen", "Smith Plumbing of Texas": a person's name has no "by" or "of".
+const CONNECTOR_WORDS = /\s(by|of)\s/i;
+
 function partyKind(raw) {
   const name = String(raw ?? '').trim();
   if (!name) return 'unknown';
-  if (BUSINESS_WORDS.test(name) || /\d/.test(name)) return 'business';
+  if (BUSINESS_WORDS.test(name) || MORE_BUSINESS_WORDS.test(name) || CONNECTOR_WORDS.test(name) || /\d/.test(name)) return 'business';
   const words = cleanText(name).split(' ').filter(Boolean);
   if (words.length >= 2 && words.length <= 4 && words.every((w) => /^[a-z]+$/.test(w))) return 'individual';
   return 'unknown';
