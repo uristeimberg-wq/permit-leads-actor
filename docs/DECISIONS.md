@@ -361,3 +361,25 @@ what would make us revisit it. Never delete an entry; supersede it.
   under 50% (most permits are first seen only when issued), or design
   partners report that projects found at application stage were no more
   winnable than issued ones.
+
+## ADR-17: Trade scores for electrical, plumbing and HVAC read the permit type first
+
+- **Date:** 2026-11-14. **Status:** accepted (owner approved the proposal's recommendations).
+- **Context:** the prototype's rules were written for Portland prose. On 95
+  recorded permits from the four pilot markets they gave 8 non-jobs (a
+  City of Miami parking lot, driveway, trusses, garage door) 95 points for
+  every trade and missed 5 of the 6 new homes. Evidence and before/after:
+  `docs/TRADE_SCORING.md`.
+- **Decision:** electrical, plumbing and HVAC are scored by ordered rules in
+  `src/scoring.js`: (1) a trade permit is never a lead, because its sub is
+  already on the job; (2) permit types that are not building work score 0;
+  (3) new homes and units score 90 for all three; (4) site and envelope work
+  scores 0, pools included; (5) additions and build-outs 65, or 85 when they
+  name the trade; remodels naming the trade 75; other mentions 50; City of
+  Miami itemized trade lines 50, labelled as likely the sub's own permit.
+  Commercial work is scored like residential for now. Flooring, painting and
+  roofing keep the prototype rules. Stored rows are re-scored once with the
+  sync workflow's `rescore` input (`ingest/rescore.js`).
+- **Revisit when:** a production sample of 30 hits and 30 misses per market
+  shows more than 5 wrong in either set, or a customer asks for commercial
+  work separated.

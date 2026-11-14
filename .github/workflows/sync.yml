@@ -21,6 +21,10 @@ on:
         description: Area to backfill (austin-tx, austin-plan-review-tx, miami-dade-fl, miami-city-fl, raleigh-nc)
         type: string
         default: austin-tx
+      rescore:
+        description: Re-score every stored permit with the current trade rules (after a rule change)
+        type: boolean
+        default: false
 
 concurrency:
   group: sync
@@ -139,6 +143,13 @@ jobs:
           DATABASE_URL: ${{ env.DB_URL }}
           SOCRATA_APP_TOKEN: ${{ secrets.SOCRATA_APP_TOKEN }}
         run: set -o pipefail; node ingest/enrich_licences.js | tee -a "$GITHUB_STEP_SUMMARY"
+      # One-off after a trade-rule change (src/scoring.js): writes only rows
+      # whose scores change, vacuuming between batches (Neon storage limit).
+      - name: Re-score trades
+        if: steps.secret.outputs.ready == 'true' && inputs.rescore
+        env:
+          DATABASE_URL: ${{ env.DB_URL }}
+        run: set -o pipefail; node ingest/rescore.js | tee -a "$GITHUB_STEP_SUMMARY"
       # Superseded raw payloads past the retention window (ADR-14).
       - name: Raw retention
         if: steps.secret.outputs.ready == 'true' && !inputs.ephemeral

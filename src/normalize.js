@@ -163,7 +163,8 @@ function toScorable(permit) {
     .map((s) => (s || '').trim())
     .filter(Boolean)
     .join(' — ');
-  return { ...permit, workDescription: text };
+  // `description` keeps the free text alone for rules that read the type apart.
+  return { ...permit, description: permit.workDescription || '', workDescription: text };
 }
 
 module.exports = { createStatusNormalizer, normalizePermit, toScorable, normalizePhone, KNOWN_STATUSES };
