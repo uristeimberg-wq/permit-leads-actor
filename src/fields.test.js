@@ -48,8 +48,13 @@ check('appraiser beats permit: auto-resolved, the permit value kept visible', ()
 });
 
 check('two permits that disagree, with no appraiser value: unresolved, nothing picked, and not a conflict', () => {
-  const r = F.resolve('units', [ob(5, 'permit', 1), ob(6, 'permit', 115)]);
+  const r = F.resolve('units', [ob(5, 'permit', 1), ob(6, 'permit', 115)], { permitOnlyNotConflict: false });
   assert.deepStrictEqual([r.value, r.winnerId, r.conflict, r.permitsDiffer], [null, null, null, true]);
+});
+
+check('while that rule is held (src/holds.js), permits that disagree are an open conflict, as in fields-v2', () => {
+  const r = F.resolve('units', [ob(5, 'permit', 1), ob(6, 'permit', 115)], { permitOnlyNotConflict: true });
+  assert.deepStrictEqual([r.value, r.winnerId, r.conflict.status], [null, null, 'open']);
 });
 
 check('two appraisers that disagree are still an open conflict', () => {

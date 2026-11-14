@@ -154,8 +154,9 @@ jobs:
       # Austin parcel centroids (City of Austin copy of the Travis CAD
       # polygons), by the permit's tcad_id, so Locate permits can place the
       # Austin permits the Census misses. Point only, no property facts.
+      # Held until the verification audit passes it (src/holds.js, 2026-11-14).
       - name: Austin parcel points
-        if: always() && steps.secret.outputs.ready == 'true'
+        if: false
         env:
           DATABASE_URL: ${{ env.DB_URL }}
         run: set -o pipefail; node ingest/enrich_parcels.js --provider=austin-parcels | tee -a "$GITHUB_STEP_SUMMARY"

@@ -83,7 +83,7 @@ async function main() {
         sent.push(...lines.map((l) => l[1]));
         return { ok: true, status: 200, text: async () => lines.map(([id, street]) => `"${id}","${street}","No_Match"`).join('\n') };
       };
-      const s = await geocodePermits({ fetchImpl: csv });
+      const s = await geocodePermits({ fetchImpl: csv, holds: { austinParcelPoints: false } });
       assert.strictEqual(s.byMethod.parcel, 3);
       assert.deepStrictEqual(sent.sort(), ['4 MAIN ST', '5 MAIN ST'], 'the Census is asked only for the permits no parcel placed');
       const [{ id }] = await q("SELECT id FROM permits WHERE permit_number = '2026-1 BP'");
@@ -103,6 +103,20 @@ async function main() {
       assert.strictEqual(asked.length, before);
       const [{ n, d }] = await q("SELECT count(*)::int AS n, count(DISTINCT permit_id)::int AS d FROM permit_parcels WHERE provider = 'austin-parcels'");
       assert.deepStrictEqual([n, d], [3, 3]);
+    });
+
+    await check('while held (src/holds.js), Locate permits places no permit from these parcels', async () => {
+      const csv = async (url, init) => {
+        const text = await init.body.get('addressFile').text();
+        const lines = text.trim().split('\n').map((l) => l.split('","').map((f) => f.replace(/"/g, '')));
+        return { ok: true, status: 200, text: async () => lines.map(([id, street]) => `"${id}","${street}","No_Match"`).join('\n') };
+      };
+      const s = await geocodePermits({ fetchImpl: csv });
+      assert.strictEqual(s.byMethod.parcel, undefined);
+      const [{ n }] = await q("SELECT count(*)::int AS n FROM permit_locations WHERE method = 'parcel'");
+      assert.strictEqual(n, 0);
+      const [{ kept }] = await q("SELECT count(*)::int AS kept FROM parcels WHERE provider = 'austin-parcels'");
+      assert.strictEqual(kept, 4, 'nothing deleted (3 found, 1 recorded as missing)');
     });
   } finally {
     await db.close();

@@ -16,6 +16,7 @@
 //     disagree are an open conflict; permits alone that disagree are not (v3).
 
 const crypto = require('node:crypto');
+const { HOLDS } = require('./holds.js');
 
 // v2 (2026-11-14): only building permits observe a property's units and
 // floors. Under v1, trade permits (which state their own job's scope, mostly
@@ -25,7 +26,7 @@ const crypto = require('node:crypto');
 // field, with 4-7 building permits behind each (data audit run 43628490918):
 // a house, its garage and its addition each state their own floors. The value
 // stays unresolved and the count is reported, but no conflict row is opened.
-const RULE_VERSION = 'fields-v3';
+const RULE_VERSION = HOLDS.permitOnlyNotConflict ? 'fields-v2' : 'fields-v3';
 
 // Appraiser providers (parcels.provider) and the county whose parcel keys
 // they publish. One appraiser per county today.
@@ -147,7 +148,7 @@ function agree(field, a, b) {
  * { kind, status, observationIds, resolution }; permitsDiffer is true when
  * only permits spoke and they disagree (unresolved, not a conflict).
  */
-function resolve(field, observations) {
+function resolve(field, observations, holds = HOLDS) {
   const usable = observations.filter((o) => o.confidence !== 'low' && o.value != null);
   if (!usable.length) return { value: null, winnerId: null, conflict: null };
   const top = Math.min(...usable.map((o) => RANK[o.role]));
@@ -157,7 +158,9 @@ function resolve(field, observations) {
   const say = (o) => `${o.sourceSlug} ${o.sourceRef} says ${o.value}`;
   if (best.some((o) => !agree(field, o.value, head.value))) {
     // Each permit describes its own job, not the whole property.
-    if (top === RANK.permit) return { value: null, winnerId: null, conflict: null, permitsDiffer: true };
+    // Held until the verification audit passes it (src/holds.js): while held,
+    // this is an open conflict as under fields-v2.
+    if (top === RANK.permit && !holds.permitOnlyNotConflict) return { value: null, winnerId: null, conflict: null, permitsDiffer: true };
     return {
       value: null,
       winnerId: null,

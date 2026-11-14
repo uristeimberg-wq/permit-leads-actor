@@ -17,6 +17,7 @@ const readline = require('readline');
 const { spawn, execFileSync } = require('child_process');
 const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
+const { HOLDS } = require('../src/holds.js');
 const db = require('../db/index.js');
 const T = require('../src/enrichment/tcad.js');
 const { classifyError } = require('./raw.js');
@@ -67,7 +68,7 @@ const entry = (names, re) => {
   return n;
 };
 
-async function enrichTcad({ fetchImpl = fetch, files = null, kind = 'scheduled', minPropRows = MIN_PROP_ROWS } = {}) {
+async function enrichTcad({ fetchImpl = fetch, files = null, kind = 'scheduled', minPropRows = MIN_PROP_ROWS, holds = HOLDS } = {}) {
   const runId = await db.startSyncRun(await db.getSourceId(SLUG), kind);
   let src = null;
   try {
@@ -106,7 +107,8 @@ async function enrichTcad({ fetchImpl = fetch, files = null, kind = 'scheduled',
 
     // 3. Lot size: the sum of each property's land segments. An export
     // without the land file still loads, with lot size missing (NULL).
-    const landName = src.names.find((x) => /(^|\/)LAND_DET\.TXT$/i.test(x));
+    // Held until the verification audit passes it (src/holds.js).
+    const landName = holds.tcadLotSize ? null : src.names.find((x) => /(^|\/)LAND_DET\.TXT$/i.test(x));
     stats.landSegments = 0;
     if (landName) {
       for await (const line of src.lines(landName)) {

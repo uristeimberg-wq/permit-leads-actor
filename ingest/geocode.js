@@ -11,6 +11,7 @@
 //   node ingest/geocode.js [--max=20000]
 
 const db = require('../db/index.js');
+const { HOLDS, heldPointProviders } = require('../src/holds.js');
 const { SOURCES } = require('../src/sources.js');
 const G = require('../src/enrichment/geocode.js');
 const { parseCsvLine } = require('../src/enrichment/licences.js');
@@ -45,12 +46,12 @@ async function sourcePoints() {
     .filter((r) => r.lat != null);
 }
 
-async function parcelPoints() {
+async function parcelPoints(held = []) {
   const { rows } = await db.query(`
     SELECT DISTINCT ON (pp.permit_id) pp.permit_id, c.id AS parcel_id, c.lat, c.lng
       FROM permit_parcels pp JOIN parcels c ON c.id = pp.parcel_id
-     WHERE c.found AND c.lat IS NOT NULL AND c.lng IS NOT NULL
-     ORDER BY pp.permit_id, pp.provider`);
+     WHERE c.found AND c.lat IS NOT NULL AND c.lng IS NOT NULL AND pp.provider <> ALL($1::text[])
+     ORDER BY pp.permit_id, pp.provider`, [held]);
   return rows.map((r) => ({ permitId: String(r.permit_id), parcelId: r.parcel_id, ...G.point(r.lat, r.lng) }))
     .filter((r) => r.lat != null);
 }
@@ -127,14 +128,14 @@ async function writeLocations(locs, runId) {
   }
 }
 
-async function geocodePermits({ max = 20000, fetchImpl = fetch, kind = 'scheduled' } = {}) {
+async function geocodePermits({ max = 20000, fetchImpl = fetch, kind = 'scheduled', holds = HOLDS } = {}) {
   const runId = await db.startSyncRun(await db.getSourceId(SLUG), kind);
   let requests = 0;
   let asked = 0;
   try {
     const chosen = new Map();
     for (const s of await sourcePoints()) chosen.set(s.permitId, { ...s, method: 'source' });
-    for (const p of await parcelPoints()) if (!chosen.has(p.permitId)) chosen.set(p.permitId, { ...p, method: 'parcel' });
+    for (const p of await parcelPoints(heldPointProviders(holds))) if (!chosen.has(p.permitId)) chosen.set(p.permitId, { ...p, method: 'parcel' });
 
     const needs = (await permitAddresses()).filter((a) => !chosen.has(a.permitId));
     let budget = max;

@@ -73,7 +73,7 @@ async function main() {
     await ingestArea('austin-tx', { days: 14, max: 100, allDetails: false });
 
     await check('only parcels permits name are stored; confidential ones never; ambiguous geo_ids are not linked', async () => {
-      const s = await enrichTcad({ files: files(baseProps), minPropRows: 1 });
+      const s = await enrichTcad({ files: files(baseProps), minPropRows: 1, holds: { tcadLotSize: false } });
       assert.deepStrictEqual([s.propRows, s.wanted, s.confidential, s.stored, s.linked, s.ambiguous], [6, 5, 1, 4, 2, 1]);
       const keys = (await q("SELECT parcel_key FROM parcels WHERE provider = 'travis-cad' ORDER BY 1")).map((r) => r.parcel_key);
       assert.deepStrictEqual(keys, ['111', '222', '444', '445']);
@@ -108,7 +108,7 @@ async function main() {
 
     await check('a parcel that turns confidential is deleted with its link on the next run', async () => {
       const next = baseProps.map((l, i) => (i === 0 ? prop('111', '0414181801', [[[4859, 4859], 'T']]) : l));
-      const s = await enrichTcad({ files: files(next), minPropRows: 1 });
+      const s = await enrichTcad({ files: files(next), minPropRows: 1, holds: { tcadLotSize: false } });
       assert.deepStrictEqual([s.stored, s.removed, s.linked], [3, 1, 1]);
       const [{ n }] = await q("SELECT count(*)::int AS n FROM parcels WHERE provider = 'travis-cad' AND parcel_key = '111'");
       assert.strictEqual(n, 0);
@@ -120,6 +120,12 @@ async function main() {
       assert.deepStrictEqual(runs.map((r) => [r.status, r.error_class]), [['succeeded', null], ['succeeded', null], ['failed', 'schema']]);
       const [{ n }] = await q("SELECT count(*)::int AS n FROM parcels WHERE provider = 'travis-cad'");
       assert.strictEqual(n, 3);
+    });
+
+    await check('while held (src/holds.js), lot size is not read: stored as missing', async () => {
+      await enrichTcad({ files: files(baseProps), minPropRows: 1 });
+      const rows = await q("SELECT lot_sqft FROM parcels WHERE provider = 'travis-cad'");
+      assert.ok(rows.length && rows.every((r) => r.lot_sqft == null));
     });
   } finally {
     await db.close();
