@@ -218,7 +218,7 @@ async function recentBuilding(source, limit = 12) {
 async function repeatHiring(source) {
   const out = {};
   await Promise.all(TRADES.map(async (trade) => {
-    const b = await marketBaseline({ source, trade, months: 12, zips: null, me: null });
+    const b = await marketBaseline({ source, trade, months: 12, zips: null, me: null }, { topSubs: false });
     out[trade] = { rate: b.repeatRate, repeatHires: b.repeatHires, eligibleHires: b.eligibleHires, jobs: b.jobs, linkedJobs: b.linkedJobs };
   }));
   return out;

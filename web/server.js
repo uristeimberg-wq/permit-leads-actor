@@ -9,7 +9,8 @@ const express = require('express');
 const queries = require('../db/queries.js');
 const db = require('../db/index.js');
 const { router: pilotApi } = require('./pilot_api.js');
-const { router: overviewApi } = require('./overview_api.js');
+const { router: overviewApi, warmList } = require('./overview_api.js');
+const { cache } = require('./cache.js');
 const { demoGate } = require('./access.js');
 
 const app = express();
@@ -183,11 +184,9 @@ app.get('/api/contractors/:name', asyncRoute(async (req, res) => {
   return res.json(history);
 }));
 
-app.get('/api/filters', asyncRoute(async (_req, res) => res.json(await queries.listFilterOptions())));
+app.get('/api/filters', cache.route(() => queries.listFilterOptions()));
 
-app.get('/api/freshness', asyncRoute(async (_req, res) => {
-  res.json({ sources: await queries.getFreshness() });
-}));
+app.get('/api/freshness', cache.route(async () => ({ sources: await queries.getFreshness() })));
 
 app.use('/api/pilot', overviewApi);
 app.use('/api/pilot', pilotApi);
@@ -202,6 +201,10 @@ app.use(express.static(path.join(__dirname, 'public')));
 if (require.main === module) {
   const server = app.listen(PORT, () => {
     console.log(`Permit search running at http://localhost:${PORT}`);
+    // Compute every market's overview before the first visitor asks, so the
+    // first screen after a deploy is served from memory (web/cache.js).
+    const t0 = Date.now();
+    cache.warm(warmList()).then(() => console.log(`cache: overviews warmed in ${Date.now() - t0} ms`));
   });
   const shutdown = async () => { server.close(); await db.close(); process.exit(0); };
   process.on('SIGINT', shutdown);

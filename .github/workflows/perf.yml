@@ -1,0 +1,58 @@
+name: perf
+
+# Load-time measurement (test/perf): how long the hosted demo takes to show
+# data, per API and in a browser on desktop and a throttled phone, plus the
+# time of each overview query run directly against the database. Read-only.
+# Prints timings and sizes only, never names or phones.
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: Base URL of the deployment
+        type: string
+        default: https://permits-production-9581a3c0.up.railway.app
+      cold_wait_s:
+        description: Seconds of idle before a cold-start probe (0 = skip; Neon Free suspends after 300)
+        type: string
+        default: '330'
+  push:
+    branches: ['claude/**']
+    paths: ['test/perf/**', '.github/workflows/perf.yml']
+
+jobs:
+  queries:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      - run: node test/perf/queries.js
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BASE: ${{ inputs.url || 'https://permits-production-9581a3c0.up.railway.app' }}
+      COLD_WAIT_S: ${{ inputs.cold_wait_s || '330' }}
+      DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      - run: npx playwright install --with-deps chromium
+      - run: |
+          [[ "$BASE" =~ ^https://[a-z0-9.-]+$ ]] || { echo "::error::url must be https://host with no path"; exit 1; }
+          node test/perf/load.js "$BASE"

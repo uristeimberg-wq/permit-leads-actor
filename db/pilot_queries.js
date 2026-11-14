@@ -216,7 +216,7 @@ async function contractorsById(ids) {
  * had an earlier hire in that trade, how many went to a sub it had used.
  * Plus the top subs in the trade and, for `me`, each competitor's top GC.
  */
-async function marketBaseline(f) {
+async function marketBaseline(f, { topSubs = true } = {}) {
   const params = [f.source, f.months, f.zips, f.trade];
   const { rows: [b] } = await query(`
     WITH ${JOBS_CTE},
@@ -233,7 +233,8 @@ async function marketBaseline(f) {
            count(*) FILTER (WHERE prior_gc > 0 AND prior_same > 0)::int AS repeat_hires
       FROM seq`, params);
 
-  const { rows: top } = await query(`
+  // The overview only needs the rate; skipping the ranking halves its cost.
+  const { rows: top } = !topSubs ? { rows: [] } : await query(`
     WITH ${JOBS_CTE},
     per AS (SELECT sub_id, gc_id, count(*)::int AS n FROM subs GROUP BY sub_id, gc_id),
     tot AS (SELECT sub_id, sum(n)::int AS jobs, count(*)::int AS gcs FROM per GROUP BY sub_id),

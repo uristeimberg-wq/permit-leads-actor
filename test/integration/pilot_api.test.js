@@ -46,6 +46,8 @@ async function main() {
   await admin.query(`CREATE DATABASE ${DB_NAME}`);
   process.env.DATABASE_URL = testUrl;
   delete process.env.DEMO_PASSWORD;
+  // These suites write (suppressions) and read the same URL again: no cache.
+  process.env.API_CACHE = 'off';
   const db = require('../../db/index.js');
   const { ingestArea } = require('../../ingest/run.js');
   const { resolveAll } = require('../../ingest/resolve.js');

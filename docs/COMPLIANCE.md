@@ -60,8 +60,11 @@ SELECT 'contractor', identity_key, 'do_not_contact', 'phone' FROM contractors WH
 UPDATE suppressions SET lifted_at = now() WHERE id = 42;
 ```
 
-It applies at read time, so it takes effect at once and survives the nightly
-re-resolve (which rebuilds `contact_points`). It does not yet withhold a
+It applies at read time, so it survives the nightly re-resolve (which
+rebuilds `contact_points`). The web app keeps each screen's answer in memory
+for up to 10 minutes (web/cache.js), so a new suppression shows on screen
+within about 10 minutes; restart the Railway web service to make it
+immediate. It does not yet withhold a
 company's **name**, and a corrected value cannot be entered yet; a correction
 is handled by hiding the wrong value. Keep the founder's outreach suppression
 log (`docs/validation/outreach-compliance.md`, section 6) in step with it.

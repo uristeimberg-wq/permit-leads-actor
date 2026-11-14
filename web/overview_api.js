@@ -10,6 +10,7 @@ const express = require('express');
 const oq = require('../db/overview_queries.js');
 const { SOURCES } = require('../db/pilot_queries.js');
 const AREA_COORDS = require('../data/area-coords.json');
+const { cache } = require('./cache.js');
 
 const router = express.Router();
 
@@ -46,15 +47,20 @@ function toPins(rows, coords = AREA_COORDS) {
   return { pins: list, placed: list.reduce((n, p) => n + p.permits, 0), unplaced, unplacedBuilding };
 }
 
-router.get('/overview', async (req, res) => {
-  const source = SOURCES.includes(req.query.source) ? req.query.source : 'austin-tx';
-  try {
-    const { placeRows, ...d } = await oq.overview(source);
-    res.json({ source, ...d, map: { days: oq.ACTIVE_DAYS, ...toPins(placeRows) } });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Query failed' });
-  }
-});
+const sourceOf = (q) => (SOURCES.includes(q) ? q : 'austin-tx');
 
-module.exports = { router, toPins, farApart };
+async function overviewPayload(source) {
+  const { placeRows, ...d } = await oq.overview(source);
+  return { source, ...d, map: { days: oq.ACTIVE_DAYS, ...toPins(placeRows) } };
+}
+
+// One cache entry per market, whatever else is in the query string.
+router.get('/overview', cache.route(
+  (req) => overviewPayload(sourceOf(req.query.source)),
+  (req) => `overview:${sourceOf(req.query.source)}`,
+));
+
+/** Cache entries for every market's overview, for warming on boot. */
+const warmList = () => SOURCES.map((s) => [`overview:${s}`, () => overviewPayload(s)]);
+
+module.exports = { router, toPins, farApart, warmList };
