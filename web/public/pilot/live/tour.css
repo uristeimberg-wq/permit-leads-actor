@@ -1,0 +1,70 @@
+/* Guided tour card (tour.js). Formwork tokens, redeclared on .tour so the
+ * search page (app.css, its own token names) renders it the same.
+ * Phones: a bottom sheet. Wider screens: a card in the bottom-right corner,
+ * so the screen it describes stays visible behind it. */
+.tour {
+  --t-paper: oklch(98.6% 0.005 85);
+  --t-ink: oklch(22% 0.02 260);
+  --t-muted: oklch(44% 0.014 260);
+  --t-rule: oklch(84% 0.012 85);
+  --t-accent: oklch(52% 0.15 48);
+  --t-accent-deep: oklch(40% 0.12 48);
+  --t-hover: oklch(88.5% 0.012 85);
+  --t-focus: oklch(50% 0.17 48);
+  position: fixed; z-index: 1100;
+  right: 16px; bottom: 16px; width: min(440px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px); overflow-y: auto; overscroll-behavior: contain;
+  padding: 16px 20px 20px;
+  background: var(--t-paper); color: var(--t-ink);
+  border: 3px solid var(--t-ink); box-shadow: 6px 6px 0 var(--t-ink);
+  font: 400 0.9375rem/1.5 "Archivo", ui-sans-serif, system-ui, sans-serif;
+}
+.tour :focus-visible { outline: 2px solid var(--t-focus); outline-offset: 2px; }
+.tour h2 {
+  margin: 4px 0 8px; font: 700 1.6rem/1.05 "Oswald", "Arial Narrow", ui-sans-serif, sans-serif;
+  text-transform: uppercase; color: var(--t-ink); letter-spacing: 0; text-wrap: balance;
+}
+.tour h2:focus { outline: none; }
+.tour p { margin: 0 0 8px; max-width: 60ch; }
+.tour .tour-here { font-size: 0.8125rem; color: var(--t-accent-deep); font-weight: 700; }
+.tour-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.tour-count { font: 500 0.8125rem/1 "Archivo Narrow", "Arial Narrow", ui-sans-serif, sans-serif; color: var(--t-muted); }
+.tour-skip {
+  min-height: 44px; padding: 0 4px; margin-right: -4px; background: none; border: 0; cursor: pointer;
+  font: 400 0.8125rem/1 "Archivo", ui-sans-serif, system-ui, sans-serif; color: var(--t-muted);
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.tour-skip:hover { color: var(--t-ink); }
+.tour-bar { height: 3px; background: var(--t-rule); margin: 12px 0 16px; }
+.tour-bar i { display: block; height: 100%; background: var(--t-accent); }
+.tour-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.tour-btn {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 20px;
+  border: 2px solid var(--t-ink); border-radius: 0; background: transparent; color: var(--t-ink);
+  font: 700 0.8125rem/1 "Archivo", ui-sans-serif, system-ui, sans-serif; text-decoration: none; cursor: pointer; white-space: nowrap;
+}
+.tour-btn:hover { background: var(--t-hover); color: var(--t-ink); }
+.tour-btn--primary { background: var(--t-accent); border-color: var(--t-accent); color: var(--t-paper); box-shadow: 0 3px 0 var(--t-accent-deep); }
+.tour-btn--primary:hover { background: var(--t-accent-deep); border-color: var(--t-accent-deep); color: var(--t-paper); }
+
+/* The "Tour" button in the dark top bar (live.js topBar). */
+.tour-open {
+  background: none; border: 0; padding: 0; cursor: pointer; color: inherit;
+  font: inherit; text-decoration: underline; text-underline-offset: 3px;
+}
+.top-meta .tour-open:hover { color: oklch(98.6% 0.005 85); }
+@media (pointer: coarse) { .tour-open { min-height: 44px; padding: 0 8px; } }
+
+@media (max-width: 640px) {
+  .tour {
+    left: 0; right: 0; bottom: 0; width: auto; max-height: 72vh;
+    border-width: 3px 0 0; box-shadow: 0 -4px 0 var(--t-ink);
+    padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
+  }
+  .tour h2 { font-size: 1.35rem; }
+  .tour-actions .tour-btn { flex: 1 1 0; padding: 0 12px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .tour { animation: tour-in 220ms cubic-bezier(0.22, 1, 0.36, 1); }
+  @keyframes tour-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+}

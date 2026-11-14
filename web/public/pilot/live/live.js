@@ -64,7 +64,7 @@
     return `<header class="top"><div class="top-in">
       <a class="wordmark" href="index.html"><i aria-hidden="true"></i>Contractos<small>pilot</small></a>
       <nav class="nav" aria-label="Screens">${NAV.map(([href, label]) => `<a href="${href}"${href === here ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>
-      <span class="top-meta"><span class="top-note">From public permit records, synced daily</span> <a class="signout" href="/logout">Sign out</a></span>
+      <span class="top-meta"><span class="top-note">From public permit records, synced daily</span> <button type="button" class="tour-open" data-tour-open>Tour</button> <a class="signout" href="/logout">Sign out</a></span>
     </div></header>`;
   }
 
