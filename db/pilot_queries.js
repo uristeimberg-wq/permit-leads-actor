@@ -602,7 +602,7 @@ async function getContractor(id) {
  * `issuedWithinDays` drops old permits a backfill has just brought in (both
  * for the email digest, src/digest).
  */
-async function listLeads(f, { days = 7, limit = 25, minValuation = null, since = null, issuedWithinDays = null } = {}) {
+async function listLeads(f, { days = 7, limit = 25, minValuation = null, since = null, issuedWithinDays = null, order = 'score' } = {}) {
   const { rows } = await query(`
     SELECT ${PERMIT_COLS}, pp.contractor_id, pp.issued_on, (p.trade_scores ->> $7)::numeric AS score
       FROM permit_parties pp JOIN permits p ON p.id = pp.permit_id
@@ -615,7 +615,7 @@ async function listLeads(f, { days = 7, limit = 25, minValuation = null, since =
        AND ($6::numeric IS NULL OR p.valuation >= $6)
        AND NOT EXISTS (SELECT 1 FROM permit_parties t JOIN permits p2 ON p2.id = t.permit_id
                         WHERE t.job_key = pp.job_key AND t.trade = $4 AND p2.source_area = $1)
-     ORDER BY score DESC NULLS LAST, p.valuation DESC NULLS LAST, p.id
+     ORDER BY ${order === 'date' ? 'pp.issued_on DESC NULLS LAST, p.id DESC' : 'score DESC NULLS LAST, p.valuation DESC NULLS LAST, p.id'}
      LIMIT $5`, [f.source, days, f.zips, f.trade, limit, minValuation, SCORE_KEY[f.trade], since, issuedWithinDays]);
   const people = await contractorsById([...new Set(rows.map((r) => r.contractor_id).filter(Boolean))]);
   return rows.map((r) => ({
@@ -760,7 +760,7 @@ async function builderSubs(gcIds, perTrade = 3) {
  * from the records; the trend label is our reading of them, defined in
  * src/forecast.js momentum(). Individuals are left out (rule 5).
  */
-async function listMomentum(f, { windowDays = F.MOMENTUM_WINDOW_DAYS, segment = null, limit = 150 } = {}) {
+async function listMomentum(f, { windowDays = F.MOMENTUM_WINDOW_DAYS, segment = null, limit = 150, sort = 'trend' } = {}) {
   const meta = await sourceMeta(f.source);
   const classField = insight.CLASS_FIELD[f.source];
   const pattern = classField && segment && SEGMENTS[segment] ? SEGMENTS[segment].pattern : null;
@@ -815,7 +815,8 @@ async function listMomentum(f, { windowDays = F.MOMENTUM_WINDOW_DAYS, segment = 
       applications: early.length ? apps.get(String(r.id)) || { filed: 0, inReview: 0 } : null };
   });
   const rank = { rising: 0, new: 1, slowing: 2, steady: 3, unknown: 4 };
-  builders.sort((a, b) => rank[a.trend] - rank[b.trend] || (b.change ?? b.recent) - (a.change ?? a.recent)
+  if (sort === 'recent') builders.sort((a, b) => b.recent - a.recent || (b.prior ?? 0) - (a.prior ?? 0) || a.builder.id - b.builder.id);
+  else builders.sort((a, b) => rank[a.trend] - rank[b.trend] || (b.change ?? b.recent) - (a.change ?? a.recent)
     || b.recent - a.recent || a.builder.id - b.builder.id);
   const shown = builders.slice(0, limit);
   const subs = await builderSubs(shown.map((b) => b.builder.id), 1);

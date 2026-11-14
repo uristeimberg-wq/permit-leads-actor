@@ -39,12 +39,12 @@
     if (!p) return '<span class="sub">no phone we can show</span>';
     const shared = p.sharedWithOtherContractors
       ? `, also listed by ${p.sharedWithOtherContractors} other compan${p.sharedWithOtherContractors === 1 ? 'y' : 'ies'}` : '';
-    const why = `${p.verification === 'corroborated' ? 'Corroborated' : 'Unverified'}: on ${p.seenOnPermits} permit(s) for this company${shared}.`
+    const why = `${p.verification === 'corroborated' ? 'Same number on 3+ permits, no other company' : 'Fewer than 3 permits or shared'}: on ${p.seenOnPermits} permit(s) for this company${shared}.`
       + ` Latest from permit ${p.sourceRef || '?'} (${p.source}), issued ${date(p.lastSeenOn)}. Nobody has called to check it.`;
     const href = window.telHref ? window.telHref(p.value) : null;
     const num = `<span class="phone mono prov" title="${esc(why)}">${phone(p.value)}</span>`;
     return (href ? `<a href="${esc(href)}" style="text-decoration:none">${num}</a>` : num)
-      + ` <span class="pill prov ${p.verification === 'corroborated' ? 'ok' : ''}" title="${esc(why)}">${esc(p.verification)}</span>`;
+      + ` <span class="pill prov ${p.verification === 'corroborated' ? 'ok' : ''}" title="${esc(why)}">${esc(p.verification === 'corroborated' ? 'on 3+ permits' : p.sharedWithOtherContractors ? 'shared number' : `on ${p.seenOnPermits} permit${p.seenOnPermits === 1 ? '' : 's'}`)}</span>`;
   }
 
   function freshness(meta) {
@@ -123,7 +123,7 @@
   /** State licence records matched to a business, with how each was matched and the file's credit. */
   function registryList(recs, { compact = false } = {}) {
     if (!recs || !recs.length) {
-      return compact ? '' : '<p class="sub">No state licence record matched yet.</p>';
+      return compact ? '' : '<p class="sub">No state licence record matched by licence number. Matches by name or phone alone are not shown.</p>';
     }
     const rows = recs.map((r) => {
       const st = r.status ? [r.status.primary, r.status.secondary].filter(Boolean).join(' / ') : null;

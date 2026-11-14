@@ -26,7 +26,7 @@
     {
       title: 'What Contractos is',
       body: [
-        'Construction permits from public city and county records, turned into leads for subcontractors: who is building, where, and who to call.',
+        'Construction permits from public city and county records, organised for subcontractors: who is building, where, the business on each permit and its phone as published.',
         'Markets: Austin, Miami-Dade, City of Miami and Raleigh. Data syncs daily, and every screen shows the last sync and how far behind the city publishes.',
       ],
     },
@@ -45,26 +45,16 @@
       href: 'early.html',
       body: [
         'Building applications that are filed but not issued yet: Austin plan-review cases and Raleigh pre-issue filings. Miami markets publish issued permits only.',
-        '"Likely issued" is our estimate, a date range from how long similar permits in that market took last year. The city has not given that date.',
         'A filing has no page of its own. Once it is issued, a "permit issued" link under its stage opens the job page.',
       ],
     },
     {
-      title: 'Builder or expediter, and who to call',
+      title: 'Who filed, and the phone on record',
       page: 'early.html',
       href: 'early.html',
       body: [
-        '"Filed by" says whether the business on the application is the builder or a permit expediter. An expediter files for other companies, so it is usually not the one hiring.',
-        'Phone numbers come from the permit records. On a phone, tap one to call. Each is marked unverified or corroborated; nobody has called to check it.',
-      ],
-    },
-    {
-      title: "A builder's past subs",
-      page: 'early.html',
-      href: 'early.html',
-      body: [
-        'For a builder, the electrical, plumbing and HVAC contractors on its earlier issued permits, by trade.',
-        'That is history, not a claim about this job: its subs are not known until its trade permits are filed.',
+        '"Filed by" is the business named on the application, as the city published it. We do not guess whether it is the builder or a permit expediter.',
+        'Phone numbers come from the permit records. On a phone, tap one to call. Each says how many permits carry it; nobody has called to check it.',
       ],
     },
     {
@@ -72,8 +62,7 @@
       page: 'momentum.html',
       href: 'momentum.html',
       body: [
-        'Which builders are pulling more permits and which are slowing down, comparing the last 60, 90 or 180 days with the same span before.',
-        'Rising, new and slowing are our labels, worked out from the permit counts shown beside them.',
+        'How many building permits each business pulled in the last 60, 90 or 180 days, beside the same span before. Counts only: we do not label anyone as rising or slowing.',
       ],
     },
     {
@@ -81,37 +70,27 @@
       page: 'gcs.html',
       href: 'gcs.html',
       body: [
-        'Most trade permits go to a sub the general contractor has used before. This screen shows, for your trade, which GCs do bring in new subs, which changed subs recently, and the busiest subs with their top GC.',
+        'For your trade, which subs each general contractor has had on its past permits, which GCs had a different sub on their latest job, and the busiest subs with their top GC. This is history from issued permits, not a sign that a GC is looking for a sub.',
       ],
     },
     {
-      title: 'A job: trade permits and timing',
+      title: 'A job and its trade permits',
       page: 'job.html',
       href: 'digest.html',
-      cta: 'Open the leads',
+      cta: 'Open the new permits',
       body: [
-        'Open any permit to see its job page: who to call, the description as filed, and the electrical, plumbing and HVAC permits filed on the job so far.',
-        'Where none is filed yet, we show how often and when similar jobs got one. That is an estimate. "No permit filed yet" does not mean a sub has not been hired.',
+        'Open any permit to see its job page: the contractor on the permit, the description as filed, and the electrical, plumbing and HVAC permits filed on the job so far.',
+        '"No permit on record" means the source has published none for that trade. It does not mean a sub has not been hired.',
       ],
     },
     {
       title: 'Property, licence and registration',
       page: 'job.html',
       href: 'digest.html',
-      cta: 'Open the leads',
+      cta: 'Open the new permits',
       body: [
-        'Job and contractor pages add context where we can match it: the county appraiser\'s facts on the property, state licence records (Texas TDLR, Florida DBPR) and, for Texas businesses, the state business registration.',
-        'Each match says how it was made. Owner names and people are not shown.',
-      ],
-    },
-    {
-      title: 'Street View photos',
-      page: 'job.html',
-      href: 'digest.html',
-      cta: 'Open the leads',
-      body: [
-        'A job page can show street-level photos of the site from Google Street View, labelled with the capture date and how sure we are it is the right building.',
-        'Photos are often older than the permit, so they show the site before the work. Where none passes our checks, none is shown.',
+        'Job and contractor pages add the county appraiser\'s facts on the property, matched by parcel number, and state licence records (Texas TDLR, Florida DBPR) matched by the licence number on the permit.',
+        'Matches by name alone are not shown. Owner names and people are not shown.',
       ],
     },
     {
@@ -119,7 +98,7 @@
       page: 'digest.html',
       href: 'digest.html',
       body: [
-        'This week\'s leads for one trade: new building permits with no permit for that trade filed yet, ranked by how well the description fits the trade.',
+        'This week\'s list for one trade: new building permits with no permit for that trade on record yet, newest first.',
       ],
     },
     {
@@ -134,7 +113,7 @@
       title: 'How to read the screens',
       body: [
         'A dotted underline means there is a source behind the value: hover it, or tap it on a phone or tablet.',
-        'A dashed "estimate" tag marks anything we inferred rather than read from a record. Anything the source does not publish is shown as missing, not filled in.',
+        'Every value is read from a public record or counted from records on an official key, such as the permit number. We do not show estimates or guesses. Anything the source does not publish is shown as missing, not filled in.',
         'Replay this tour any time from "Tour" in the top bar.',
       ],
     },

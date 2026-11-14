@@ -684,3 +684,24 @@ what would make us revisit it. Never delete an entry; supersede it.
   of the 3% target (truncated Miami-Dade names, ambiguous Sunbiz names and
   typos remain). Resolve reads the previous day's Sunbiz results, so a new
   join appears one sync later.
+
+## ADR-26: Screens show recorded facts and counts on official keys only
+
+- **Status:** accepted, 2026-11-14 (owner, on the data trust audit: "hide,
+  keep momentum counts"). Supersedes the display parts of ADR-17 (fit-score
+  ranking), ADR-19 (role tags), ADR-21 (estimates), ADR-24 (Street View) and
+  the registration panels of PR #64 / ADR-25. Their computation stays.
+- **Context:** the owner's rule is that the product shows nothing uncertain
+  and never implies intent (for example, that a GC is looking for a sub).
+  `docs/DATA_TRUST_AUDIT.md` sorts every shown value into recorded facts (A),
+  deterministic counts on official keys (B) and inferences (C).
+- **Decision:** `web/trust.js` strips class C from `/api/pilot/*`, the
+  overview and `/api/permits/:id` unless `SHOW_INFERENCES=1`: issue windows,
+  trade timing, momentum trend labels (the two counts and their difference
+  stay), trade fit scores (the weekly list sorts by issue date), builder and
+  expediter tags and what hangs on them, licence matches other than by
+  licence number, business registrations, Street View, and every Raleigh
+  job link (trade permits join building permits only by parcel PIN). Wording
+  that implied intent was rewritten.
+- **Revisit:** a class C item comes back only with a measured accuracy the
+  owner accepts, shown beside it; Raleigh links come back with a real job key.

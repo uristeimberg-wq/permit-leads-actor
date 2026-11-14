@@ -56,11 +56,12 @@
           <p class="note">Read from the permit record.${d.registry && d.registry.length ? '' : ' Not matched to a state licence file yet.'}</p>` : ''}
         <h2 class="h-gap">State licence records</h2>
         ${L.registryList(d.registry)}
-        ${c.businessState === 'TX' ? `<h2 class="h-gap">State business registration</h2>${L.registrationList(d.registrations)}` : ''}
+        ${c.businessState === 'TX' && !d.inferencesHidden ? `<h2 class="h-gap">State business registration</h2>${L.registrationList(d.registrations)}` : ''}
         <p class="note">Merged by ${d.licences.length ? 'licence number' : 'exact business name within the state'} (${L.esc(c.resolverVersion)}). Phones are evidence, never used to merge companies.</p>
       </div>
-      <div class="card"><h2>Subs it hires (as GC)</h2>${relTable(d.subsHired, 'Sub')}</div>
-      <div class="card"><h2>GCs it works for (as sub)</h2>${relTable(d.gcsWorkedFor, 'GC')}</div>
+      ${d.relationshipsHidden ? `<div class="card"><h2>Subs and GCs on its jobs</h2><p class="sub">${L.esc(d.relationshipsHidden)}</p></div>` : `
+      <div class="card"><h2>Subs on its jobs (as GC)</h2>${relTable(d.subsHired, 'Sub')}</div>
+      <div class="card"><h2>GCs on its jobs (as sub)</h2>${relTable(d.gcsWorkedFor, 'GC')}</div>`}
     </div>
     <div class="card">
       <h2>Recent permits</h2>

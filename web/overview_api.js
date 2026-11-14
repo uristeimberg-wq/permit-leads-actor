@@ -11,6 +11,7 @@ const oq = require('../db/overview_queries.js');
 const { SOURCES } = require('../db/pilot_queries.js');
 const AREA_COORDS = require('../data/area-coords.json');
 const { cache } = require('./cache.js');
+const trust = require('./trust.js');
 
 const router = express.Router();
 
@@ -51,7 +52,7 @@ const sourceOf = (q) => (SOURCES.includes(q) ? q : 'austin-tx');
 
 async function overviewPayload(source) {
   const { placeRows, ...d } = await oq.overview(source);
-  return { source, ...d, map: { days: oq.ACTIVE_DAYS, ...toPins(placeRows) } };
+  return trust.filter('overview', { source, ...d, map: { days: oq.ACTIVE_DAYS, ...toPins(placeRows) } });
 }
 
 // One cache entry per market, whatever else is in the query string.

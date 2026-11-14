@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Lead · Contractos</title>
+<title>Permit · Contractos</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500&amp;family=Archivo:wght@400;700&amp;family=Oswald:wght@700&amp;display=swap" rel="stylesheet">
@@ -93,11 +93,11 @@
 
   function render(d) {
     const pm = d.permit;
-    document.title = `${pm.permit_number} · ${L.TRADE[trade]} lead`;
+    document.title = `${pm.permit_number} · ${L.TRADE[trade]}`;
     const age = L.daysSince(pm.filed_date);
     const tradeRows = ['electrical', 'plumbing', 'mechanical'].map((t) => {
       const got = d.related.filter((r) => r.trade === t);
-      if (!got.length) return `<tr><td>${L.TRADE[t]}${t === trade ? ' <span class="pill">your trade</span>' : ''}</td><td class="sub">none issued yet</td><td colspan="2">${outlookCell(d.tradeOutlook && d.tradeOutlook[t], t)}</td></tr>`;
+      if (!got.length) return `<tr><td>${L.TRADE[t]}${t === trade ? ' <span class="pill">your trade</span>' : ''}</td><td class="sub">none on record</td><td colspan="2">${d.inferencesHidden ? '' : outlookCell(d.tradeOutlook && d.tradeOutlook[t], t)}</td></tr>`;
       return got.map((r) => `<tr><td>${L.TRADE[t]}</td><td class="mono"><a href="job.html?${L.qs({ id: r.id, trade })}">${L.esc(r.permit_number)}</a></td><td class="mono">${L.esc(L.date(r.issuedOn))}</td><td>${L.who(r.contractor)}</td></tr>`).join('');
     }).join('');
     const others = d.related.filter((r) => !r.trade);
@@ -110,8 +110,8 @@
         <span class="context">${L.esc(L.TRADE[trade])} · ${L.esc(L.AREA[pm.source_area] || pm.source_area)} · ${d.isBuilding ? 'building permit' : 'permit'}</span>
         <p class="lede">${val(d, 'address', L.esc(pm.address || 'Address not published'))}${pm.zip && !String(pm.address || '').includes(pm.zip) ? ` ${L.esc(pm.zip)}` : ''}</p>
         ${place(d.location)}
-        <p class="lede"><strong>${d.tradePermitIssued ? `A ${L.esc(trade)} permit has been issued on this job.` : `No ${L.esc(trade)} permit issued on this job yet.`}</strong>
-          <span class="sub">${d.tradePermitIssued ? '' : (d.meta && (d.meta.earlySources || []).includes(d.meta.source) ? 'None is on file yet, issued or in review; a sub may still be lined up.' : 'The source lists issued permits only, so one may be in review, and a sub may already be lined up.')}</span></p>
+        ${d.jobLinksHidden ? `<p class="lede sub">${L.esc(d.jobLinksHidden)}</p>` : `<p class="lede"><strong>${d.tradePermitIssued ? `A ${L.esc(trade)} permit has been issued on this job.` : `No ${L.esc(trade)} permit issued on this job yet.`}</strong>
+          <span class="sub">${d.tradePermitIssued ? '' : (d.meta && (d.meta.earlySources || []).includes(d.meta.source) ? 'None is on file yet, issued or in review; a sub may still be lined up.' : 'The source lists issued permits only, so one may be in review, and a sub may already be lined up.')}</span></p>`}
       </div>
       ${L.freshness(d.meta)}
     </div>
@@ -125,23 +125,23 @@
           <dt>Issued</dt><dd>${val(d, 'issue date', L.esc(L.date(pm.filed_date)))}${age != null ? ` <span class="sub">· ${age} days ago</span>` : ''}</dd>
           <dt>Declared value</dt><dd>${val(d, 'valuation', L.esc(L.money(pm.valuation)))}</dd>
           <dt>First seen by us</dt><dd>${L.esc(L.dateTime(pm.first_seen_at))}</dd>
-          <dt>Trade fit score</dt><dd class="mono">${pm.trade_scores && pm.trade_scores[trade === 'mechanical' ? 'hvac' : trade] != null ? pm.trade_scores[trade === 'mechanical' ? 'hvac' : trade] : '—'} <span class="sub">from the description's wording</span></dd>
+          ${pm.trade_scores ? `<dt>Trade fit score</dt><dd class="mono">${pm.trade_scores[trade === 'mechanical' ? 'hvac' : trade] != null ? pm.trade_scores[trade === 'mechanical' ? 'hvac' : trade] : '—'} <span class="sub">from the description's wording</span></dd>` : ''}
         </dl>
         <h2 class="h-gap">Description, as filed</h2>
         <div class="desc">${L.esc(pm.work_description || 'No description published')}</div>
       </div>
 
       <div class="card call">
-        <h2>Who to call</h2>
+        <h2>Contractor on the permit</h2>
         ${d.gc && d.gc.name ? `
           <div class="who-big">${L.who(d.gc)}</div>
           <div class="sub">Contractor on the building permit${d.match ? ` · matched by ${L.esc(d.match.rule === 'licence' ? 'licence number' : 'exact name within the state')}` : ''}</div>
           <div class="who-phone">${L.phoneCell(d.gc.phone)}</div>
-          <p class="note">Tap or hover the label next to the number for where it came from. "Corroborated" means it is on 3+ of this company's permits and no other company's. Nobody has called to check it.</p>
+          <p class="note">Tap or hover the label next to the number for where it came from. "On 3+ permits" means the same number is on 3 or more of this company's permits and no other company's. Nobody has called to check it.</p>
           ${d.gcRegistry && d.gcRegistry.length ? `<h2 class="h-gap">State licence</h2>${L.registryList(d.gcRegistry, { compact: true })}` : ''}
           ${d.gcRegistrations && d.gcRegistrations.length ? `<h2 class="h-gap">State business registration</h2>${L.registrationList(d.gcRegistrations, { compact: true })}` : ''}`
         : d.gc ? `<p>${L.who(d.gc)}</p><p class="note">${L.esc(d.gc.withheld)}</p>` : '<p class="sub">No contractor on this permit (owner-builder or not published).</p>'}
-        ${h ? `<h2 class="h-gap">How this GC hires ${L.esc(L.TRADE_PERSON[trade])}</h2>
+        ${h ? `<h2 class="h-gap">${L.esc(L.TRADE_PERSON[trade][0].toUpperCase() + L.TRADE_PERSON[trade].slice(1))} on this GC's past permits</h2>
           <p class="body-sm">${h.buildingJobs} building jobs in our data, latest ${L.esc(L.date(h.lastJobOn))}.
           ${h.subsUsed ? `Used ${h.subsUsed} ${L.esc(L.TRADE_PERSON[trade])}; the top one on ${L.pct(h.topSubShare)} of linked jobs.` : `No ${L.esc(trade)} hires linked yet.`}</p>
           ${h.subs.length ? `<table><tbody>${h.subs.map((s) => `<tr><td>${L.who(s.sub)}</td><td class="n mono">${s.jobs} job${s.jobs === 1 ? '' : 's'}</td></tr>`).join('')}</tbody></table>` : ''}
@@ -154,7 +154,7 @@
     <div class="card" id="photos"></div>
     <div class="card">
       <h2>Trade permits on this job</h2>
-      <table><thead><tr><th>Trade</th><th>Permit</th><th>Issued</th><th>Pulled by</th></tr></thead><tbody>${tradeRows}</tbody></table>
+      ${d.jobLinksHidden ? `<p class="sub">${L.esc(d.jobLinksHidden)}</p>` : `<table><thead><tr><th>Trade</th><th>Permit</th><th>Issued</th><th>Pulled by</th></tr></thead><tbody>${tradeRows}</tbody></table>`}
       ${others.length ? `<p class="note">Also on this job: ${others.map((r) => `<a class="mono" href="job.html?${L.qs({ id: r.id, trade })}">${L.esc(r.permit_number)}</a>`).join(', ')}</p>` : ''}
       ${Object.keys(d.tradeOutlook || {}).length ? `<p class="note"><span class="pill est">estimate</span> For a trade with no permit yet: how often one followed on comparable jobs, and when, counted from today. Comparable jobs had their building permit issued 6 to 18 months ago, so each was watched for ${(Object.values(d.tradeOutlook)[0].basis || {}).horizonDays || 180} days. This builder's own jobs are used when it has at least 8, otherwise the market's. A permit is not a hire: the sub may be lined up before it is pulled.</p>` : ''}
       <p class="note">Linked by ${L.esc((d.meta && d.meta.jobLink) || 'permit number')}.${d.meta && d.meta.source === 'austin-tx' ? ' Austin creates trade permits with the building permit, so issue dates, not application dates, are what tell trades apart here.' : ''}</p>

@@ -34,6 +34,7 @@
     drawMap(d.map);
     drawGcs(d.topGcs, t);
     drawRecent(d.recent);
+    if (d.jobLinksHidden) $('recent').insertAdjacentHTML('beforeend', `<p class="note">${L.esc(d.jobLinksHidden)}</p>`);
     $('foot').innerHTML = L.attribution(d.meta)
       + `<p class="note">Counts are permits we hold for ${L.esc(area)}, by the source's issue date. A building permit and its trade permits are linked by
         ${L.esc((d.meta && d.meta.jobLink) || 'permit number')}. Company lists leave out contractors whose name looks like a person's (ADR-10).
@@ -75,7 +76,7 @@
       <div><b>${n(t.activeGcs)}</b><span>general contractors filed a building permit in the last ${t.activeDays} days</span><em>Businesses only</em></div>
       <div><b>${n(t.activeSubs)}</b><span>trade subs pulled an electrical, plumbing or mechanical permit in ${t.activeDays} days</span><em>Businesses only</em></div>
       <div><b>${e.rate == null ? '—' : L.pct(e.rate)}</b><span>of electricians hired by a GC with an earlier job were ones that GC had used before</span>
-        <em>${e.rate == null ? 'Not enough linked jobs yet' : `${n(e.repeatHires)} of ${n(e.eligibleHires)} hires over 12 months${others ? `; ${L.esc(others)}` : ''}`}</em></div>
+        <em>${d.jobLinksHidden ? 'Not shown: Raleigh links jobs only by parcel' : e.rate == null ? 'Not enough linked jobs yet' : `${n(e.repeatHires)} of ${n(e.eligibleHires)} hires over 12 months${others ? `; ${L.esc(others)}` : ''}`}</em></div>
       <div><b>${t.buildingRecentMedianValue == null ? '—' : L.esc(L.money(t.buildingRecentMedianValue))}</b><span>median declared value of the last ${t.recentDays} days' building permits</span>
         <em>${t.buildingRecentValued ? `${n(t.buildingRecentValued)} of ${n(t.buildingRecent)} publish a value (${valuedShare}%)` : 'None publish a value'}</em></div>`;
   }
@@ -155,7 +156,7 @@
     for (const pin of m.pins) {
       const v = pin.building || 0;
       const radius = (touch ? 8 : 3) + 15 * Math.sqrt(v / (max || 1)); // a fingertip needs a bigger pin
-      const links = pin.zip ? `<br><a href="gcs.html?${L.qs({ source, zips: pin.zip })}">GCs working here</a> &nbsp; <a href="digest.html?${L.qs({ source, zips: pin.zip, days: 30 })}">Leads here</a>` : '';
+      const links = pin.zip ? `<br><a href="gcs.html?${L.qs({ source, zips: pin.zip })}">GCs working here</a> &nbsp; <a href="digest.html?${L.qs({ source, zips: pin.zip, days: 30 })}">New permits here</a>` : '';
       window.L.circleMarker([pin.lat, pin.lng], { radius, className: v ? 'ov-pin' : 'ov-pin ov-pin--quiet', weight: 1.5 })
         .bindPopup(`<strong>${L.esc(pin.label)}</strong><br>${n(v)} building permits, ${n(pin.permits)} permits in all, last ${m.days} days${links}`)
         .bindTooltip(`${L.esc(pin.label)}: ${n(v)} building`, { direction: 'top' })
@@ -187,7 +188,7 @@
         <td>${L.who(g.gc)}<div class="sub">${g.zips} ZIP${g.zips === 1 ? '' : 's'}${g.topZip ? `, most in ${L.esc(g.topZip)}` : ''}</div></td>
         <td class="n">${n(g.jobs)}</td>
         <td class="hide-sm">${spark(g.weeks)}</td>
-        <td class="n">${n(g.subsHired)}<div class="sub">on ${n(g.linkedJobs)} linked job${g.linkedJobs === 1 ? '' : 's'}</div></td>
+        <td class="n">${g.subsHired == null ? '<span class="sub">not shown</span>' : `${n(g.subsHired)}<div class="sub">on ${n(g.linkedJobs)} linked job${g.linkedJobs === 1 ? '' : 's'}</div>`}</td>
         <td class="mono hide-sm">${L.esc(L.date(g.lastJobOn))}</td>
         <td>${L.phoneCell(g.gc.phone)}</td></tr>`).join('')}</tbody></table>
       <p class="note"><a href="gcs.html?${L.qs({ source })}">Every GC, with how each one hires electricians, plumbers and HVAC contractors</a></p>`;
@@ -198,9 +199,9 @@
     const head = el.querySelector('.sec-head').outerHTML;
     $('recent-sub').textContent = 'Newest issue date first, with the trade permits on each job so far';
     if (!rows.length) { el.innerHTML = `${head}<p class="state">No building permits in our data yet.</p>`; return; }
-    const tradeCell = (r) => (r.trades.length
+    const tradeCell = (r) => (r.trades == null ? '<span class="sub">not shown</span>' : r.trades.length
       ? r.trades.map((k) => `<span class="pill ok">${L.esc(L.TRADE[k] || k)}</span>`).join('')
-      : '<span class="pill warn">No trade permit yet</span>');
+      : '<span class="pill warn">No trade permit on record</span>');
     el.innerHTML = `${head}<table>
       <thead><tr><th>Issued</th><th>Permit</th><th class="hide-sm">Address</th><th class="n hide-sm">Declared value</th><th>General contractor</th><th>Trade permits on the job</th></tr></thead>
       <tbody>${rows.map((r) => `<tr>
@@ -210,7 +211,7 @@
         <td class="n hide-sm">${L.esc(r.valuation == null ? 'not published' : L.money(r.valuation))}</td>
         <td>${L.who(r.gc)}</td>
         <td>${tradeCell(r)}</td></tr>`).join('')}</tbody></table>
-      <p class="note">"No trade permit yet" means none has been issued on the job. One may be in review, and a sub may already be lined up.
-        <a href="digest.html?${L.qs({ source })}">Open this week's leads</a></p>`;
+      <p class="note">"No trade permit on record" means the source has published no issued trade permit on this job. It says nothing about whether a sub is hired: one may be in review, or lined up already.
+        <a href="digest.html?${L.qs({ source })}">Open this week's new permits</a></p>`;
   }
 }());

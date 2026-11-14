@@ -46,13 +46,15 @@ for (const s of T.STEPS) {
 
 // Features the tour must cover.
 const all = T.STEPS.map((s) => `${s.title} ${s.body.join(' ')}`).join(' ').toLowerCase();
-for (const k of ['early filings', 'likely issued', 'expediter', 'tap one to call', 'past subs', 'momentum', 'gc relationships',
-  'appraiser', 'licence', 'business registration', 'street view', 'permit search', 'austin', 'miami-dade', 'city of miami', 'raleigh']) {
+for (const k of ['early filings', 'filed by', 'tap one to call', 'momentum', 'gc relationships',
+  'appraiser', 'licence', 'permit search', 'austin', 'miami-dade', 'city of miami', 'raleigh']) {
   assert.ok(all.includes(k), `tour covers "${k}"`);
 }
-// Wording rules (docs/PILOT_UX.md): estimates are called estimates; a missing
-// trade permit is never presented as "not hired" or "you're first".
-assert.ok(/estimate/.test(all));
+// Wording rules (docs/PILOT_UX.md, docs/DATA_TRUST_AUDIT.md): no estimates are
+// shown, so the tour says so; a missing trade permit is never presented as
+// "not hired" or "you're first", and no screen claims a GC is looking for a sub.
+assert.ok(/do not show estimates/.test(all));
+assert.ok(!/likely issued|rising or new|hire new subs|who to call/.test(all), 'no inferred features described');
 assert.ok(!/you'?re first|be the first|guaranteed/.test(all), 'no overclaiming');
 assert.ok(!/\bnot hired\b/.test(all.replace('does not mean a sub has not been hired', '')), 'only the disclaimer may mention hiring');
 

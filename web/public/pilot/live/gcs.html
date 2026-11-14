@@ -16,7 +16,7 @@
 <main>
   <div class="head">
     <div>
-      <h1 id="title">Which GCs hire new subs</h1>
+      <h1 id="title">Which subs each GC has used</h1>
       <span class="context" id="eyebrow">GC relationships</span>
       <p class="lede" id="lede">Loading…</p>
     </div>
@@ -63,8 +63,8 @@
   const SEGMENTS = [
     ['all', 'All GCs', () => true],
     ['spread', 'Spread work', (g) => g.segments.spread],
-    ['changed', 'Changed sub recently', (g) => g.segments.changed],
-    ['open', 'Jobs with no trade permit yet', (g) => g.openNow > 0],
+    ['changed', 'Different sub on latest job', (g) => g.segments.changed],
+    ['open', 'Jobs with no trade permit on record', (g) => g.openNow > 0],
     ['small', 'Small GCs (1-3 jobs)', (g) => g.segments.small],
   ];
 
@@ -73,13 +73,20 @@
     .catch((err) => { L.fail(document.getElementById('table'), err); document.getElementById('lede').textContent = ''; });
 
   function render(d) {
+    if (d.jobLinksHidden) {
+      document.getElementById('lede').textContent = d.jobLinksHidden;
+      document.getElementById('fresh').innerHTML = L.freshness(d.meta);
+      for (const id of ['tabs', 'table', 'changed', 'market']) document.getElementById(id).hidden = true;
+      document.getElementById('foot').innerHTML = L.attribution(d.meta);
+      return;
+    }
     const subs = L.TRADE_PERSON[f.trade];
     const b = d.baseline;
     document.getElementById('eyebrow').textContent = `${L.TRADE[f.trade]} · ${L.AREA[f.source]}${f.zips ? ` · ZIPs ${f.zips}` : ''} · building permits from the last ${f.months} months`;
-    document.getElementById('title').textContent = `Which GCs hire new ${subs}`;
+    document.getElementById('title').textContent = `Which ${subs} each GC has used`;
     document.getElementById('lede').innerHTML = b.repeatRate == null
       ? 'Not enough linked jobs in this window to measure repeat hiring yet.'
-      : `In this data, <strong>${L.pct(b.repeatRate)}</strong> of ${L.esc(subs)} hired by a GC with an earlier ${L.esc(f.trade)} job were ones that GC had used before (${b.repeatHires.toLocaleString()} of ${b.eligibleHires.toLocaleString()} hires). The GCs below are where that is less true: they spread work, switched recently, or have jobs with no ${L.esc(f.trade)} permit yet.`;
+      : `In this data, <strong>${L.pct(b.repeatRate)}</strong> of ${L.esc(subs)} hired by a GC with an earlier ${L.esc(f.trade)} job were ones that GC had used before (${b.repeatHires.toLocaleString()} of ${b.eligibleHires.toLocaleString()} hires). The table counts, for each GC, the ${L.esc(subs)} on its past permits. It is history from issued permits: it does not say whether a GC is looking for a sub now.`;
     document.getElementById('fresh').innerHTML = L.freshness(d.meta)
       + `<span class="fresh mono">${b.jobs.toLocaleString()} building jobs, ${b.linkedJobs.toLocaleString()} linked to a ${L.esc(f.trade)} permit by permit number</span>`;
 
@@ -104,9 +111,9 @@
     if (!rows.length) { el.innerHTML = '<div class="state">No GCs in this segment for these filters.</div>'; return; }
     el.innerHTML = `<table>
       <thead><tr><th>General contractor</th><th class="n">Building jobs</th><th class="n hide-sm">With ${L.esc(f.trade)} permit</th>
-        <th class="n">${L.esc(L.TRADE_PERSON[f.trade])} used</th><th>Top one's share</th><th class="n">No permit yet</th><th>Phone</th></tr></thead>
+        <th class="n">${L.esc(L.TRADE_PERSON[f.trade])} used</th><th>Top one's share</th><th class="n">No permit on record</th><th>Phone</th></tr></thead>
       <tbody>${rows.map((g) => `<tr>
-        <td>${L.who(g.gc)}<div class="sub">${g.segments.spread ? '<span class="pill">spreads work</span>' : ''}${g.segments.changed ? '<span class="pill warn">changed sub</span>' : ''}
+        <td>${L.who(g.gc)}<div class="sub">${g.segments.spread ? '<span class="pill">spreads work</span>' : ''}${g.segments.changed ? '<span class="pill warn">different sub on latest job</span>' : ''}
           last job ${L.esc(L.date(g.lastJobOn))}${g.selfPerformedJobs ? ` · does own ${L.esc(f.trade)} on ${g.selfPerformedJobs}` : ''}</div></td>
         <td class="n mono">${g.jobs}</td>
         <td class="n mono hide-sm">${g.tradeJobs}</td>
@@ -120,12 +127,12 @@
 
   function drawChanged(d) {
     const ch = d.gcs.filter((g) => g.segments.changed).slice(0, 12);
-    document.getElementById('changed').innerHTML = `<h2>Changed ${L.esc(L.TRADE_PERSON[f.trade])} recently</h2>
+    document.getElementById('changed').innerHTML = `<h2>Different ${L.esc(L.TRADE_PERSON[f.trade])} on the latest job</h2>
       ${ch.length ? ch.map((g) => `<div class="row-line">
         <strong>${L.who(g.gc)}</strong> used ${L.who(g.change.usual)} on ${g.change.usualJobs} of ${g.change.beforeJobs} earlier jobs,
         then ${L.who(g.change.latest)} on ${L.esc(L.date(g.change.latestOn))} (<span class="mono">${L.esc(g.change.latestPermit)}</span>).</div>`).join('')
         : '<p class="sub">None in this window. A switch needs 3+ earlier jobs with one sub on 75%+ of them.</p>'}
-      <p class="note">A switch can mean the usual sub was busy, not that the GC is unhappy. It is a reason to call, not proof of an opening.</p>`;
+      <p class="note">A switch can mean the usual sub was busy, not that the GC is unhappy. It is a fact about past permits, not a sign the GC is looking for someone.</p>`;
   }
 
   function drawMarket(d) {

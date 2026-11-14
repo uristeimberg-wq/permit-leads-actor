@@ -17,7 +17,7 @@
   <div class="head">
     <div>
       <h1 id="title">Builder momentum</h1>
-      <span class="context">Who is building more, and who is slowing down</span>
+      <span class="context">Building permits per business, in two equal windows</span>
       <p class="lede" id="lede">Loading…</p>
     </div>
     <div id="fresh"></div>
@@ -67,18 +67,20 @@
     if (!d.segmentable) form.elements.segment.closest('label').hidden = true;
     const what = d.segment ? `${SEGMENT[d.segment]}` : 'building work';
     const c = d.counts || {};
+    const hid = Boolean(d.inferencesHidden);
     $('lede').innerHTML = `${d.total.toLocaleString('en-US')} businesses pulled 3 or more building permits for ${L.esc(what)} in one of the two windows: the last ${w} days (since ${L.esc(L.date(d.recentFrom))}) and the ${w} days before.
-      ${d.historyCovers ? `<br><span class="sub">${(c.rising || 0) + (c.new || 0)} rising or new · ${c.slowing || 0} slowing · ${c.steady || 0} steady.</span>`
+      ${hid ? '' : d.historyCovers ? `<br><span class="sub">${(c.rising || 0) + (c.new || 0)} rising or new · ${c.slowing || 0} slowing · ${c.steady || 0} steady.</span>`
         : `<br><span class="sub err">Our history for this market starts ${L.esc(L.date(d.meta && d.meta.historyFrom))}, after the earlier window begins (${L.esc(L.date(d.priorFrom))}), so no change is shown. Pick a shorter window.</span>`}`;
     const tabs = [['up', 'Rising and new'], ['down', 'Slowing'], ['all', 'All']];
-    $('tabs').innerHTML = tabs.map(([k, label]) => `<a href="?${L.qs({ ...f, tab: k })}"${k === tab ? ' aria-current="true"' : ''}>${label}</a>`).join('');
-    const keep = { up: (b) => b.trend === 'rising' || b.trend === 'new', down: (b) => b.trend === 'slowing', all: () => true }[tab];
+    $('tabs').hidden = hid;
+    $('tabs').innerHTML = hid ? '' : tabs.map(([k, label]) => `<a href="?${L.qs({ ...f, tab: k })}"${k === tab ? ' aria-current="true"' : ''}>${label}</a>`).join('');
+    const keep = hid ? () => true : { up: (b) => b.trend === 'rising' || b.trend === 'new', down: (b) => b.trend === 'slowing', all: () => true }[tab];
     const list = d.builders.filter(keep);
     const apps = d.hasApplications;
-    $('list').innerHTML = list.length ? `<div class="card"><table><thead><tr><th>Builder</th><th>Trend</th><th class="n">Jobs, last ${w} days</th><th class="n">Jobs, ${w} days before</th>${apps ? `<th class="n">Applications filed, last ${w} days</th>` : ''}<th>Usual subs</th><th class="hide-sm">Latest permit</th></tr></thead><tbody>
+    $('list').innerHTML = list.length ? `<div class="card"><table><thead><tr><th>Builder</th>${hid ? '<th class="n">Change</th>' : '<th>Trend</th>'}<th class="n">Jobs, last ${w} days</th><th class="n">Jobs, ${w} days before</th>${apps ? `<th class="n">Applications filed, last ${w} days</th>` : ''}<th>Usual subs</th><th class="hide-sm">Latest permit</th></tr></thead><tbody>
       ${list.map((b) => `<tr>
         <td>${L.who(b.builder)}<div>${L.phoneCell(b.builder.phone)}</div></td>
-        <td>${trendCell(b, w)}</td>
+        <td${hid ? ' class="n mono"' : ''}>${hid ? (b.prior == null || !d.historyCovers ? '<span class="sub">—</span>' : `${b.recent - b.prior >= 0 ? '+' : ''}${b.recent - b.prior}`) : trendCell(b, w)}</td>
         <td class="n mono">${b.recent}</td>
         <td class="n mono">${b.prior == null ? '<span class="sub">—</span>' : b.prior}</td>
         ${apps ? `<td class="n mono">${b.applications.filed ? `<span class="prov" title="${L.esc(`Applications where this business is the filer we classed as the builder (ADR-19). ${b.applications.inReview} not issued yet.`)}">${b.applications.filed}</span><div class="sub">${b.applications.inReview} in review</div>` : '<span class="sub">0</span>'}</td>` : ''}
@@ -86,7 +88,8 @@
         <td class="hide-sm mono">${L.esc(L.date(b.lastJobOn))}</td></tr>`).join('')}</tbody></table></div>`
       : `<div class="card state">${tab === 'down' ? 'No builder is slowing by our definition in this window.' : tab === 'up' ? 'No builder is rising by our definition in this window.' : 'No builder pulled 3 or more building permits in these windows.'}</div>`;
     $('foot').innerHTML = L.attribution(d.meta)
-      + `<p class="note">Jobs are building permits we hold, counted once per job, by the business on the permit. The counts are from the records; the trend is our reading of them: <b>rising</b> means at least 3 jobs recently, at least 3 more than before, and 1.5 times as many; <b>new to market</b> means its first permit in our data falls in the recent window; <b>slowing</b> means at least 3 fewer and half as many or less. A builder whose permits list another name, or that works in other cities, can look slower than it is.</p>`
+      + (hid ? `<p class="note">Jobs are building permits we hold, counted once per job, by the business on the permit, newest window first. Change is the difference of the two counts. A business whose permits list another name, or that works in other cities, can look smaller than it is.</p>`
+      : `<p class="note">Jobs are building permits we hold, counted once per job, by the business on the permit. The counts are from the records; the trend is our reading of them: <b>rising</b> means at least 3 jobs recently, at least 3 more than before, and 1.5 times as many; <b>new to market</b> means its first permit in our data falls in the recent window; <b>slowing</b> means at least 3 fewer and half as many or less. A builder whose permits list another name, or that works in other cities, can look slower than it is.</p>`)
       + (apps ? '<p class="note">Applications are the plan-review filings where this business is the filer we classed as the builder (see Early filings). They show work coming before any permit is issued. Our application history only goes back to when we started collecting it, so this column undercounts at first.</p>' : '')
       + '<p class="note">Usual subs are the most frequent electrical, plumbing and HVAC contractor on the builder\'s earlier issued permits: history, not a claim about its next job.</p>';
   }

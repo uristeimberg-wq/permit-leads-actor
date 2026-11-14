@@ -16,7 +16,7 @@
 <main class="narrow">
   <div class="head">
     <div>
-      <h1 id="title">Leads</h1>
+      <h1 id="title">New permits</h1>
       <span class="context" id="eyebrow">Weekly digest preview</span>
       <p class="lede" id="lede">Loading…</p>
     </div>
@@ -51,23 +51,23 @@
   function render(d) {
     const n = d.leads.length;
     document.getElementById('eyebrow').textContent = `Weekly digest preview · ${L.AREA[f.source]}`;
-    document.getElementById('title').textContent = `${n} ${f.trade} lead${n === 1 ? '' : 's'} in ${L.AREA[f.source]}`;
-    document.getElementById('lede').innerHTML = `Building permits we first saw in the last ${d.days} days with no ${L.esc(f.trade)} permit issued on the job yet, ranked by how well the description fits ${L.esc(f.trade)} work. Call the contractor named on the permit.`
-      + `<br><span class="sub">Data as of ${L.esc(L.dateTime(d.meta && d.meta.lastSyncAt))}. ${L.esc(d.meta && d.meta.publicationLag)}; anything later goes in next week's list. No ${L.esc(f.trade)} permit issued does not mean no sub is hired.</span>`;
+    document.getElementById('title').textContent = `${n} building permit${n === 1 ? '' : 's'} with no ${f.trade} permit on record, ${L.AREA[f.source]}`;
+    document.getElementById('lede').innerHTML = `Building permits we first saw in the last ${d.days} days with no ${L.esc(f.trade)} permit issued on the job yet, ${d.ranking === 'issue date' ? 'newest issue date first' : `ranked by how well the description fits ${L.esc(f.trade)} work`}. The contractor named is the one on the permit.`
+      + `<br><span class="sub">Data as of ${L.esc(L.dateTime(d.meta && d.meta.lastSyncAt))}. ${L.esc(d.meta && d.meta.publicationLag)}; anything later goes in next week's list. No ${L.esc(f.trade)} permit on record says nothing about whether a sub is hired.</span>`;
     const list = document.getElementById('list');
     list.innerHTML = n ? d.leads.map((l, i) => `
       <article class="card lead">
         <div class="lead-row">
           <div><span class="mono sub">${String(i + 1).padStart(2, '0')}</span> <strong>${L.esc(l.address || 'Address not published')}</strong>${l.zip && !String(l.address || '').includes(l.zip) ? `, ${L.esc(l.zip)}` : ''}
             <div class="sub">${L.esc(l.permit_type || '')} · ${l.filed_date ? `issued ${L.esc(L.date(l.filed_date))}` : 'not issued yet'} · ${L.esc(L.money(l.valuation))} · ${L.esc(l.status_raw || 'status unknown')}</div></div>
-          <div class="mono sub" title="Trade fit score from the description's wording">fit ${l.score == null ? '—' : l.score}</div>
+          ${'score' in l ? `<div class="mono sub" title="Trade fit score from the description's wording">fit ${l.score == null ? '—' : l.score}</div>` : ''}
         </div>
         <p class="body-sm">${L.esc((l.work_description || '').slice(0, 220))}${(l.work_description || '').length > 220 ? '…' : ''}</p>
         <div class="lead-row lead-row--mid">
           <div>${L.who(l.gc)} <span class="sub">· GC on the building permit</span></div>
           <div>${l.gc && l.gc.name ? L.phoneCell(l.gc.phone) : ''}</div>
         </div>
-        <p class="note"><a href="job.html?${L.qs({ id: l.id, trade: f.trade })}">Open lead</a> · permit <span class="mono">${L.esc(l.permit_number)}</span></p>
+        <p class="note"><a href="job.html?${L.qs({ id: l.id, trade: f.trade })}">Open permit</a> · permit <span class="mono">${L.esc(l.permit_number)}</span></p>
       </article>`).join('') : '<div class="card state">No new building permits without a trade permit in this window.</div>';
     document.getElementById('foot').innerHTML = L.attribution(d.meta);
   }

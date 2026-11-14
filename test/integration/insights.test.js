@@ -2,6 +2,10 @@
 // answers: issue forecasts on the Early screen, trade timing on the job page,
 // and builder momentum. Needs Postgres (DATABASE_URL; default :5433).
 
+// The estimates are hidden from the API by default (web/trust.js,
+// docs/DATA_TRUST_AUDIT.md); this suite checks the estimates themselves.
+process.env.SHOW_INFERENCES = '1';
+
 const assert = require('node:assert');
 const { Client } = require('pg');
 

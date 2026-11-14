@@ -14,6 +14,7 @@ const { cache } = require('./cache.js');
 const { demoGate } = require('./access.js');
 const digestRoutes = require('./digest_routes.js');
 const { imageryConfig } = require('./imagery.js');
+const trust = require('./trust.js');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -86,6 +87,8 @@ app.get('/api/permits', asyncRoute(async (req, res) => {
 app.get('/api/permits/:id', asyncRoute(async (req, res) => {
   const permit = await queries.getPermit(req.params.id);
   if (!permit) return res.status(404).json({ error: 'Permit not found' });
+  // Trade fit scores are our keyword rules, an inference (docs/DATA_TRUST_AUDIT.md).
+  if (!trust.showInferences()) delete permit.trade_scores;
   return res.json(permit);
 }));
 
@@ -199,7 +202,8 @@ app.get('/api/freshness', cache.route(async () => ({ sources: await queries.getF
 // hidden. Behind the demo gate, like every /api route.
 app.get('/api/pilot/imagery', (_req, res) => {
   res.set('Cache-Control', 'private, max-age=300');
-  res.json(imageryConfig(process.env));
+  // Street View matching is an inference (docs/DATA_TRUST_AUDIT.md): off unless SHOW_INFERENCES=1.
+  res.json(trust.filter('imagery', imageryConfig(process.env)));
 });
 
 app.use('/api/pilot', overviewApi);

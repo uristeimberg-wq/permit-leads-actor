@@ -78,9 +78,10 @@
       ${sc ? `<br><span class="sub">In the same window: new homes ${sc.homes.toLocaleString('en-US')} · apartments ${sc.apartments.toLocaleString('en-US')} · commercial ${sc.commercial.toLocaleString('en-US')}.</span>` : ''}
       <br><span class="sub">${d.sources.map((s) => `${L.esc(s.label)}: last sync ${L.esc(L.dateTime(s.lastSyncAt))}${s.lastSyncStatus === 'failed' ? ' (latest attempt failed)' : ''}`).join(' · ')}.
       ${L.esc((d.meta && d.meta.earlyLag) || '')}. Austin's applications name no contractor yet. We show the business that filed when its name is a business; owners and people's names are never shown.</span>
-      ${d.segment === 'apartments' || d.segment === 'commercial' ? `<br><span class="sub">Context: in Austin 2020-2024, ${d.segment === 'apartments' ? '92%' : '80%'} of these buildings had a site plan on file a median of about a year before this application. Site plans are not on this list yet.</span>` : ''}`;
+      ${!d.inferencesHidden && (d.segment === 'apartments' || d.segment === 'commercial') ? `<br><span class="sub">Context: in Austin 2020-2024, ${d.segment === 'apartments' ? '92%' : '80%'} of these buildings had a site plan on file a median of about a year before this application. Site plans are not on this list yet.</span>` : ''}`;
+    const hid = Boolean(d.inferencesHidden);
     $('counts').innerHTML = `<p class="sub">${d.counts.map((c) => `${L.esc(STAGE[c.stage] || c.stage)} ${c.n.toLocaleString('en-US')}`).join(' · ')}</p>`;
-    $('list').innerHTML = n ? `<div class="card"><table><thead><tr><th>Submitted</th><th>Stage</th><th>Likely issued</th><th>Address</th><th class="hide-sm">Type</th><th class="n hide-sm">Declared value</th><th>Filed by</th><th>Builder's past subs</th><th class="hide-sm">Filing</th></tr></thead><tbody>
+    $('list').innerHTML = n ? `<div class="card"><table><thead><tr><th>Submitted</th><th>Stage</th>${hid ? '' : '<th>Likely issued</th>'}<th>Address</th><th class="hide-sm">Type</th><th class="n hide-sm">Declared value</th><th>Filed by</th>${hid ? '' : "<th>Builder's past subs</th>"}<th class="hide-sm">Filing</th></tr></thead><tbody>
       ${d.filings.map((r) => {
         const url = window.safeHttpUrl(r.permit_url);
         const num = url ? `<a class="mono" href="${L.esc(url)}" rel="noopener noreferrer" target="_blank">${L.esc(r.permit_number)}</a>` : `<span class="mono">${L.esc(r.permit_number)}</span>`;
@@ -88,18 +89,19 @@
         return `<tr>
           <td class="mono"><span class="prov" title="${L.esc(seen)}">${L.esc(r.submittedOn ? L.date(r.submittedOn) : 'not published')}</span></td>
           <td>${L.esc(STAGE[r.stage] || r.stage)}${r.stageSince ? `<div class="sub">since ${L.esc(L.date(r.stageSince))}</div>` : ''}${r.issuedPermitId ? `<div><a href="job.html?${L.qs({ id: r.issuedPermitId })}">permit issued</a></div>` : ''}</td>
-          <td>${forecastCell(r)}</td>
+          ${hid ? '' : `<td>${forecastCell(r)}</td>`}
           <td>${L.esc(r.address || 'Address not published')}${r.zip && !String(r.address || '').includes(r.zip) ? `, ${L.esc(r.zip)}` : ''}<div class="sub">${L.esc((r.work_description || '').slice(0, 140))}${(r.work_description || '').length > 140 ? '…' : ''}</div></td>
           <td class="hide-sm">${L.esc(r.permit_type || '')}</td>
           <td class="n mono hide-sm">${L.esc(L.money(r.valuation))}</td>
           <td>${r.contractor ? `${L.who(r.contractor)}${r.contractor.name ? `<div>${L.phoneCell(r.contractor.phone)}</div>` : ''}` : filerCell(r)}</td>
-          <td>${subsCell(r)}</td>
+          ${hid ? '' : `<td>${subsCell(r)}</td>`}
           <td class="hide-sm">${num}</td></tr>`;
       }).join('')}</tbody></table></div>` : '<div class="card state">No filings in review in this window.</div>';
-    $('foot').innerHTML = L.attribution(d.sources[0] || d.meta)
-      + `<p class="note">"Filed by" comes from the application's organisation fields. A builder is a business that pulled most of the building permits its earlier applications led to, or that is the contractor on Austin building permits we hold; a permit expediter says so in its name or files for many contractors. Anything else is shown without a role. Hover a name for the evidence.</p>`
+    $('foot').innerHTML = L.attribution(d.sources[0] || d.meta) + (hid
+      ? `<p class="note">"Filed by" is the business named in the application's organisation fields, as published. We do not say whether it is the builder or a permit expediter, and we give no issue date the city has not given.</p>`
+      : `<p class="note">"Filed by" comes from the application's organisation fields. A builder is a business that pulled most of the building permits its earlier applications led to, or that is the contractor on Austin building permits we hold; a permit expediter says so in its name or files for many contractors. Anything else is shown without a role. Hover a name for the evidence.</p>`
       + `<p class="note">Past subs are the electrical, plumbing and HVAC contractors on that builder's earlier issued permits. The subs for this job are not known until its trade permits are filed.</p>`
-      + `<p class="note"><span class="pill est">estimate</span> "Likely issued" is our estimate, not a date the city has given. It comes from building permits issued in ${L.esc(L.AREA[f.source])} in the last 12 months, measured from the city's application date to its issue date: the same census class where there are 20 or more, else the same kind of building, else every building permit. Only permits that were still open at this filing's age are compared, and the range is where the middle 6 in 10 of them landed. It assumes the filing is issued at all, and it does not read the review stage. Tap or hover a range for its basis.</p>`
+      + `<p class="note"><span class="pill est">estimate</span> "Likely issued" is our estimate, not a date the city has given. It comes from building permits issued in ${L.esc(L.AREA[f.source])} in the last 12 months, measured from the city's application date to its issue date: the same census class where there are 20 or more, else the same kind of building, else every building permit. Only permits that were still open at this filing's age are compared, and the range is where the middle 6 in 10 of them landed. It assumes the filing is issued at all, and it does not read the review stage. Tap or hover a range for its basis.</p>`)
       + `<p class="note">"Submitted" is the city's own application date; hover it for when we first saw the filing. Stages come from each city's status wording, mapped in reviewed code; a status we have not mapped is left out of this list rather than guessed.</p>`;
   }
 
