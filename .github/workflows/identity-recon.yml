@@ -1,0 +1,48 @@
+name: identity-recon
+
+# Contractor identity recon (lane C, recon/identity_recon.js): the Sunbiz SFTP
+# layout and folders, Miami-Dade ArchitectName values, and the 200-firm
+# entity-resolution sample. Read-only against the database; downloads one
+# daily Sunbiz file. People's names are masked in the output (rule 5).
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - recon/identity_recon.js
+      - .github/workflows/identity-recon.yml
+
+jobs:
+  recon:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SFTP: sftp://sftp.floridados.gov
+      # Published on dos.fl.gov/sunbiz/other-services/data-downloads/ for public use.
+      SFTP_USER: 'Public:PubAccess1845!'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      - name: Sunbiz folders
+        continue-on-error: true
+        run: |
+          curl -V | head -2
+          mkdir -p ~/.ssh && ssh-keyscan -t rsa,ecdsa,ed25519 sftp.floridados.gov 2>/dev/null | tee -a ~/.ssh/known_hosts | ssh-keygen -lf - || true
+          for d in /Public/ /Public/doc/ /Public/doc/quarterly/ /Public/doc/quarterly/cor/ /Public/doc/Quarterly/ /Public/doc/Quarterly/Cor/; do
+            echo "### $d"; curl -sS --max-time 60 -u "$SFTP_USER" "$SFTP$d" | tail -25 || true
+          done
+          echo "### /Public/doc/cor/ (last 10)"; curl -sS --max-time 60 -u "$SFTP_USER" "$SFTP/Public/doc/cor/" | tail -10 || true
+      - name: Sunbiz quarterly file, layout and matches
+        continue-on-error: true
+        timeout-minutes: 40
+        run: |
+          set -o pipefail
+          curl -sS --max-time 2400 -u "$SFTP_USER" -o /tmp/cordata.zip "$SFTP/Public/doc/Quarterly/Cor/cordata.zip"
+          ls -l /tmp/cordata.zip && unzip -l /tmp/cordata.zip | tail -15
+          node recon/identity_recon.js --sunbiz=/tmp/cordata.zip --architects --audit | tee -a "$GITHUB_STEP_SUMMARY"

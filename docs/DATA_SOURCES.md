@@ -558,6 +558,24 @@ next sync.
 **Recommendation: use** for Texas legal-entity anchoring (plan target: 60% or
 more of Texas business contractors tied to a registry key).
 
+### Florida Sunbiz corporate records (`fl-sunbiz`, built 2026-11-14)
+
+| Field | Value |
+| --- | --- |
+| Endpoint | SFTP `sftp.floridados.gov`, user `Public` (password published on `dos.fl.gov/sunbiz/other-services/data-downloads/`). Daily `/Public/doc/cor/yyyymmddc.txt` (2.7-3.9 MB on work days); quarterly `/Public/doc/Quarterly/Cor/cordata.zip` (1,793,034,019 bytes, dated Oct 7 2026) |
+| Reachable | From Actions, yes (identity-recon runs on PR #68). Not from the dev container (DNS blocked) |
+| Host keys | ED25519 `SHA256:xTpc6X81is5Nyh2QXR6hIRhS7ayx5/BMr162zB73xyQ`, RSA `SHA256:Uv7WZDtGBkIOE4QMpvdJp4h46Dx3/idG/jHfiE5bEJA` (2026-11-14) |
+| Layout | Fixed width, 1440 characters, "Corporation Data File Structure" page (`.../corporate-data-file/file-structure/`, read 2026-11-14). Checked on the 2026-11-13 daily file: 2,680 of 2,680 lines are 1440 characters; number, name, status, filing type, file date, last transaction date and report year pass 100%, principal ZIP 98.8%. Principal state was blank on every line of that file |
+| Loaded | Document number, legal name, status (A/I, stored as ACTIVE/INACTIVE per the Division's code list), filing type, file date, last transaction date, state of formation, latest report year, principal and mailing city/state/ZIP |
+| Never loaded | Positions 545-1440: registered agent and six officers (people, rule 5; the parser refuses to read them). FEI number. Street addresses |
+| Matching | Exact normalised name against Florida business contractors (`src/enrichment/sunbiz.js`): one entity, or one active of several, links; several active is ambiguous. Names carried by exactly one entity also join split contractor records (contractors-v5 rule 3) |
+| Refresh | Daily files each sync (45-day catch-up, each applied once, `registry_files`); full quarterly scan when the file changes or weekly |
+| Terms | "free data downloads for informational purposes ... offered as is"; the Data Usage Guide states no fee, licence or redistribution clause (read 2026-11-14). Florida public records, ch. 119 |
+| Fixture | Built to the published layout in `test/integration/sunbiz.test.js` (no real record committed: real lines carry officers' names) |
+
+**Recommendation: use** for Florida legal-entity anchoring and to join the
+City of Miami and Miami-Dade records of one firm.
+
 ### US Census Geocoder, batch
 
 | Field | Value |

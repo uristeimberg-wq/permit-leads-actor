@@ -6,6 +6,11 @@
 // So the rules only merge on strong keys:
 //   1. licence number (Miami-Dade publishes ContractorNumber)        conf 0.95
 //   2. exact normalized business name within one state              conf 0.80
+//   3. one legal entity (contractors-v5): Florida identities whose names
+//      normalise to a name that exactly one Sunbiz entity carries are one
+//      firm, e.g. a City of Miami "NEXTEP ELECTRIC INC" (name key) and the
+//      Miami-Dade licence holder "NEXTEP ELECTRIC INC" (licence key), or one
+//      firm's two licences                                           conf 0.85
 // Near-miss spellings ("Radiant Plumbing & AC" vs "... and Air Conditioning")
 // stay separate. A phone is evidence attached to a contractor, never a merge
 // key: 49 Austin phones are listed under 2+ different company names.
@@ -14,7 +19,7 @@
 
 const { SOURCES } = require('./sources.js');
 
-const RESOLVER_VERSION = 'contractors-v4';
+const RESOLVER_VERSION = 'contractors-v5';
 
 const NON_CONTRACTORS = new Set(['owner', 'owner builder', 'self', 'homeowner', 'na', 'n a', 'none', 'tbd', 'unknown', 'owner owner']);
 
@@ -29,11 +34,18 @@ const LEGAL_SUFFIXES = new Set(['llc', 'l l c', 'inc', 'incorporated', 'co', 'co
 
 const BUSINESS_WORDS = /\b(llc|inc|corp|co|company|ltd|lp|llp|pllc|services?|construction|constructors?|contracting|contractors?|builders?|building|homes?|plumbing|electric(al)?|mechanical|air|hvac|heating|cooling|roofing|solar|pools?|remodel(ing)?|renovations?|restoration|development|group|enterprises?|industries|systems|solutions|properties|design|energy|power|fire|sprinklers?|ac|a\/c|conditioning|windows?|doors?|fence|concrete|paving|landscap\w*|drywall|painting|flooring|tile|cabinets?|glass|steel|iron|welding|demolition|excavation|utilities|engineering|technologies|tech|supply|partners|associates|management|holdings|realty|international|national|america|usa)\b/i;
 
+// Austin AMANDA account marks ("ITALEX BUILDERS INC ***MAIN", "Douglas
+// Foundation Solutions **MAIN**") are not part of the firm's name
+// (contractors-v5; src/filers.js strips the same marks).
+const ACCOUNT_MARK = /\*+\s*main\b\s*\**/gi;
+
 function cleanText(raw) {
   return String(raw ?? '')
+    .replace(ACCOUNT_MARK, ' ')
     .normalize('NFKD').replace(/[̀-ͯ]/g, '')
     .toLowerCase()
     .replace(/\./g, '')          // "L.L.C." -> "llc"
+    .replace(/['’`]/g, '')   // "Titan's" -> "titans" (contractors-v5)
     .replace(/&/g, ' and ')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
@@ -187,6 +199,7 @@ function extractorFor(spec) {
       email: field(spec.email),
       licence: field(spec.licence),
       rawTrade: field(spec.rawTrade),
+      architect: field(spec.architect),
       city: field(spec.city),
       state: spec.state,
     };
@@ -204,7 +217,7 @@ const EXTRACTORS = Object.fromEntries(Object.entries(SOURCES)
  *
  * @param {{sourceSlug: string, permitNumber: string, name, phone, licence, state, city, issuedOn, rawTrade, trade}[]} parties
  */
-function resolveParties(parties) {
+function resolveParties(parties, { legalEntities = new Map() } = {}) {
   const contractors = new Map(); // key -> contractor
   const resolved = [];
   for (const party of parties) {
@@ -254,6 +267,8 @@ function resolveParties(parties) {
     resolved.push({ ...party, identityKey: id.key, rule: id.rule, confidence: id.confidence });
   }
 
+  mergeLegalEntities(contractors, resolved, legalEntities);
+
   // How many contractors list each phone: a phone shared across firms is a
   // weaker contact (an expediter's or a shared office line).
   const phoneOwners = new Map();
@@ -302,6 +317,86 @@ function resolveParties(parties) {
   return { contractors: out, parties: resolved };
 }
 
+const topKey = (m) => [...m.entries()].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])))[0]?.[0] ?? null;
+
+/**
+ * Rule 3 (contractors-v5). `legalEntities` maps "STATE:normalised name" to a
+ * registry id, and holds only names that exactly one registered entity
+ * carries (Sunbiz lookups with one candidate; ingest/resolve.js loads them).
+ * Identities whose most-used name normalises to such a name are merged into
+ * the one with the most permits (ties: the licence key, then the key), so the
+ * largest record keeps its id. Mutates `contractors` and `resolved`.
+ */
+function mergeLegalEntities(contractors, resolved, legalEntities) {
+  if (!legalEntities || !legalEntities.size) return;
+  const groups = new Map();
+  for (const c of contractors.values()) {
+    const name = topKey(new Map([...c.names].map(([k, v]) => [k.split('\u0000')[1], v])));
+    const reg = name && legalEntities.get(`${c.state}:${normalizeName(name)}`);
+    if (!reg) continue;
+    if (!groups.has(reg)) groups.set(reg, []);
+    groups.get(reg).push(c);
+  }
+  const into = new Map(); // merged key -> surviving key
+  for (const members of groups.values()) {
+    if (members.length < 2) continue;
+    members.sort((a, b) => b.permits - a.permits
+      || Number(b.identityKey.startsWith('lic:')) - Number(a.identityKey.startsWith('lic:'))
+      || a.identityKey.localeCompare(b.identityKey));
+    const [keep, ...rest] = members;
+    for (const m of rest) {
+      for (const [k, v] of m.names) keep.names.set(k, (keep.names.get(k) || 0) + v);
+      for (const field of ['phones', 'emails']) {
+        for (const [k, v] of m[field]) {
+          const prev = keep[field].get(k);
+          if (!prev) keep[field].set(k, { ...v });
+          else {
+            prev.count += v.count;
+            if (v.lastOn && (!prev.lastOn || v.lastOn > prev.lastOn)) Object.assign(prev, { lastOn: v.lastOn, lastRef: v.lastRef });
+          }
+        }
+      }
+      for (const l of m.licences) keep.licences.add(l);
+      for (const [k, v] of m.trades) keep.trades.set(k, (keep.trades.get(k) || 0) + v);
+      for (const [k, v] of m.cities) keep.cities.set(k, (keep.cities.get(k) || 0) + v);
+      if (m.first && (!keep.first || m.first < keep.first)) keep.first = m.first;
+      if (m.last && (!keep.last || m.last > keep.last)) keep.last = m.last;
+      keep.permits += m.permits;
+      contractors.delete(m.identityKey);
+      into.set(m.identityKey, keep.identityKey);
+    }
+  }
+  for (const p of resolved) {
+    const to = p.identityKey && into.get(p.identityKey);
+    if (to) Object.assign(p, { identityKey: to, rule: 'legal_entity', confidence: 0.85 });
+  }
+}
+
+// Values the Miami-Dade layer uses for "no architect" (2026-11-14 profile:
+// "NOT LISTED" on 29,563 of 34,208 permits, "." on 33).
+const PARTICIPANT_PLACEHOLDERS = new Set(['not listed', 'none', 'na', 'n a', 'tbd', 'unknown', 'owner', 'self', 'not applicable', 'no architect']);
+
+/**
+ * The design participants (architect or engineer of record) on resolved
+ * parties, one per permit. Placeholders and one-character values are dropped.
+ * A firm is shown; a person's name or an unclear one is stored for matching
+ * and kept hidden (rule 5), through the same displayPolicy as contacts.
+ */
+function participantsOf(parties) {
+  const out = [];
+  for (const p of parties) {
+    const raw = String(p.architect ?? '').trim().replace(/\s+/g, ' ');
+    const n = normalizeName(raw);
+    if (!raw || n.length < 2 || PARTICIPANT_PLACEHOLDERS.has(n)) continue;
+    const kind = partyKind(raw);
+    out.push({
+      sourceSlug: p.sourceSlug, sourceKey: p.sourceKey, rawRecordId: p.rawRecordId, role: 'architect',
+      rawName: raw, normalizedName: n, partyKind: kind, displayPolicy: displayPolicy(kind), state: p.state,
+    });
+  }
+  return out;
+}
+
 /**
  * GC -> sub links. Within a group (one building job), the building permit's
  * contractor is the GC and each trade permit's contractor is a sub. A GC doing
@@ -343,5 +438,5 @@ function buildRelationships(parties) {
 module.exports = {
   RESOLVER_VERSION, EXTRACTORS, extractorFor,
   normalizeName, isOwnerBuilder, partyKind, displayPolicy, toE164, normalizeEmail, cleanLicence, identityFor,
-  resolveParties, buildRelationships,
+  resolveParties, buildRelationships, mergeLegalEntities, participantsOf,
 };

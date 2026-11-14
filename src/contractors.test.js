@@ -177,3 +177,60 @@ check('Raleigh extractor reads the contractor email', () => {
   const x = C.EXTRACTORS['raleigh-nc'];
   assert.strictEqual(x({ permitnum: 'BLDR-1-2026', permittype: 'Building', contractoremail: 'a@b.co' }).email, 'a@b.co');
 });
+
+check('account marks are not part of the name (contractors-v5)', () => {
+  assert.strictEqual(C.normalizeName('ITALEX BUILDERS INC ***MAIN'), 'italex builders');
+  assert.strictEqual(C.normalizeName('Douglas Foundation  Solutions **MAIN**'), 'douglas foundation solutions');
+  assert.strictEqual(C.normalizeName('Waterloo Permits LLC *MAIN*'), 'waterloo permits');
+  assert.strictEqual(C.normalizeName('Main Street Builders'), 'main street builders');
+});
+
+const fl = (o) => ({ sourceSlug: 'miami-dade-fl', state: 'FL', ...o });
+
+check('one Sunbiz entity joins a City of Miami name key, a licence key and a second licence (contractors-v5)', () => {
+  const rows = [
+    fl({ permitNumber: 'M1', name: 'NEXTEP ELECTRIC INC', licence: 'EC13001234', phone: '3055550100', issuedOn: '2026-01-01' }),
+    fl({ permitNumber: 'M2', name: 'NEXTEP ELECTRIC INC', licence: 'EC13001234', issuedOn: '2026-02-01' }),
+    fl({ permitNumber: 'M3', name: 'NEXTEP ELECTRIC, INC.', licence: 'ER13009999', issuedOn: '2026-03-01' }),
+    fl({ sourceSlug: 'miami-city-fl', permitNumber: 'C1', name: 'Nextep Electric Inc', issuedOn: '2026-04-01' }),
+    fl({ sourceSlug: 'miami-city-fl', permitNumber: 'C2', name: 'NEXTEP ELECTRICAL CORP', issuedOn: '2026-04-02' }), // another name: stays apart
+  ];
+  const before = C.resolveParties(rows);
+  assert.strictEqual(before.contractors.length, 4);
+  const legalEntities = new Map([['FL:nextep electric', 'P13000012345']]);
+  const { contractors, parties } = C.resolveParties(rows, { legalEntities });
+  assert.strictEqual(contractors.length, 2);
+  const n = contractors.find((c) => c.normalizedName === 'nextep electric');
+  assert.strictEqual(n.identityKey, 'lic:FL:EC13001234'); // the largest keeps its key, so its id
+  assert.strictEqual(n.permitCount, 4);
+  assert.deepStrictEqual(n.licences.sort(), ['EC13001234', 'ER13009999']);
+  assert.deepStrictEqual([n.firstPermitOn, n.lastPermitOn], ['2026-01-01', '2026-04-01']);
+  const c1 = parties.find((p) => p.permitNumber === 'C1');
+  assert.deepStrictEqual([c1.identityKey, c1.rule, c1.confidence], ['lic:FL:EC13001234', 'legal_entity', 0.85]);
+  assert.strictEqual(parties.find((p) => p.permitNumber === 'M1').rule, 'licence');
+});
+
+check('no legal-entity map, or a name in another state, changes nothing', () => {
+  const rows = [fl({ permitNumber: 'A', name: 'Acme Plumbing', licence: 'CFC1' }), fl({ sourceSlug: 'miami-city-fl', permitNumber: 'B', name: 'Acme Plumbing' })];
+  assert.strictEqual(C.resolveParties(rows).contractors.length, 2);
+  assert.strictEqual(C.resolveParties(rows, { legalEntities: new Map([['TX:acme plumbing', 'x']]) }).contractors.length, 2);
+});
+
+check('Miami-Dade architects: placeholders dropped, firms shown, people hidden (rule 5)', () => {
+  const x = C.EXTRACTORS['miami-dade-fl'];
+  assert.strictEqual(x({ PermitNumber: '1', ArchitectName: 'PPK ARCHITECTS' }).architect, 'PPK ARCHITECTS');
+  const parts = C.participantsOf([
+    { sourceSlug: 'miami-dade-fl', sourceKey: '1', rawRecordId: 1, state: 'FL', architect: 'PPK ARCHITECTS' },
+    { sourceSlug: 'miami-dade-fl', sourceKey: '2', rawRecordId: 2, state: 'FL', architect: 'NOT LISTED' },
+    { sourceSlug: 'miami-dade-fl', sourceKey: '3', rawRecordId: 3, state: 'FL', architect: '.' },
+    { sourceSlug: 'miami-dade-fl', sourceKey: '4', rawRecordId: 4, state: 'FL', architect: 'Jane Doe' },
+    { sourceSlug: 'miami-dade-fl', sourceKey: '5', rawRecordId: 5, state: 'FL', architect: null },
+  ]);
+  assert.deepStrictEqual(parts.map((p) => [p.sourceKey, p.normalizedName, p.displayPolicy]),
+    [['1', 'ppk architects', 'show'], ['4', 'jane doe', 'hide']]);
+});
+
+check('apostrophes do not split a firm (contractors-v5)', () => {
+  assert.strictEqual(C.normalizeName("Titan's Plumbing"), C.normalizeName('Titans Plumbing'));
+  assert.strictEqual(C.normalizeName('Lugo’s Plumbing Service'), 'lugos plumbing service');
+});

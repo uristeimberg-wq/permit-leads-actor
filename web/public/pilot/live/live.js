@@ -118,7 +118,7 @@
   }
 
   const PROVIDER = { 'fl-dbpr': 'Florida DBPR', 'tx-tdlr': 'Texas TDLR' };
-  const MATCHED = { licence: 'licence number on its permits', phone: 'phone on its permits', name_state: 'business name in the state' };
+  const MATCHED = { licence: 'licence number on its permits', phone: 'phone on its permits', name_state: 'business name in the state', name_state_active: 'business name in the state (the only active entity of several)' };
 
   /** State licence records matched to a business, with how each was matched and the file's credit. */
   function registryList(recs, { compact = false } = {}) {
@@ -154,22 +154,26 @@
       return compact ? '' : '<p class="sub">No state business registration matched yet. We link only when exactly one registered entity has this exact name.</p>';
     }
     const rows = recs.map((r) => {
-      const rt = r.rightToTransact
-        ? `<span class="pill ${/^active$/i.test(r.rightToTransact) ? 'ok' : 'bad'}">right to transact: ${esc(r.rightToTransact)}</span>`
-        : '<span class="pill">right to transact not published</span>';
+      const sunbiz = r.provider === 'fl-sunbiz';
+      // Florida's file has no right-to-transact field; its status is the entity's own.
+      const rt = sunbiz
+        ? `<span class="pill ${/^active$/i.test(r.sosStatus || '') ? 'ok' : 'bad'}">Florida status: ${esc(r.sosStatus || 'not published')}</span>`
+        : r.rightToTransact
+          ? `<span class="pill ${/^active$/i.test(r.rightToTransact) ? 'ok' : 'bad'}">right to transact: ${esc(r.rightToTransact)}</span>`
+          : '<span class="pill">right to transact not published</span>';
       const v = r.provenance || {};
       const how = `Matched by ${MATCHED[r.matchedBy] || r.matchedBy}, confidence ${pct(r.confidence)}. Fetched ${dateTime(v.fetchedAt)}.`;
       const facts = [
-        r.sosFileNumber && `SOS file ${r.sosFileNumber}`,
+        !sunbiz && r.sosFileNumber && `SOS file ${r.sosFileNumber}`,
         r.stateOfFormation && `formed in ${r.stateOfFormation}`,
         r.registeredOn && `registered ${date(r.registeredOn)}`,
-        r.sosStatus && `SOS status ${r.sosStatus}`,
+        !sunbiz && r.sosStatus && `SOS status ${r.sosStatus}`,
         r.reportYear && `last report ${r.reportYear}`,
         r.mailingCity && `mail ${[r.mailingCity, r.mailingState].filter(Boolean).join(', ')}`,
       ].filter(Boolean).join(' · ');
       return `<li class="lic">
         <div class="lic-row"><span class="prov" title="${esc(how)}"><b>${esc(r.legalName || 'Name not published')}</b>${r.dbaName ? ` <span class="sub">dba ${esc(r.dbaName)}</span>` : ''}</span>${rt}</div>
-        <div class="sub">Taxpayer <span class="mono">${esc(r.taxpayerId)}</span>${facts ? ` · ${esc(facts)}` : ''}</div>
+        <div class="sub">${sunbiz ? 'Sunbiz document' : 'Taxpayer'} <span class="mono">${esc(r.taxpayerId)}</span>${facts ? ` · ${esc(facts)}` : ''}</div>
       </li>`;
     }).join('');
     const credits = [...new Set(recs.map((r) => r.provenance && r.provenance.attribution).filter(Boolean))];

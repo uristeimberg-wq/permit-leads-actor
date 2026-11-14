@@ -658,3 +658,29 @@ what would make us revisit it. Never delete an entry; supersede it.
   handled by hiding the card for that permit once `suppressions` gains an
   image kind (not built; Google also takes blur requests directly).
 
+
+## ADR-25: Florida legal entities join split contractor records (contractors-v5)
+
+- **Status:** accepted, 2026-11-14 (lane C of the data-engine gap plan; the
+  owner's brief asks for "more accurate contractor identification").
+- **Context:** a 200-firm audit (`docs/research/2026-11-14-entity-resolution-audit.md`)
+  found no wrong merges but 29.5% of business records with a same-firm twin,
+  almost all in Florida: City of Miami firms are keyed by name, Miami-Dade
+  firms by licence, and one firm with two licences was two records.
+- **Decision:**
+  1. Load Florida Sunbiz corporate records from the Division of Corporations'
+     free SFTP (quarterly full file, daily files), business fields only: the
+     agent and officer positions are never read (rule 5).
+  2. Resolver rule 3: Florida identities whose most-used name normalises to a
+     name that exactly one Sunbiz entity carries are one firm. The record with
+     the most permits keeps its key and id; joined permits carry
+     `match_rule = 'legal_entity'`, confidence 0.85. Names Sunbiz holds more
+     than once, or not at all, stay as they were.
+  3. Normalisation drops Austin "*MAIN*" account marks and apostrophes.
+  4. Miami-Dade `ArchitectName` is stored as a permit participant; only firms
+     are shown.
+- **Consequences:** about 1,100 fewer Florida contractor records; a merged
+  record's old id shows 0 permits. Splits fall to 9.0% on the sample, short
+  of the 3% target (truncated Miami-Dade names, ambiguous Sunbiz names and
+  typos remain). Resolve reads the previous day's Sunbiz results, so a new
+  join appears one sync later.

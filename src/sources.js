@@ -380,6 +380,11 @@ const SOURCES = {
       job: { kind: 'masterField', field: 'MasterPermitNumber', none: '^0+$' }, issued: 'PermitIssuedDate',
       name: 'ContractorName', phone: 'ContractorPhone', licence: 'ContractorNumber',
       rawTrade: null, city: 'ContractorCity', state: 'FL',
+      // The design professional of record (lane C, contractors-v5). 99.9%
+      // filled, but 86% is the placeholder "NOT LISTED" and most real values
+      // are a person's name; only firms are shown (rule 5). Profile from the
+      // live layer, 2026-11-14: recon/identity_recon.js --architects.
+      architect: 'ArchitectName',
     },
     dateField: 'PermitIssuedDate',
     // No status column: the stage comes from deriveStatus below.

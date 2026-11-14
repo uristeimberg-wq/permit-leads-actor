@@ -9,7 +9,7 @@
 //   node ingest/resolve.js
 
 const db = require('../db/index.js');
-const { EXTRACTORS, RESOLVER_VERSION, resolveParties, buildRelationships } = require('../src/contractors.js');
+const { EXTRACTORS, RESOLVER_VERSION, resolveParties, buildRelationships, participantsOf } = require('../src/contractors.js');
 
 async function loadParties(client) {
   const slugs = Object.keys(EXTRACTORS);
@@ -23,6 +23,26 @@ async function loadParties(client) {
     ...EXTRACTORS[r.slug](r.payload),
     sourceSlug: r.slug, sourceId: r.source_id, rawRecordId: r.raw_record_id, sourceKey: r.source_key,
   }));
+}
+
+/**
+ * Florida names that exactly one Sunbiz entity carries (rule 3 in
+ * src/contractors.js), from the last Sunbiz run. Before migration 027 or the
+ * first Sunbiz run there are none, and resolution is as before.
+ */
+async function loadLegalEntities(client) {
+  try {
+    await client.query('SAVEPOINT legal_entities');
+    const { rows } = await client.query(`
+      SELECT query_key, registry_id FROM registry_lookups
+       WHERE provider = 'fl-sunbiz' AND outcome = 'matched' AND candidates = 1 AND registry_id IS NOT NULL`);
+    await client.query('RELEASE SAVEPOINT legal_entities');
+    return new Map(rows.map((r) => [`FL:${r.query_key}`, r.registry_id]));
+  } catch (err) {
+    await client.query('ROLLBACK TO SAVEPOINT legal_entities');
+    if (err.code === '42P01') return new Map();
+    throw err;
+  }
 }
 
 async function writeAll(client, { contractors, parties, relationships }) {
@@ -100,7 +120,30 @@ async function writeAll(client, { contractors, parties, relationships }) {
     [relationships.map((r) => idOf.get(r.gcKey)), relationships.map((r) => idOf.get(r.subKey)), relationships.map((r) => r.trade),
       relationships.map((r) => r.jobs), relationships.map((r) => r.first), relationships.map((r) => r.last)]);
   }
-  return { partiesWritten };
+  return { partiesWritten, participantsWritten: await writeParticipants(client, participantsOf(parties)) };
+}
+
+/** Design participants (migration 027); skipped before that migration. */
+async function writeParticipants(client, list) {
+  await client.query('SAVEPOINT participants');
+  try {
+    await client.query('DELETE FROM permit_participants');
+  } catch (err) {
+    await client.query('ROLLBACK TO SAVEPOINT participants');
+    if (err.code === '42P01') return null;
+    throw err;
+  }
+  if (!list.length) return 0;
+  const { rowCount } = await client.query(`
+    INSERT INTO permit_participants (permit_id, role, raw_name, normalized_name, party_kind, display_policy, raw_record_id)
+    SELECT p.id, t.role, t.raw_name, t.n, t.kind, t.policy, t.raw_id
+      FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[], $8::bigint[])
+           AS t(area, permit_number, role, raw_name, n, kind, policy, raw_id)
+      JOIN permits p ON p.source_area = t.area AND p.permit_number = t.permit_number
+    ON CONFLICT (permit_id, role) DO NOTHING`,
+  [list.map((x) => x.sourceSlug), list.map((x) => x.sourceKey), list.map((x) => x.role), list.map((x) => x.rawName),
+    list.map((x) => x.normalizedName), list.map((x) => x.partyKind), list.map((x) => x.displayPolicy), list.map((x) => x.rawRecordId)]);
+  return rowCount;
 }
 
 function summarize(parties, contractors, relationships, partiesWritten) {
@@ -130,11 +173,13 @@ async function resolveAll() {
     // One resolver at a time; a second waits rather than interleaving deletes.
     await client.query('SELECT pg_advisory_xact_lock(727275)');
     const raw = await loadParties(client);
-    const { contractors, parties } = resolveParties(raw);
+    const legalEntities = await loadLegalEntities(client);
+    const { contractors, parties } = resolveParties(raw, { legalEntities });
     const relationships = buildRelationships(parties);
-    const { partiesWritten } = await writeAll(client, { contractors, parties, relationships });
+    const { partiesWritten, participantsWritten } = await writeAll(client, { contractors, parties, relationships });
     await client.query('COMMIT');
-    const stats = summarize(parties, contractors, relationships, partiesWritten);
+    const stats = { ...summarize(parties, contractors, relationships, partiesWritten), legalEntityNames: legalEntities.size,
+      legalEntityParties: parties.filter((p) => p.rule === 'legal_entity').length, architectsWritten: participantsWritten };
     await pool.query("UPDATE resolver_runs SET status = 'succeeded', finished_at = now(), stats = $2 WHERE id = $1", [run.id, stats]);
     return stats;
   } catch (err) {

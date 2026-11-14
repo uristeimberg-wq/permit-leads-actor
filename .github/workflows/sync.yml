@@ -194,6 +194,16 @@ jobs:
           DATABASE_URL: ${{ env.DB_URL }}
           TX_COMPTROLLER_API_KEY: ${{ secrets.TX_COMPTROLLER_API_KEY }}
         run: set -o pipefail; node ingest/enrich_registrations.js | tee -a "$GITHUB_STEP_SUMMARY"
+      # Florida business entities (lane C, migration 027): the Division of
+      # Corporations' free SFTP files. Daily files each day; the 1.8 GB
+      # quarterly file when it changes or weekly (ingest/enrich_sunbiz.js).
+      # Its matches feed tomorrow's Resolve (contractors-v5 rule 3).
+      - name: Florida business entities (Sunbiz)
+        if: always() && steps.secret.outputs.ready == 'true'
+        timeout-minutes: 50
+        env:
+          DATABASE_URL: ${{ env.DB_URL }}
+        run: set -o pipefail; node ingest/enrich_sunbiz.js | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Verify licences
         if: always() && steps.secret.outputs.ready == 'true'
         env:
