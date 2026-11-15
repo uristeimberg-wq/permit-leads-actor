@@ -129,6 +129,36 @@ const money = (v) => {
   return '$' + n.toLocaleString('en-US', { minimumFractionDigits: cents, maximumFractionDigits: cents });
 };
 
+/**
+ * A declared value, short ("$420K", "$1.3M", "$8.5K", "$950") for cards and
+ * headers, as HTML; '' when missing or a $1 placeholder, so nothing shows.
+ * $1 billion or more is shown as filed but flagged: those are filing errors
+ * (five permits on one Austin lot at $8.1B each), not job values.
+ */
+const ODD_VALUE = 1e9;
+function shortMoney(n) {
+  const units = [[1e9, 'B'], [1e6, 'M'], [1e3, 'K'], [1, '']];
+  for (let i = 0; i < units.length; i += 1) {
+    const [d, u] = units[i];
+    if (n < d && i < units.length - 1) continue;
+    const x = n / d;
+    const r = x < 10 && d > 1 ? Math.round(x * 10) / 10 : Math.round(x);
+    // $999,999 rounds to 1000K: say $1M instead.
+    if (r >= 1000 && i > 0) return `$1${units[i - 1][1]}`;
+    return `$${r}${u}`;
+  }
+  return '';
+}
+function valueTag(v, cls = 'card-value') {
+  const n = Number(v);
+  if (!(n > 1)) return '';
+  const full = `$${Math.round(n).toLocaleString('en-US')}`;
+  if (n >= ODD_VALUE) {
+    return `<span class="${cls} is-odd" title="Declared as ${full} on the permit. Unusually high: likely a filing error, shown as filed.">${shortMoney(n)}<span aria-hidden="true"> ?</span><span class="visually-hidden"> (as filed, unusually high)</span></span>`;
+  }
+  return `<span class="${cls}" title="Declared value ${full}">${shortMoney(n)}</span>`;
+}
+
 // A date-only value is read as local midnight; a full timestamp as itself.
 const fmtDate = (d) => (d
   ? new Date(String(d).length === 10 ? `${d}T00:00:00` : d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
@@ -500,12 +530,10 @@ function renderCard(p) {
   const areaKey = areaKeyOf(p);
   if (areaKey) el.dataset.area = areaKey;
 
-  const val = money(p.valuation);
   const contact = phoneLink(p.contractor_phone, ' data-tel');
 
   const foot = [
     stageBadge(p),
-    val ? `<span class="money">${esc(val)}</span>` : '',
     p.jurisdiction ? `<span class="pill">${esc(p.jurisdiction)}</span>` : '',
     p.contractor_name
       ? (isRealContractor(p.contractor_name)
@@ -520,7 +548,7 @@ function renderCard(p) {
   el.innerHTML = `
     <div class="card-top">
       <h3 class="card-addr">${esc(p.address || 'Address not listed')}</h3>
-      <span class="card-date">${esc(fmtDate(p.filed_date) || 'No date')}</span>
+      <span class="card-meta">${valueTag(p.valuation)}<span class="card-date">${esc(fmtDate(p.filed_date) || 'No date')}</span></span>
       ${window.Saved ? Saved.heartHtml(p.id) : ''}
     </div>
     ${p.permit_type ? `<div class="card-type">${esc(p.permit_type)}</div>` : ''}
@@ -1246,6 +1274,7 @@ async function openDetail(id, cardEl) {
 
   $('dAddr').textContent = 'Loading…';
   $('dType').textContent = '';
+  $('dMeta').innerHTML = '';
   $('dStage').innerHTML = '';
   $('dSave').innerHTML = '';
   $('dBody').innerHTML = skeletons(3);
@@ -1263,6 +1292,10 @@ async function openDetail(id, cardEl) {
 
   $('dAddr').textContent = p.address || 'Address not listed';
   $('dType').textContent = p.permit_type || '';
+  // The filing date and the declared value, side by side (nothing when missing).
+  const dVal = valueTag(p.valuation, 'd-value');
+  $('dMeta').innerHTML = [p.filed_date ? `<span>Filed ${esc(fmtDate(p.filed_date))}</span>` : '', dVal ? `<span>${dVal} declared</span>` : '']
+    .filter(Boolean).join('<span class="sep" aria-hidden="true"></span>');
   $('dStage').innerHTML = stageBadge(p);
   $('dSave').innerHTML = window.Saved ? Saved.heartHtml(p.id, { label: true }) : '';
 
@@ -1281,7 +1314,7 @@ async function openDetail(id, cardEl) {
       ${row('Filed', fmtDate(p.filed_date))}
       ${row('Permit no.', p.permit_number)}
       ${row('Type', p.permit_type)}
-      ${row('Valuation', money(p.valuation), 'money')}
+      ${row('Valuation', money(p.valuation) && (Number(p.valuation) >= ODD_VALUE ? `${money(p.valuation)} (as filed; unusually high, likely a filing error)` : money(p.valuation)), 'money')}
       ${row('Description', p.work_description)}
     </dl>
 
