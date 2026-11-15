@@ -54,7 +54,19 @@ app.use(digestRoutes.publicRouter());
 const users = require('./users.js');
 const userStore = users.pgStore(db.query);
 const userSessions = users.sessions();
-app.use(demoGate(undefined, { users: { store: userStore, sessions: userSessions, normalEmail: users.normalEmail } }));
+// Open access (owner decision 2026-11-15): no login is asked; anyone with the
+// link sees what the app shows. Redaction (rule 5) is unchanged. The digest
+// previews stay behind the owner key: they render subscribers' real signed
+// links, unsubscribe included. REQUIRE_LOGIN=1 puts the whole app behind the
+// gate again. The email is asked only the first time someone saves a permit.
+const OPEN_ACCESS = process.env.REQUIRE_LOGIN !== '1';
+const OWNER_ONLY = /^\/digest\/(preview|sample)(\/|$)/;
+app.use(demoGate(undefined, {
+  users: { store: userStore, sessions: userSessions, normalEmail: users.normalEmail },
+  isPublic: OPEN_ACCESS ? (req) => !OWNER_ONLY.test(req.path) : null,
+}));
+// Public pages carry contractor names and phones: keep them out of search engines.
+if (OPEN_ACCESS) app.use((_req, res, next) => { res.set('X-Robots-Tag', 'noindex, nofollow'); next(); });
 
 // Digest email previews, behind the gate.
 app.use(digestRoutes.previewRouter());

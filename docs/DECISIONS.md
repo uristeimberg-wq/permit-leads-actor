@@ -709,7 +709,8 @@ what would make us revisit it. Never delete an entry; supersede it.
 ## ADR-27: Audience-neutral screens, invite-only access with an optional industry
 
 - **Status:** accepted, 2026-11-14 (owner: "do not assume our target
-  customers"; "avoid forcing users into a specific workflow"). Builds on
+  customers"; "avoid forcing users into a specific workflow"). Point 2
+  (invite-only access) superseded by ADR-29 on 2026-11-15. Builds on
   ADR-26; supersedes the subcontractor framing of ADR-1's screens and the
   shared-password gate of ADR-13 (the password stays as the owner's key).
 - **Decision:**
@@ -756,7 +757,23 @@ what would make us revisit it. Never delete an entry; supersede it.
   store cycles in about two weeks. Screens do not yet say "removed from the
   source"; the mark is recorded and counted first.
 
-## ADR-29: Watermarked windows, validated pages, append-only history
+## ADR-29: Open access, no login
+
+- **Status:** accepted, 2026-11-15 (owner's choice: "No login at all").
+  Supersedes ADR-27 point 2 (invite codes) and the email sign-in gate that
+  replaced it in #95/#97 the same day.
+- **Decision:** the hosted app asks for no sign-in. Anyone with the link sees
+  what the screens show, including business contractors' names and phones.
+  Redaction is unchanged (rule 5, ADR-10, ADR-26). An email is asked only when
+  someone saves a permit, and nothing checks it. The digest previews
+  (`/digest/preview`, `/digest/sample`) stay behind the owner key
+  (`DEMO_PASSWORD`), because they render subscribers' real signed links.
+  Pages are sent with `X-Robots-Tag: noindex, nofollow`. `REQUIRE_LOGIN=1`
+  restores the full gate.
+- **Risk accepted:** the data is public before the redistribution questions
+  for Miami-Dade, the TX Comptroller and Sunbiz are answered (docs/COMPLIANCE.md).
+
+## ADR-30: Watermarked windows, validated pages, append-only history
 
 - **Date:** 2026-11-15. Data-engine brief, phase 1
   (`docs/research/2026-11-15-engine-gap-analysis.md`).

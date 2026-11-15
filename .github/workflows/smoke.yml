@@ -1,7 +1,7 @@
 name: smoke
 
-# Post-deploy check of the hosted demo (ADR-13): it is up, the password gate
-# holds (sign-in page for browsers, 401 for the API), and with the
+# Post-deploy check of the hosted demo (ADR-13): it is up, the app is open
+# with no sign-in while the owner-only digest previews still need the key, and with the
 # DEMO_PASSWORD secret it signs in and serves real pilot data.
 # Prints counts only, never names or phones. The layout job checks every
 # screen at phone and tablet widths (test/layout/check.js).
@@ -29,12 +29,15 @@ jobs:
           fail=0
           h=$(code "$BASE/healthz"); echo "healthz: $h"; [ "$h" = 200 ] || fail=1
           echo "schema: $(curl -s --max-time 30 "$BASE/healthz/schema")"
+          # Open access (owner decision 2026-11-15): the app needs no sign-in;
+          # only the digest previews stay behind the owner key.
           for p in / /pilot/live/ /pilot/live/early.html /pilot/live/gcs.html; do
-            c=$(code -H 'accept: text/html' "$BASE$p"); echo "no session $p: $c (want 302 to /login)"; [ "$c" = 302 ] || fail=1
+            c=$(code -H 'accept: text/html' "$BASE$p"); echo "no session $p: $c (want 200, open access)"; [ "$c" = 200 ] || fail=1
           done
           c=$(code "$BASE/login"); echo "sign-in page: $c (want 200)"; [ "$c" = 200 ] || fail=1
-          c=$(code "$BASE/api/pilot/meta"); echo "no session API: $c (want 401)"; [ "$c" = 401 ] || fail=1
-          c=$(code -u "x:wrong-password" "$BASE/api/pilot/meta"); echo "wrong password: $c (want 401)"; [ "$c" = 401 ] || fail=1
+          c=$(code "$BASE/api/pilot/meta"); echo "no session API: $c (want 200, open access)"; [ "$c" = 200 ] || fail=1
+          c=$(code -H 'accept: application/json' "$BASE/digest/preview"); echo "no session owner-only: $c (want 401)"; [ "$c" = 401 ] || fail=1
+          c=$(code -u "x:wrong-password" -H 'accept: application/json' "$BASE/digest/preview"); echo "wrong password: $c (want 401)"; [ "$c" = 401 ] || fail=1
           c=$(code -X POST --data-urlencode "password=wrong-password" "$BASE/login"); echo "wrong sign-in: $c (want 401)"; [ "$c" = 401 ] || fail=1
           if [ -n "$DEMO_PASSWORD" ]; then
             jar=$(mktemp)

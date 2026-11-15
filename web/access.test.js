@@ -259,5 +259,13 @@ const cookieOf = (r) => (r.headers.get('set-cookie') || '').split(';')[0];
     }, opts);
   });
 
+  await check('open access: public paths need no sign-in; owner-only paths still do; logout goes home', () => withApp('s3cret', async (go) => {
+    assert.strictEqual((await go('/page', { headers: { accept: 'text/html' } })).status, 200);
+    assert.strictEqual((await go('/api/x')).status, 200);
+    assert.strictEqual((await go('/api/owner')).status, 401);
+    assert.strictEqual((await go('/api/owner', { headers: { authorization: basic('x:s3cret') } })).status, 404, 'the owner key passes the gate');
+    assert.strictEqual((await go('/logout')).headers.get('location'), '/');
+  }, { isPublic: (req) => req.path !== '/api/owner' }));
+
   if (failures) process.exitCode = 1;
 })();

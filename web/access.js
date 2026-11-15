@@ -140,6 +140,8 @@ footer div { padding-top: 16px; padding-bottom: 16px; border-top: 1px solid oklc
  *   email sign-in (web/users.js), which replaces invite codes: the page asks
  *   for an email, and a signed `ct_user` cookie is a session. DEMO_PASSWORD
  *   still signs in as the owner ("Owner key").
+ *   `isPublic(req)`: requests it returns true for pass without sign-in (open
+ *   access); the rest, such as the digest previews, still need the owner key.
  */
 function demoGate(password = process.env.DEMO_PASSWORD, opts = {}) {
   const router = express.Router();
@@ -245,10 +247,13 @@ function demoGate(password = process.env.DEMO_PASSWORD, opts = {}) {
   router.get('/logout', (req, res) => {
     res.clearCookie(COOKIE, { httpOnly: true, sameSite: 'lax', secure: req.secure, path: '/' });
     if (users) users.sessions.clear(res, req);
-    return res.redirect(303, '/login');
+    return res.redirect(303, opts.isPublic ? '/' : '/login');
   });
 
   router.use(async (req, res, next) => {
+    // Open access (owner decision 2026-11-15): everything but the owner-only
+    // paths is public, so no sign-in is asked. isPublic decides per request.
+    if (opts.isPublic && opts.isPublic(req)) return next();
     if (validBasic(req) || await validSession(req)) return next();
     const wantsPage = (req.method === 'GET' || req.method === 'HEAD') && !req.path.startsWith('/api/')
       && /text\/html|\*\/\*/.test(String(req.headers.accept || '*/*'));
