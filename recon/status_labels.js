@@ -90,7 +90,7 @@ async function record() {
   const rows = await q(`
     SELECT p.id, p.permit_number, p.status_raw, p.status_stage, p.lifecycle_stage, p.filed_date, p.submitted_on, p.stage_since,
            p.valuation, p.first_seen_at, p.first_seen_stage, r.payload, r.fetched_at
-      FROM permits p LEFT JOIN raw_records r ON r.id = (SELECT max(id) FROM raw_records rr JOIN sources s ON s.id = rr.source_id
+      FROM permits p LEFT JOIN raw_records r ON r.id = (SELECT max(rr.id) FROM raw_records rr JOIN sources s ON s.id = rr.source_id
                                                          WHERE s.slug = p.source_area AND rr.source_key = p.permit_number)
      WHERE p.source_area = 'austin-plan-review-tx' AND p.address ILIKE '1110 W 6TH%'`);
   if (!rows.length) { out('_Not found._'); return; }
