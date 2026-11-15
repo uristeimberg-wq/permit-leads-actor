@@ -157,7 +157,8 @@ function summarize({ members, basis }, { inferences = false, matchedIds = null }
     permitType: primary.permit_type || null,
     permits: permits.map((p, i) => ({
       id: String(p.id), permit_number: p.permit_number, permit_type: p.permit_type, kind: kinds[i].code,
-      status_raw: p.status_raw, status_stage: p.status_stage, filed_date: p.filed_date, valuation: p.valuation,
+      status_raw: p.status_raw, status_stage: p.status_stage, lifecycle_stage: p.lifecycle_stage || null,
+      filed_date: p.filed_date, valuation: p.valuation,
       contractor_name: p.contractor_name, contractor_phone: p.contractor_phone, contractor_withheld: p.contractor_withheld || false,
       address: p.address, work_description: p.work_description,
     })),
