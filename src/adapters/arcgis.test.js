@@ -157,7 +157,7 @@ check('onRaw receives the unmapped attributes and the request count', async () =
   const fetchImpl = async () => ({ ok: true, json: async () => ({ features: [{ attributes: attrs }], exceededTransferLimit: false }) });
   await fetchArcgisSource(SOURCE, { log: fakeLog(), fetchImpl, onRaw: (rows, meta) => { got = { rows, meta }; } });
   assert.deepStrictEqual(got.rows, [attrs]);
-  assert.deepStrictEqual(got.meta, { requests: 1, truncated: false });
+  assert.deepStrictEqual(got.meta, { requests: 1, truncated: false, recordUrls: [null] });
 });
 
 check('windows: per-layer fields, each ordered by its own field, a row found twice kept once', async () => {
@@ -175,7 +175,10 @@ check('windows: per-layer fields, each ordered by its own field, a row found twi
     log: fakeLog(), fetchImpl, onRaw: (r, m) => { meta = { n: r.map((x) => x.num), ...m }; },
     windows: [{ field: 'applied', days: 30, layer: 0 }, { field: 'created', days: 30, layer: 1 }, { field: 'updated', days: 14 }],
   });
-  assert.deepStrictEqual(meta, { n: ['1', '2', '3'], requests: 4, truncated: false });
+  assert.deepStrictEqual({ ...meta, recordUrls: undefined }, { n: ['1', '2', '3'], requests: 4, truncated: false, recordUrls: undefined });
+  // Each row's re-fetch URL names the layer it came from.
+  assert.deepStrictEqual(meta.recordUrls.map((u) => decodeURIComponent(u).replace(/\+/g, ' ').replace(/&.*/, '')),
+    ["https://x.test/A/FeatureServer/0/query?where=num = '1'", "https://x.test/A/FeatureServer/0/query?where=num = '2'", "https://x.test/B/FeatureServer/0/query?where=num = '3'"]);
   assert.ok(/A\/.*where=applied >= timestamp/.test(urls[0]) && /orderByFields=applied DESC, OBJECTID/.test(urls[0]), urls[0]);
   assert.ok(/A\/.*where=updated >= /.test(urls[1]));
   assert.ok(/B\/.*where=created >= /.test(urls[2]) && /B\/.*where=updated >= /.test(urls[3]));

@@ -45,9 +45,20 @@ check('the same row twice in one fetch is stored once; a changed row is a second
   assert.strictEqual(records.length, 2);
 });
 
-check('Socrata :updated_at is carried as source_updated_at when present', () => {
-  const { records } = toRawRecords([{ permit_number: 'A', ':updated_at': '2026-11-12T15:26:31.000Z' }], austin);
-  assert.strictEqual(records[0].sourceUpdatedAt, '2026-11-12T15:26:31.000Z');
+check('source_updated_at comes only from a declared modification column (Austin reloads :updated_at daily)', () => {
+  const row = { permit_number: 'A', ':updated_at': '2026-11-12T15:26:31.000Z', edited: 1762000000000 };
+  assert.strictEqual(toRawRecords([row], austin).records[0].sourceUpdatedAt, null);
+  assert.strictEqual(toRawRecords([row], { ...austin, updatedAtField: 'edited' }).records[0].sourceUpdatedAt, new Date(1762000000000).toISOString());
+  assert.strictEqual(toRawRecords([row], { ...austin, updatedAtField: ':updated_at' }).records[0].sourceUpdatedAt, '2026-11-12T15:26:31.000Z');
+  // A floating Socrata timestamp is read as UTC, and junk is NULL, never a guess.
+  assert.strictEqual(toRawRecords([{ permit_number: 'A', edited: '2026-11-12T15:26:31.000' }], { ...austin, updatedAtField: 'edited' }).records[0].sourceUpdatedAt, '2026-11-12T15:26:31.000Z');
+  assert.strictEqual(toRawRecords([{ permit_number: 'A', edited: 'soon' }], { ...austin, updatedAtField: 'edited' }).records[0].sourceUpdatedAt, null);
+  assert.strictEqual(toRawRecords([{ permit_number: 'A', edited: 9e18 }], { ...austin, updatedAtField: 'edited' }).records[0].sourceUpdatedAt, null);
+});
+
+check('each record carries the URL that re-fetches it, aligned with its row', () => {
+  const { records } = toRawRecords([{ permit_number: 'A' }, { permit_number: '' }, { permit_number: 'C' }], austin, { recordUrls: ['u/A', null, 'u/C'] });
+  assert.deepStrictEqual(records.map((r) => [r.sourceKey, r.sourceUrl]), [['A', 'u/A'], ['C', 'u/C']]);
 });
 
 check('a source without a permitNumber field refuses to build raw records', () => {

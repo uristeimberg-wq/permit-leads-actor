@@ -755,3 +755,38 @@ what would make us revisit it. Never delete an entry; supersede it.
 - **Consequences:** about 100 extra requests a day per large source. Austin's
   store cycles in about two weeks. Screens do not yet say "removed from the
   source"; the mark is recorded and counted first.
+
+## ADR-29: Watermarked windows, validated pages, append-only history
+
+- **Date:** 2026-11-15. Data-engine brief, phase 1
+  (`docs/research/2026-11-15-engine-gap-analysis.md`).
+- **Context:** sync windows were fixed look-backs, so an outage longer than a
+  window left a gap nobody would see. Response pages were checked by hand,
+  per-row type faults were invisible, retries reached only the log, and the
+  history tables could be edited like any other table.
+- **Decision (migration 035):**
+  - `source_watermarks` keeps the start of the last successful, untruncated
+    run per source and window field. A run widens each window to reach back
+    past it plus a day, up to 120 days; beyond that a `watermark_gap` error
+    event asks for a backfill. Truncated and failed runs do not advance it.
+    Not a modified-since cursor: Austin's `:updated_at` moves on every row
+    daily.
+  - Page envelopes are checked with Zod (`src/adapters/validate.js`); a bad
+    one fails the run as `schema`. Keys and date columns of every row are
+    checked; bad rows are still stored raw, and one `validation` event per
+    run counts them (error when over half the rows are bad).
+  - Retries use exponential backoff with jitter and honour `Retry-After` as
+    seconds or a date; a run that retried writes one `rate_limited` event.
+    `connector_health_logs` is a view over `source_events` and failed
+    `sync_runs`, not a second table.
+  - `raw_records.source_url` re-fetches each record; `source_updated_at` is
+    filled only from a declared modification column (`updatedAtField`;
+    Raleigh only).
+  - `lifecycle_stage` gets a CHECK (NOT VALID until the live rows are
+    counted), `lifecycle_phase()` maps it to the brief's eight values, and
+    `record_status_changelog` reads the three history tables as old/new
+    values. History rows are append-only by trigger, except that they go
+    with their record and the derived `lifecycle_stage` may be restaged.
+- **Consequences:** source_url fills on older raw rows only as runs see their
+  keys again. The first runs after a long outage are bigger and may hit
+  `maxPerRun`, which is recorded and keeps the watermark in place.
