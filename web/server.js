@@ -123,6 +123,10 @@ app.get('/api/permits', asyncRoute(async (req, res) => {
 // The rows for one filter set are kept a minute, so paging through projects
 // does not regroup from scratch. API_CACHE=off (the integration tests) skips it.
 const projects = require('./projects.js');
+const lens = require('./lens_config.js');
+
+// What the welcome popup offers, and whether trade matching is on here.
+app.get('/api/lens', (_req, res) => res.json({ ...lens.publicConfig(), enabled: trust.showInferences() }));
 const ROWS_TTL_MS = 60 * 1000;
 const rowsMemo = new Map();
 async function projectRowsFor(filters) {
@@ -144,9 +148,19 @@ app.get('/api/projects', asyncRoute(async (req, res) => {
   const pageSize = clampInt(req.query.pageSize, 1, 100, 25);
   const data = await projectRowsFor(filters);
   const inferences = trust.showInferences();
-  const out = projects.listProjects(data.rows, { page, pageSize, sort: req.query.sort, inferences });
+  // The lens (web/lens_config.js) filters and ranks by trade signals: an
+  // inference, so it applies only with SHOW_INFERENCES=1.
+  const parsed = req.query.lens ? lens.selector(req.query.lens) : null;
+  const select = inferences ? parsed : null;
+  const out = projects.listProjects(data.rows, {
+    page, pageSize, sort: req.query.sort, inferences, select, grouped: req.query.group !== '0',
+  });
   res.json({
     ...out, page, pageSize, inferences,
+    lens: req.query.lens
+      ? (select ? { applied: true, label: select.label, param: select.param }
+        : { applied: false, reason: !parsed ? 'unknown' : 'off', label: parsed ? parsed.label : null })
+      : null,
     permitsTotal: data.total, capped: data.capped, cap: queries.PROJECT_ROW_CAP, facets: data.facets,
   });
 }));

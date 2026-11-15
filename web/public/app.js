@@ -62,6 +62,12 @@ let projectReturn = null;  // project to go back to from a permit opened in its 
 // Group permits into projects (web/projects.js); `group=0` in the URL shows raw permits.
 let grouping = true;
 let lastInferences = false;  // whether the server shows inferred links and stages
+// The lens (web/lens_config.js): `lens=sub.drywall,gc` in the URL, else the one
+// saved by the welcome popup. `lens=off` keeps it but shows everything.
+let lensParam = '';
+let lensOff = false;
+const savedLensParam = () => { try { return (JSON.parse(localStorage.getItem('contractos.lens.v1')) || {}).param || ''; } catch { return ''; } };
+const lensActive = () => Boolean(lensParam) && !lensOff;
 let reqId = 0;            // guards against a slow response overwriting a fast one
 
 /* Map state. `areaSelection` is the one filter with no form control behind it:
@@ -201,6 +207,7 @@ function currentFilters() {
   if (jurisdictionFilter) f.jurisdiction = jurisdictionFilter;
   if (typeSelection.length) f.permitType = typeSelection.join(TYPE_SEP);
   if (!grouping) f.group = '0';
+  if (lensParam) f.lens = lensOff ? 'off' : lensParam;
   if ($('hasContact').checked) f.hasContact = 'true';
   // The owner-builder filter is hidden (ADR-10, index.html); a hidden box never filters.
   if ($('ownerBuilder').checked && !$('ownerBuilder').closest('[hidden]')) f.ownerBuilder = 'true';
@@ -243,6 +250,9 @@ function applyUrl() {
   areaSelection = p.get('areas') ? p.get('areas').split(',').filter(Boolean) : null;
   jurisdictionFilter = p.get('jurisdiction') || '';
   grouping = p.get('group') !== '0';
+  const lp = p.get('lens');
+  lensOff = lp === 'off';
+  lensParam = lp && !['off', '0', '1'].includes(lp) ? lp : savedLensParam();
   $('groupToggle').checked = grouping;
   typeSelection = p.get('permitType') ? p.get('permitType').split(TYPE_SEP).map((t) => t.trim()).filter(Boolean) : [];
   $('ownerBuilder').checked = p.get('ownerBuilder') === 'true' && !$('ownerBuilder').closest('[hidden]');
@@ -332,7 +342,10 @@ function resolveLegacyKey() {
 function setAreas(keys, { rerun = true } = {}) {
   // From the Saved view (the lens popup), a location means "show me leads there".
   if (SAVED_MODE) {
-    location.href = keys && keys.length ? `/?areas=${encodeURIComponent(keys.join(','))}` : '/';
+    const q = new URLSearchParams();
+    if (keys && keys.length) q.set('areas', keys.join(','));
+    if (lensParam) q.set('lens', lensParam);
+    location.href = `/${q.toString() ? `?${q}` : ''}`;
     return;
   }
   areaSelection = keys && keys.length ? [...new Set(keys)] : null;
@@ -354,6 +367,12 @@ window.Leads = {
   areas: new Promise((resolve) => { areasReady = resolve; }),
   getAreas: () => [...(areaSelection || [])],
   setAreas: (keys) => setAreas(keys),
+  // The popup: a location and a lens together, one search.
+  apply: ({ areas = [], lens = '' } = {}) => {
+    lensParam = lens || '';
+    lensOff = false;
+    setAreas(areas);
+  },
 };
 
 const titleCase = (v) => String(v || '').toLowerCase()
@@ -463,7 +482,7 @@ function paintActiveFilters(filters) {
   }
 
   for (const [key, value] of Object.entries(filters)) {
-    if (key === 'sort' || key === 'areas' || key === 'permitType') continue;
+    if (['sort', 'areas', 'permitType', 'lens', 'group'].includes(key)) continue;
     if (key === 'zip' || key === 'city' || key === 'state') continue;
     if (key === 'stage') {
       // The default view needs no chip; anything else is worth stating.
@@ -649,7 +668,8 @@ async function run({ resetPage = false } = {}) {
   $('results').innerHTML = skeletons(6);
   $('count').textContent = 'Searching…';
 
-  if (grouping) { runProjects(filters, mine); return; }
+  // Projects, or any list under a lens (the lens ranks on the server).
+  if (grouping || lensActive()) { runProjects(filters, mine); return; }
 
   let data;
   try {
@@ -664,6 +684,7 @@ async function run({ resetPage = false } = {}) {
   }
   if (mine !== reqId) return;  // a newer search already landed
 
+  paintLensBar(null);
   paintStageCounts(data.facets);
 
   if (!data.results || !data.results.length) {
@@ -710,10 +731,34 @@ const BASIS_LABEL = {
   'single permit': 'one permit',
 };
 
+/** The lens in force, above the list, with a one-click way out (or back). */
+function paintLensBar(data) {
+  const bar = $('lensBar');
+  const label = (data && data.lens && data.lens.label) || (window.LensUI ? LensUI.label() : '');
+  const where = areaSelection && areaSelection.length
+    ? `${LocationPicker.labelFor(areaSelection[0], areaIndex).replace(/, [A-Z]{2}$/, '')}${areaSelection.length > 1 ? ` +${areaSelection.length - 1}` : ''}`
+    : 'All areas';
+  const ico = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>';
+  let html = '';
+  if (data && data.lens && data.lens.applied) {
+    html = `${ico}<span class="lens-bar-text"><b>${esc(label)}</b> · ${esc(where)} · ${plural(data.total, 'match', 'matches')}</span>
+      <button type="button" class="btn-quiet" data-lens="off">Show everything</button>
+      <button type="button" class="btn-quiet" data-lens="edit">Change</button>`;
+  } else if (lensParam && lensOff) {
+    html = `${ico}<span class="lens-bar-text">Showing everything.</span>
+      <button type="button" class="btn-quiet" data-lens="on">Apply your lens${label ? `: ${esc(label)}` : ''}</button>`;
+  } else if (data && data.lens && !data.lens.applied && data.lens.reason === 'off') {
+    html = `${ico}<span class="lens-bar-text">Your lens${label ? ` (${esc(label)})` : ''} can't filter here yet: trade matching is off on this site.</span>`;
+  }
+  bar.innerHTML = html;
+  bar.hidden = !html;
+}
+
 async function runProjects(filters, mine) {
   let data;
   try {
     const params = new URLSearchParams({ ...filters, page: String(page), pageSize: String(PAGE_SIZE) });
+    if (!lensActive()) params.delete('lens');
     data = await getJSON('/api/projects?' + params);
   } catch (err) {
     if (mine !== reqId) return;
@@ -725,6 +770,7 @@ async function runProjects(filters, mine) {
   if (mine !== reqId) return;
   lastInferences = Boolean(data.inferences);
   paintStageCounts(data.facets);
+  paintLensBar(data);
 
   if (!data.results.length) {
     $('results').innerHTML = emptyState(data, filters);
@@ -742,8 +788,12 @@ async function runProjects(filters, mine) {
 
   const first = (data.page - 1) * data.pageSize + 1;
   const last = Math.min(data.page * data.pageSize, data.total);
-  $('count').innerHTML = `${plural(data.total, 'project', 'projects')}
-    <span class="sub">· ${plural(data.permitsMatched, 'permit', 'permits')} · showing ${first}–${last}</span>`;
+  // Ungrouped under a lens, each row is one permit.
+  $('count').innerHTML = grouping
+    ? `${plural(data.total, 'project', 'projects')}
+       <span class="sub">· ${plural(data.permitsMatched, 'permit', 'permits')} · showing ${first}–${last}</span>`
+    : `${plural(data.total, 'permit', 'permits')}
+       <span class="sub">· of ${data.permitsMatched.toLocaleString('en-US')} · showing ${first}–${last}</span>`;
   if (data.capped) {
     $('results').insertAdjacentHTML('afterbegin', `<p class="callout">Grouping covers the newest
       ${data.cap.toLocaleString('en-US')} of ${data.permitsTotal.toLocaleString('en-US')} matching permits. Narrow the location to see every project.</p>`);
@@ -797,6 +847,7 @@ function renderProjectCard(pr) {
       ${window.Saved ? Saved.heartHtml(pr.primaryId) : ''}
     </div>
     <div class="card-type">${esc(sub)}${pr.stage ? ` <span class="proj-stage" title="Our reading of the permits on file, not a site inspection">${esc(pr.stage)}</span>` : ''}</div>
+    ${pr.lens ? `<p class="lens-why"><b>Why it fits:</b> ${esc(pr.lens.why.join(' · '))}</p>` : ''}
     ${pr.description ? `<p class="card-desc">${esc(pr.description)}</p>` : ''}
     ${kindChips(pr.chips)}
     ${phones ? `<div class="card-call proj-phones">${phones}${morePhones}</div>` : ''}
@@ -889,7 +940,8 @@ function setSheetCount(total) {
 }
 
 function updateFilterCount(filters) {
-  const n = Object.keys(filters).filter((k) => k !== 'sort' && k !== 'stage').length;
+  // The lens and the grouping switch are not filters: the lens has its own bar.
+  const n = Object.keys(filters).filter((k) => !['sort', 'stage', 'lens', 'group'].includes(k)).length;
   $('filtersToggleLabel').textContent = n ? `Filters (${n})` : 'Filters';
 }
 
@@ -1851,6 +1903,13 @@ for (const id of PICK_FILTERS) $(id).addEventListener('change', runNow);
 $('hasContact').addEventListener('change', runNow);
 $('ownerBuilder').addEventListener('change', runNow);
 $('groupToggle').addEventListener('change', (e) => { grouping = e.target.checked; runNow(); });
+$('lensBar').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-lens]');
+  if (!b) return;
+  if (b.dataset.lens === 'edit') { if (window.LensUI) LensUI.open(); return; }
+  lensOff = b.dataset.lens === 'off';
+  runNow();
+});
 $('sort').addEventListener('change', runNow);
 $('stageGroup').addEventListener('change', runNow);
 

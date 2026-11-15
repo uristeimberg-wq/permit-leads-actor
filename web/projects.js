@@ -175,9 +175,12 @@ const SORTERS = {
  * `select` (optional) keeps and scores projects (the lens, web/lens.js): it
  * returns null to drop a project or { score, why } to keep it.
  */
-function listProjects(rows, { page = 1, pageSize = 25, sort = 'newest', inferences = false, select = null } = {}) {
+function listProjects(rows, { page = 1, pageSize = 25, sort = 'newest', inferences = false, select = null, grouped = true } = {}) {
   const matchedIds = new Set(rows.map((r) => String(r.id)));
-  let projects = group(rows, { inferences }).map((g) => summarize(g, { inferences, matchedIds }));
+  // Ungrouped (the "Group by project" toggle off, with a lens): every permit
+  // is its own one-permit project, so the lens can still rank it.
+  const groups = grouped ? group(rows, { inferences }) : rows.map((r) => ({ members: [r], basis: [] }));
+  let projects = groups.map((g) => summarize(g, { inferences, matchedIds }));
   if (select) {
     projects = projects.map((pr) => { const s = select(pr); return s ? { ...pr, lens: s } : null; }).filter(Boolean);
     projects.sort((a, b) => b.lens.score - a.lens.score || SORTERS[sort in SORTERS ? sort : 'newest'](a, b));
