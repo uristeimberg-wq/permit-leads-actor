@@ -58,12 +58,14 @@ assert.ok(!/likely issued|rising or new|hire new subs|who to call/.test(all), 'n
 assert.ok(!/you'?re first|be the first|guaranteed/.test(all), 'no overclaiming');
 assert.ok(!/\bnot hired\b/.test(all.replace('does not mean a sub has not been hired', '')), 'only the disclaimer may mention hiring');
 
-// Every live screen loads the tour, and the search page links to it.
+// Every live (pilot) screen loads the tour. The Leads screen (index.html, the
+// front door since redesign step 1) deliberately does not: the tour describes
+// the pilot screens, which Leads no longer links to.
 for (const f of fs.readdirSync(live).filter((n) => n.endsWith('.html'))) {
   const html = fs.readFileSync(path.join(live, f), 'utf8');
   assert.ok(html.includes('src="tour.js"') && html.includes('href="tour.css"'), `${f} loads the tour`);
 }
 const search = fs.readFileSync(path.join(pub, 'index.html'), 'utf8');
-assert.ok(search.includes('/pilot/live/tour.js') && search.includes('data-tour-open'), 'search page loads the tour');
+assert.ok(!search.includes('tour.js') && !search.includes('data-tour-open'), 'Leads screen does not load the tour');
 
 console.log('tour.test.js: all passed');

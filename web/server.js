@@ -223,10 +223,10 @@ app.get('/api/pilot/imagery', (_req, res) => {
 app.use('/api/pilot', overviewApi);
 app.use('/api/pilot', pilotApi);
 
-// The overview is the front door; the original search tool stays reachable at
-// /search.html (and /index.html, so old links keep working).
-app.get('/', (_req, res) => res.redirect(302, '/pilot/live/'));
-app.get(['/search', '/search.html'], (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+// The Leads screen (the search tool) is the front door. /search and
+// /search.html stay as aliases so old links keep working. The pilot screens
+// (/pilot/live/*) are no longer linked from it but still load by URL.
+app.get(['/', '/search', '/search.html'], (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 app.use(express.static(path.join(__dirname, 'public')));
 

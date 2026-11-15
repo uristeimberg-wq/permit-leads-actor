@@ -71,7 +71,8 @@
   --e-2: 3px 3px 0 var(--n-900);
   --e-3: 6px 6px 0 var(--n-900);
 
-  --topbar-h:  68px;
+  --masthead-h: 52px;
+  --topbar-h:  119px;   /* masthead 52 + toolbar 64 + 3px rule */
   --sidebar-w: 288px;
   --map-w:     minmax(380px, 0.9fr);
   --drawer-w:  520px;
@@ -272,13 +273,51 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
 
 /* ============================================================ topbar ===== */
 
+/* Two rows inside the one grid row: the masthead (product, lens slot, nav) and
+   the toolbar (search and this screen's controls). --topbar-h is their sum. */
 .topbar {
   grid-area: topbar;
-  display: flex; align-items: center; gap: var(--sp-4);
-  padding: 0 var(--sp-5);
+  display: flex; flex-direction: column;
   background: var(--surface);
   border-bottom: 3px solid var(--ink);
   z-index: 40;
+}
+
+.masthead {
+  display: flex; align-items: center; gap: var(--sp-4);
+  height: var(--masthead-h); flex: none;
+  padding: 0 var(--sp-5);
+  border-bottom: 1px solid var(--line);
+}
+.masthead-right { display: flex; align-items: center; gap: var(--sp-4); margin-left: auto; }
+
+/* FUTURE (step 2): holds the "Your lens" button. Takes no space while empty. */
+.lens-slot { display: flex; align-items: center; }
+.lens-slot:empty { display: none; }
+
+.mainnav { display: flex; align-items: stretch; height: 100%; }
+.mainnav a {
+  display: inline-flex; align-items: center;
+  padding: 0 var(--sp-2);
+  font-family: var(--font-display); font-size: var(--t-md); font-weight: 700;
+  letter-spacing: .02em; text-transform: uppercase;
+  color: var(--ink-3); text-decoration: none;
+  border-bottom: 3px solid transparent; margin-bottom: -1px;
+}
+.mainnav a:hover { color: var(--ink); }
+.mainnav a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--accent); }
+.mainnav a:focus-visible, .signout:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.signout {
+  display: inline-flex; align-items: center;
+  font-size: var(--t-sm); color: var(--ink-3);
+}
+.signout:hover { color: var(--ink); }
+
+.toolbar {
+  display: flex; align-items: center; gap: var(--sp-4);
+  flex: 1 1 auto; min-height: 0;
+  padding: 0 var(--sp-5);
 }
 
 .brand { display: flex; align-items: center; gap: 9px; flex: none; color: var(--ink); text-decoration: none; }
@@ -841,24 +880,26 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
 }
 
 @media (max-width: 620px) {
-  /* The topbar wraps to two rows: controls on the first, a full-width search on
-     the second. On one row the search field collapsed to about three visible
-     characters, which made the main input of the app unusable. */
-  :root { --topbar-h: 104px; }
+  /* The toolbar wraps to two lines: a full-width search on the first (on one
+     line it collapsed to about three visible characters), then the labelled
+     Filters button and the List | Map toggle. Split is already withdrawn
+     below 1181px, so the toggle is two choices here. */
+  :root { --masthead-h: 48px; --topbar-h: 167px; }   /* 48 + 116 + 3px rule */
 
-  .topbar {
+  .masthead { padding: 0 var(--sp-3); gap: var(--sp-2); }
+  .masthead-right { gap: var(--sp-3); }
+
+  .toolbar {
     flex-wrap: wrap;
     align-content: center;
-    gap: var(--sp-2) var(--sp-2);
+    gap: var(--sp-2);
     padding: var(--sp-2) var(--sp-3);
   }
-  .brand-name { display: none; }
-  .search { order: 3; flex: 1 0 100%; max-width: none; }
-  .topbar-right { gap: 6px; }
+  .search { flex: 1 0 100%; max-width: none; }
+  .topbar-right { gap: var(--sp-2); flex: 1 0 100%; margin-left: 0; }
+  .fresh-wrap { margin-left: auto; }
 
-  /* Icons only: at this width the labels cost more than they explain. */
-  #filtersToggleLabel, .segmented button span { display: none; }
-  .segmented button { padding: 8px 13px; }
+  .segmented button { padding: 8px 14px; }
   .filters-toggle { padding: 9px 13px; }
 
   .fresh .label { display: none; }
@@ -918,6 +959,7 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
      without moving the text. */
   .link-btn, #results a { padding-block: 8px; }
   .btn-quiet { min-height: 44px; margin-block: -8px; }
+  .mainnav a, .signout, .brand { min-height: 44px; }
 }
 
 /* ------------------------------------------------ mobile sheets + drawer -- */
@@ -976,17 +1018,6 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
   .site::after { content: ''; position: absolute; inset: -14px; }
 }
 
-/* Screens menu: the other pilot screens, from the search topbar. */
-.screens-wrap { position: relative; }
-.screens { width: 240px; display: grid; gap: 2px; padding: var(--sp-2); }
-.screens a {
-  display: flex; align-items: center; min-height: 40px; padding: 0 var(--sp-3);
-  color: var(--ink); text-decoration: none; font-weight: 600; border-radius: var(--r-md, 6px);
-}
-.screens a:hover, .screens a:focus-visible { background: var(--surface-2); }
-.screens a[aria-current="page"] { color: var(--accent-ink, var(--accent)); }
-@media (pointer: coarse) { .screens a { min-height: 44px; } }
-@media (max-width: 620px) { #screensLabel { display: none; } .screens { width: auto; } }
 
 /* Source credits under the results: required for CC BY data (City of Miami)
    and asked for by the licence boards and the Census geocoder. */

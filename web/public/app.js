@@ -416,25 +416,6 @@ async function paintCredits(sources) {
     <p>Contacts come from the public permit record; individuals are withheld. Not affiliated with or endorsed by these agencies. Data as published, may be incomplete.</p>`;
 }
 
-/** The Screens menu in the topbar: links to the other pilot screens. */
-function initScreensMenu() {
-  const btn = $('screensBtn');
-  const pop = $('screensPop');
-  if (!btn || !pop) return;
-  btn.addEventListener('click', () => {
-    const open = pop.hidden;
-    pop.hidden = !open;
-    btn.setAttribute('aria-expanded', String(open));
-    if (open) { $('freshPop').hidden = true; $('fresh').setAttribute('aria-expanded', 'false'); }
-  });
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('.screens-wrap')) { pop.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !pop.hidden) { pop.hidden = true; btn.setAttribute('aria-expanded', 'false'); btn.focus(); }
-  });
-}
-
 /* ------------------------------------------------------------ active chips */
 
 const CHIP_LABELS = {
@@ -1677,6 +1658,5 @@ setFilters(savedLayout.filters !== 'closed', { remember: false });
 syncSidebar();
 initMap();
 loadFreshness();
-initScreensMenu();
 loadAllAreas();
 loadOptions().finally(run);
