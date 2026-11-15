@@ -66,7 +66,15 @@ let lastInferences = false;  // whether the server shows inferred links and stag
 let lensParam = '';
 let lensOff = false;
 const savedLensParam = () => { try { return (JSON.parse(localStorage.getItem('contractos.lens.v1')) || {}).param || ''; } catch { return ''; } };
-const lensActive = () => Boolean(lensParam) && !lensOff;
+// What this site may show (/api/lens): project grouping needs checked job
+// links (ADR-33), the lens needs those and inferences (ADR-26). Until the
+// answer arrives, both count as off.
+let features = { jobLinks: false, lens: false };
+const featuresReady = fetch('/api/lens').then((r) => (r.ok ? r.json() : null)).catch(() => null).then((cfg) => {
+  features = { jobLinks: Boolean(cfg && cfg.jobLinks), lens: Boolean(cfg && cfg.enabled) };
+  applyFeatures();
+});
+const lensActive = () => features.lens && Boolean(lensParam) && !lensOff;
 let reqId = 0;            // guards against a slow response overwriting a fast one
 
 /* Map state. `areaSelection` is the one filter with no form control behind it:
@@ -243,8 +251,8 @@ function currentFilters() {
   }
   if (jurisdictionFilter) f.jurisdiction = jurisdictionFilter;
   if (typeSelection.length) f.permitType = typeSelection.join(TYPE_SEP);
-  if (!grouping) f.group = '0';
-  if (lensParam) f.lens = lensOff ? 'off' : lensParam;
+  if (!grouping && features.jobLinks) f.group = '0';
+  if (lensParam && features.lens) f.lens = lensOff ? 'off' : lensParam;
   if ($('hasContact').checked) f.hasContact = 'true';
   // The owner-builder filter is hidden (ADR-10, index.html); a hidden box never filters.
   if ($('ownerBuilder').checked && !$('ownerBuilder').closest('[hidden]')) f.ownerBuilder = 'true';
@@ -718,7 +726,7 @@ async function run({ resetPage = false } = {}) {
 
   // Projects, or any list under a lens (the lens ranks on the server).
   if (CONTRACTORS_MODE) { runCompanies(filters, mine); return; }
-  if (grouping || lensActive()) { runProjects(filters, mine); return; }
+  if ((features.jobLinks && grouping) || lensActive()) { runProjects(filters, mine); return; }
 
   let data;
   try {
@@ -950,10 +958,12 @@ async function runProjects(filters, mine) {
     : '';
 }
 
+// Kinds whose code says nothing on its own are shown by name.
+const WORDED_KINDS = new Set(['ROW', 'OT', 'DM']);
 /** "BP ×3" chips, coloured by the most advanced status of that kind. */
 const kindChips = (chips) => `<div class="kind-chips">${chips.map((c) => `
   <span class="kind-chip" title="${esc(`${c.label}: ${c.count} permit${c.count === 1 ? '' : 's'}, ${(STAGES.find(([k]) => k === c.stage) || [, 'Unknown'])[1].toLowerCase()}`)}">
-    <span class="stage-dot ${esc(c.stage)}" aria-hidden="true"></span>${esc(c.code)}${c.count > 1 ? `<span class="kind-n">×${c.count}</span>` : ''}</span>`).join('')}</div>`;
+    <span class="stage-dot ${esc(c.stage)}" aria-hidden="true"></span>${esc(WORDED_KINDS.has(c.code) ? c.label : c.code)}${c.count > 1 ? `<span class="kind-n">×${c.count}</span>` : ''}</span>`).join('')}</div>`;
 
 /** A project's value with how it was summed, or ''. */
 function projectValueTag(v, cls = 'card-value') {
@@ -2279,6 +2289,13 @@ $('activeFilters').addEventListener('click', (e) => {
   paintSaved();
 });
 
+/** Hides the project switch and the lens bar where the site has them off. */
+function applyFeatures() {
+  const toggle = $('groupToggle').closest('label');
+  if (toggle) toggle.hidden = !features.jobLinks;
+  if (!features.lens) { $('lensBar').hidden = true; $('lensBar').innerHTML = ''; }
+}
+
 /* --------------------------------------------------------------- bootstrap */
 
 buildStageCheckboxes();
@@ -2313,7 +2330,7 @@ if (SAVED_MODE) {
   syncSidebar();
   loadFreshness();
   loadAllAreas();
-  loadOptions().finally(run);
+  Promise.all([loadOptions(), featuresReady]).finally(run);
 } else {
   const savedLayout = readStore();
   setView(savedLayout.view || 'split', { remember: false });
@@ -2323,5 +2340,5 @@ if (SAVED_MODE) {
   initMap();
   loadFreshness();
   loadAllAreas();
-  loadOptions().finally(run);
+  Promise.all([loadOptions(), featuresReady]).finally(run);
 }

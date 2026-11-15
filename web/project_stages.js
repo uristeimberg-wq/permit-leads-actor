@@ -28,6 +28,9 @@ const KINDS = [
   { code: 'MP', label: 'Mechanical', test: (p) => (p.job && p.job.trade === 'mechanical') || /mechanic|hvac|a\/c\b/i.test(p.permit_type || '') },
   { code: 'PP', label: 'Plumbing', test: (p) => (p.job && p.job.trade === 'plumbing') || /plumb|\bgas\b/i.test(p.permit_type || '') },
   { code: 'DM', label: 'Demolition', test: (p) => /demoli/i.test(p.permit_type || '') },
+  // Street and sidewalk use (Raleigh "DSENG - Right of Way": lane closures,
+  // obstructions). A real permit, but not building work: named, not "Other".
+  { code: 'ROW', label: 'Right of way', test: (p) => /right[\s-]*of[\s-]*way|\bobstruct/i.test(p.permit_type || '') },
   { code: 'BP', label: 'Building', test: (p) => /\b(building|bldg|bp|new|alter|addition|remodel)\b/i.test(p.permit_type || '') },
   { code: 'OT', label: 'Other', test: () => true },
 ];

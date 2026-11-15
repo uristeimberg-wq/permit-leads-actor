@@ -155,7 +155,9 @@ const projects = require('./projects.js');
 const lens = require('./lens_config.js');
 
 // What the welcome popup offers, and whether trade matching is on here.
-app.get('/api/lens', (_req, res) => res.json({ ...lens.publicConfig(), enabled: trust.showInferences() && showUnmeasured() }));
+// `jobLinks`: whether project grouping may run (ADR-33); the page hides the
+// switch and lists permits when it is off.
+app.get('/api/lens', (_req, res) => res.json({ ...lens.publicConfig(), enabled: trust.showInferences() && showUnmeasured(), jobLinks: showUnmeasured() }));
 const ROWS_TTL_MS = 60 * 1000;
 const rowsMemo = new Map();
 async function projectRowsFor(filters) {

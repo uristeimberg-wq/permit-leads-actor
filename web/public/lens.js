@@ -183,8 +183,9 @@
     return { what, where };
   }
 
+  let disabled = true;   // until /api/lens says trade matching is on
   function paintButton() {
-    if (!slot) return;
+    if (!slot || disabled) return;
     const s = summary();
     slot.removeAttribute('aria-hidden');
     slot.innerHTML = `<button type="button" class="lens-btn" id="lensBtn" aria-haspopup="dialog"
@@ -197,14 +198,17 @@
 
   window.LensUI = { open, label: () => (summary() || {}).what || '', param: () => paramOf(lens) };
 
-  paintButton();
   // ?welcome=1 asks again, ?welcome=0 never asks (checks); lens=1|0 is the old spelling.
   const qs = new URLSearchParams(location.search);
   const ask = qs.get('welcome') ?? (['0', '1'].includes(qs.get('lens')) ? qs.get('lens') : null);
   const cfgReady = fetch('/api/lens').then((r) => (r.ok ? r.json() : null)).catch(() => null);
   const areasReady = window.Leads ? window.Leads.areas : Promise.resolve(null);
   Promise.all([cfgReady, areasReady]).then(([cfg, idx]) => {
-    if (cfg) config = cfg;
+    // Trade matching is off on this site (ADR-26, ADR-33): no lens button, no
+    // welcome popup, rather than a lens that cannot filter.
+    if (!cfg || !cfg.enabled) { if (slot) { slot.innerHTML = ''; slot.setAttribute('aria-hidden', 'true'); } return; }
+    disabled = false;
+    config = cfg;
     index = idx;
     lens = upgrade(lens);
     if (lens) write(lens);

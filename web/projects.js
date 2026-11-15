@@ -124,7 +124,7 @@ function summarize({ members, basis }, { inferences = false, matchedIds = null }
   const buildings = [...new Set(permits.map(buildingOf).filter(Boolean))];
 
   // One chip per kind, coloured by its most advanced active status.
-  const order = ['BP', 'DM', 'EP', 'MP', 'PP', 'OT'];
+  const order = ['BP', 'DM', 'EP', 'MP', 'PP', 'ROW', 'OT'];
   const rank = { approved: 3, pending: 2, finished: 1, unknown: 0, cancelled: -1 };
   const chips = new Map();
   permits.forEach((p, i) => {
