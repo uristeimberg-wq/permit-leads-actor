@@ -3,7 +3,8 @@
 const assert = require('node:assert');
 const T = require('./trust.js');
 
-const OFF = {};
+// Inference rules alone; the unmeasured rules (ADR-32, ADR-33) are tested below.
+const OFF = { SHOW_UNMEASURED: '1' };
 const ON = { SHOW_INFERENCES: '1', SHOW_UNMEASURED: '1' };
 
 // Flag on: answers are untouched.
@@ -93,7 +94,23 @@ assert.strictEqual(um.unmeasuredHidden, T.UNMEASURED_NOTE);
 const shown = T.filter('job', { permit: { source_area: 'austin-tx' }, property: { landUse: 'x' }, gcRegistry: [{ matchedBy: 'licence', number: '1' }] }, { SHOW_UNMEASURED: '1' });
 assert.deepStrictEqual(shown.property, { landUse: 'x' });
 assert.strictEqual(shown.gcRegistry.length, 1);
-assert.deepStrictEqual(T.filter('contractor', { contractor: { name: 'A', businessState: 'TX' }, registry: [{ matchedBy: 'licence' }] }, OFF).registry, []);
+assert.deepStrictEqual(T.filter('contractor', { contractor: { name: 'A', businessState: 'TX' }, registry: [{ matchedBy: 'licence' }] }, {}).registry, []);
+
+// Job links (ADR-33) are hidden in every market by default.
+const jl = T.filter('job', { permit: { source_area: 'austin-tx' }, related: [{ trade: 'electrical' }], gcHiring: { subs: [{}] }, tradePermitIssued: true }, {});
+assert.deepStrictEqual([jl.related, jl.gcHiring, jl.tradePermitIssued, jl.jobLinksHidden], [[], null, null, T.JOB_LINKS_NOTE]);
+const jr = T.filter('job', { permit: { source_area: 'raleigh-nc' }, related: [{}] }, {});
+assert.strictEqual(jr.jobLinksHidden, T.PIN_NOTE, 'Raleigh keeps its more specific note');
+const cj = T.filter('contractor', { contractor: { name: 'A', businessState: 'FL' }, registry: [], subsHired: [{}], gcsWorkedFor: [{}] }, {});
+assert.deepStrictEqual([cj.subsHired, cj.gcsWorkedFor, cj.relationshipsHidden], [[], [], T.JOB_LINKS_NOTE]);
+const g = T.filter('gcs', { filters: { source: 'miami-dade-fl' }, gcs: [{}], baseline: { repeatRate: 0.5, topSubs: [{}] } }, {});
+assert.deepStrictEqual([g.gcs, g.baseline.repeatRate, g.baseline.topSubs], [[], null, []]);
+const ov = T.filter('overview', { source: 'austin-tx', repeatHiring: { electrical: {} }, topGcs: [{ subsHired: 3, linkedJobs: 2 }], recent: [{ trades: ['x'] }] }, {});
+assert.deepStrictEqual([ov.repeatHiring, ov.topGcs[0].subsHired, ov.topGcs[0].linkedJobs, ov.recent[0].trades], [{}, null, null, null]);
+assert.deepStrictEqual(T.filter('momentum', { filters: { source: 'austin-tx' }, builders: [{ recent: 1, topSubs: [{}] }] }, {}).builders[0].topSubs, []);
+assert.deepStrictEqual(T.filter('leads', { leads: [{ id: 1 }] }, {}).leads, []);
+// Shown again only with SHOW_UNMEASURED=1.
+assert.strictEqual(T.filter('job', { permit: { source_area: 'austin-tx' }, related: [{}] }, { SHOW_UNMEASURED: '1' }).related.length, 1);
 const { locationSql } = require('../src/display_policy.js');
 assert.strictEqual(locationSql('l', {}), "l.method IN ('source', 'parcel')");
 assert.strictEqual(locationSql('l', { SHOW_UNMEASURED: '1' }), 'TRUE');

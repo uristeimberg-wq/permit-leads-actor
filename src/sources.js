@@ -228,15 +228,11 @@ const SOURCES = {
       permitNumber: 'permit_number',
       permitType: 'permit_type_desc',
       workDescription: 'description',
-      // Austin spreads valuation across many columns and populates none of them
-      // on most rows; taking the first non-zero lifts coverage from 7% to ~25%.
-      // The remainder genuinely have no valuation on file.
-      valuation: [
-        'total_job_valuation', 'total_valuation_remodel', 'building_valuation',
-        'building_valuation_remodel', 'electrical_valuation_remodel',
-        'mechanical_valuation_remodel', 'plumbing_valuation_remodel',
-        'electrical_valuation', 'mechanical_valuation', 'plumbing_valuation',
-      ],
+      // The job's declared value is a total column only (ADR-34). The per-trade
+      // and per-part columns (electrical_valuation_remodel and the rest) are
+      // one trade's share: shown as "declared value" they understated the job
+      // on 9,714 permits (value audit 2026-11-15), so they are not used.
+      valuation: ['total_job_valuation', 'total_valuation_remodel'],
       status: 'status_current',
       filedDate: 'issue_date',
       submittedDate: 'applieddate',
@@ -322,8 +318,8 @@ const SOURCES = {
       permitNumber: 'permit_number',
       permitType: 'sub_type',
       workDescription: 'folder_description',
-      valuation: ['total_job_valuation', 'total_valuation_remodel', 'building_valuation_remodel',
-        'electrical_valuation_remodel', 'mechanical_valuation_remodel', 'plumbing_valuation_remodel'],
+      // Total columns only (ADR-34), as for Austin permits.
+      valuation: ['total_job_valuation', 'total_valuation_remodel'],
       status: 'status_current',
       filedDate: 'applied_date',
       submittedDate: 'applied_date',

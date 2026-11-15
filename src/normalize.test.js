@@ -86,6 +86,12 @@ check('normalizePermit coerces valuation (missing is null) and defaults descript
   assert.strictEqual(normalizePermit({ valuation: '75000' }).valuation, 75000);
   assert.strictEqual(normalizePermit({ valuation: 'n/a' }).valuation, null);
   assert.strictEqual(normalizePermit({ valuation: 0 }).valuation, null);
+  // ADR-34: placeholders and typos are not values.
+  assert.strictEqual(normalizePermit({ valuation: 1 }).valuation, null);
+  assert.strictEqual(normalizePermit({ valuation: 99 }).valuation, null);
+  assert.strictEqual(normalizePermit({ valuation: 100 }).valuation, 100);
+  assert.strictEqual(normalizePermit({ valuation: 999999999 }).valuation, 999999999);
+  assert.strictEqual(normalizePermit({ valuation: 8100000000 }).valuation, null);
 });
 
 check('csv mapRows maps raw rows through the source columnMap', () => {

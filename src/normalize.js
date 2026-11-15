@@ -6,6 +6,14 @@ const { parseAddress } = require('./address.js');
 const { toIsoDate } = require('./dates.js');
 const { stageFor } = require('./status.js');
 
+// The range a declared value must fall in to be shown (ADR-34).
+const MIN_DECLARED_VALUE = 100;
+const MAX_DECLARED_VALUE = 1e9;
+const declaredValue = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= MIN_DECLARED_VALUE && n < MAX_DECLARED_VALUE ? n : null;
+};
+
 // The only two statuses scoring.js awards a timing bonus for. Anything else
 // silently earns +0, which is why unmapped values are reported loudly below.
 const KNOWN_STATUSES = new Set(['applied', 'issued']);
@@ -98,7 +106,11 @@ function normalizePermit(fields) {
     workDescription: fields.workDescription ?? '',
     // Missing is null, never 0 (rule 1): no source reports a real $0 value, and
     // a 0 here used to make "not reported" look like "free".
-    valuation: Number(fields.valuation) > 0 ? Number(fields.valuation) : null,
+    // Placeholders and typos are not values (ADR-34): under $100 is a filler
+    // ($1 is common in Austin), and $1B or more on a single permit is a typo
+    // at the source (Austin $8.1B on one floor of a 53-unit building,
+    // Miami-Dade $9.5B on a demolition). The raw record keeps what was published.
+    valuation: declaredValue(fields.valuation),
 
     // Three status values, each with a distinct job:
     //   status      — the applied/issued bucket scoring's TIMING_BONUS reads
@@ -167,4 +179,4 @@ function toScorable(permit) {
   return { ...permit, description: permit.workDescription || '', workDescription: text };
 }
 
-module.exports = { createStatusNormalizer, normalizePermit, toScorable, normalizePhone, KNOWN_STATUSES };
+module.exports = { createStatusNormalizer, normalizePermit, toScorable, normalizePhone, KNOWN_STATUSES, declaredValue, MIN_DECLARED_VALUE, MAX_DECLARED_VALUE };

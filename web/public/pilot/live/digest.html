@@ -49,6 +49,12 @@
   L.api(`/api/pilot/leads?${L.qs(f)}`).then(render).catch((e) => L.fail(document.getElementById('list'), e));
 
   function render(d) {
+    if (d.jobLinksHidden) {
+      document.getElementById('title').textContent = `New building permits, ${L.AREA[f.source]}`;
+      document.getElementById('lede').textContent = d.jobLinksHidden;
+      document.getElementById('list').innerHTML = '';
+      return;
+    }
     const n = d.leads.length;
     const w = d.without;
     document.getElementById('eyebrow').textContent = `New building permits · ${L.AREA[f.source]}`;

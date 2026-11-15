@@ -100,9 +100,28 @@ const FILTERS = { job, contractor, leads, early, momentum, gcs, overview, imager
 // SHOW_UNMEASURED=1 (src/display_policy.js). Map points by Census match are
 // held back in the queries themselves (locationSql).
 const UNMEASURED_NOTE = 'Appraiser property facts and state licence details are not shown: their accuracy against the appraiser and the licence board has not been measured yet.';
+// Job links (owner, 2026-11-15, ADR-33): which trade permits and subs belong
+// to a building job rests on the job key each city publishes (base, master or
+// application number). The keys are copied faithfully, but whether each key
+// denotes exactly one job was never hand-checked, so nothing built on them is
+// shown in any market: trade permits on a job, a GC's subs and repeat-hire
+// rates, subs on a builder's jobs, and "no trade permit on record" lists.
+const JOB_LINKS_NOTE = 'Which subcontractors worked on which job is not shown: the links between building and trade permits have not been hand-checked yet.';
 const UNMEASURED = {
-  job: (d) => ({ ...d, property: null, gcRegistry: [], unmeasuredHidden: UNMEASURED_NOTE }),
-  contractor: (d) => (d.contractor ? { ...d, registry: [], unmeasuredHidden: UNMEASURED_NOTE } : d),
+  job: (d) => ({ ...d, property: null, gcRegistry: [], unmeasuredHidden: UNMEASURED_NOTE,
+    related: [], gcHiring: null, tradePermitIssued: null, jobLinksHidden: d.jobLinksHidden || JOB_LINKS_NOTE }),
+  contractor: (d) => (d.contractor ? { ...d, registry: [], unmeasuredHidden: UNMEASURED_NOTE,
+    subsHired: [], gcsWorkedFor: [], relationshipsHidden: d.relationshipsHidden || JOB_LINKS_NOTE } : d),
+  gcs: (d) => ({ ...d, gcs: [], baseline: d.baseline ? { ...d.baseline, repeatRate: null, topSubs: [] } : d.baseline, jobLinksHidden: d.jobLinksHidden || JOB_LINKS_NOTE }),
+  overview: (d) => ({
+    ...d,
+    repeatHiring: {},
+    topGcs: (d.topGcs || []).map((g) => ({ ...g, subsHired: null, linkedJobs: null })),
+    recent: (d.recent || []).map((r) => ({ ...r, trades: null })),
+    jobLinksHidden: d.jobLinksHidden || JOB_LINKS_NOTE,
+  }),
+  momentum: (d) => (d.builders ? { ...d, builders: d.builders.map((b) => ({ ...b, topSubs: [] })), jobLinksHidden: d.jobLinksHidden || JOB_LINKS_NOTE } : d),
+  leads: (d) => ({ ...d, leads: [], jobLinksHidden: d.jobLinksHidden || JOB_LINKS_NOTE }),
 };
 
 /** Strips class C fields unless SHOW_INFERENCES=1, and unmeasured ones unless SHOW_UNMEASURED=1. */
@@ -117,4 +136,4 @@ function filter(kind, body, env = process.env) {
   return out;
 }
 
-module.exports = { filter, showInferences, PIN_NOTE, UNMEASURED_NOTE };
+module.exports = { filter, showInferences, PIN_NOTE, UNMEASURED_NOTE, JOB_LINKS_NOTE };

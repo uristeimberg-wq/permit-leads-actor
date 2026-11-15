@@ -862,3 +862,42 @@ what would make us revisit it. Never delete an entry; supersede it.
   permits on a job, a GC's subs) stay for now: they are equality joins on
   the cities' own permit and master numbers, but whether every job key
   denotes one job has not been hand-checked. That check is the next one owed.
+
+## ADR-33: Job links hidden until hand-checked; accuracy checks run weekly
+
+- **Context (owner, 2026-11-15, "yes, and hide"):** after ADR-32 two items
+  were open. Counts built on job links (trade permits on a building job, a
+  GC's subs and repeat-hire rate, subs on a builder's jobs, "no trade permit
+  on record" lists) rest on each city's job key; the keys match the source,
+  but whether each key denotes exactly one job was never hand-checked. And no
+  accuracy check ran on a schedule.
+- **Decision:** `web/trust.js` hides every job-link value in every market
+  unless `SHOW_UNMEASURED=1`, and each screen says why (Raleigh keeps its
+  parcel-PIN note). `fidelity` and `status-labels` run weekly (Mondays 06:30
+  and 06:45 UTC), read-only.
+- **Consequences:** the GC list, the subs columns, repeat-hire figures and the
+  digest's trade-gap list are empty until a labelled sample of job links
+  (building permit and its trade permits, read side by side on the city's
+  pages) passes. That check is the way back for them.
+
+## ADR-34: Declared value is the job's total, within $100 to $1B
+
+- **Context (owner, 2026-11-15: "something in the value estimate doesn't
+  make sense"):** value audit (recon/value_audit.js, run 43726781023). Austin
+  permits filled "declared value" from the first non-empty of ten columns, so
+  9,714 permits showed one trade's share (8,228 from
+  `electrical_valuation_remodel`) as the job's value; plan review did the same
+  on 162 cases (all $1). 6,481 Austin permits and 4,170 plan-review cases
+  carried fillers under $100 (median plan-review value was $1). Sources also
+  publish typos: Austin $8.1B on each floor of a 53-unit building, $1.525B on
+  interior remodels; Miami-Dade $9.5B on a demolition.
+- **Decision:** Austin's value comes only from `total_job_valuation`, then
+  `total_valuation_remodel`. In every market a value under $100 or at least
+  $1B is not shown (NULL, "not published"). Migration 037 applies this to
+  stored rows from their raw records; `src/normalize.js` applies it to new
+  syncs. The raw records keep what was published.
+- **Consequences:** fewer permits carry a value; every one shown is the
+  source's own total. The $1B ceiling is a rule we chose: values between
+  $100M and $1B are shown as published and may still contain source typos
+  (Miami-Dade has a $580M "TEMP FOR TESTILITY"). A per-type plausibility
+  check would be an inference and is not built.

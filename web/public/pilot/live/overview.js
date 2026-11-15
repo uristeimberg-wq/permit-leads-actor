@@ -76,7 +76,7 @@
       <div><b>${n(t.activeGcs)}</b><span>general contractors filed a building permit in the last ${t.activeDays} days</span><em>Businesses only</em></div>
       <div><b>${n(t.activeSubs)}</b><span>trade subs pulled an electrical, plumbing or mechanical permit in ${t.activeDays} days</span><em>Businesses only</em></div>
       <div><b>${e.rate == null ? '—' : L.pct(e.rate)}</b><span>of electricians hired by a GC with an earlier job were ones that GC had used before</span>
-        <em>${d.jobLinksHidden ? 'Not shown: Raleigh links jobs only by parcel' : e.rate == null ? 'Not enough linked jobs yet' : `${n(e.repeatHires)} of ${n(e.eligibleHires)} hires over 12 months${others ? `; ${L.esc(others)}` : ''}`}</em></div>
+        <em>${d.jobLinksHidden ? 'Not shown: job links not hand-checked yet' : e.rate == null ? 'Not enough linked jobs yet' : `${n(e.repeatHires)} of ${n(e.eligibleHires)} hires over 12 months${others ? `; ${L.esc(others)}` : ''}`}</em></div>
       <div><b>${t.buildingRecentMedianValue == null ? '—' : L.esc(L.money(t.buildingRecentMedianValue))}</b><span>median declared value of the last ${t.recentDays} days' building permits</span>
         <em>${t.buildingRecentValued ? `${n(t.buildingRecentValued)} of ${n(t.buildingRecent)} publish a value (${valuedShare}%)` : 'None publish a value'}</em></div>`;
   }

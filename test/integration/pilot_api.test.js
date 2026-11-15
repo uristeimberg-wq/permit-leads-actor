@@ -4,6 +4,10 @@
 // Needs Postgres (DATABASE_URL; default :5433).
 
 const assert = require('node:assert');
+
+// These suites check the job-link metrics themselves, which the screens hide by
+// default (ADR-33); SHOW_UNMEASURED=1 makes the API return them.
+process.env.SHOW_UNMEASURED = '1';
 const { Client } = require('pg');
 
 const ADMIN_URL = process.env.DATABASE_URL || 'postgres://permits:permits@localhost:5433/permits';
@@ -67,6 +71,15 @@ async function main() {
     const get = async (p) => { const r = await realFetch(base + p); return { status: r.status, body: await r.json() }; };
 
     let gcs;
+    await check('by default the GC list and job links are hidden, with the reason (ADR-33)', async () => {
+      delete process.env.SHOW_UNMEASURED;
+      try {
+        const { body } = await get('/api/pilot/gcs?source=austin-tx&trade=electrical');
+        assert.deepStrictEqual(body.gcs, []);
+        assert.match(body.jobLinksHidden, /not been hand-checked/);
+      } finally { process.env.SHOW_UNMEASURED = '1'; }
+    });
+
     await check('GC list: jobs, subs used, top share, open now', async () => {
       const { status, body } = await get('/api/pilot/gcs?source=austin-tx&trade=electrical&months=6');
       assert.strictEqual(status, 200);

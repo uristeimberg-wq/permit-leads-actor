@@ -79,6 +79,7 @@ random sample against its live source.
 | Appraiser property facts (land use, year built, area, lot, assessed band) | Joined on an official key, but values never compared with the live appraiser record | Re-fetch 150 linked parcels per appraiser by key; field match rate |
 | State licence details (board, expiry, valid/expired) | Matched by licence number, but registry values never compared with the live board | Re-fetch 150 licences per board; field match rate |
 | Census-interpolated map points | Placed along the street's address range; error never measured | Distance to the parcel or source point on permits that have both |
+| Job links in every market (trade permits on a job, GC subs, repeat hires, subs on builder jobs, trade-gap lists), ADR-33 | City job keys copied faithfully, but never hand-checked that one key = one job | Labelled sample: building permit and its linked trade permits read side by side on the city pages |
 | "First seen by us" on the drawer and job page | Our load time, not a fact about the filing; mostly the source's first sync | Not planned for display |
 
 ## Sync-side items held in PR #77

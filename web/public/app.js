@@ -1368,7 +1368,7 @@ async function loadJobExtras(id) {
 
   const hidden = j.unmeasuredHidden ? `<p class="check-count">${esc(j.unmeasuredHidden)}</p>` : '';
   box.innerHTML = `${lifecycle}${property}${located}${company}${hidden}
-    <p class="check-count"><a href="/pilot/live/job.html?id=${encodeURIComponent(id)}">Open the full job page →</a> trade permits on this job and who the GC hires.</p>`;
+    <p class="check-count"><a href="/pilot/live/job.html?id=${encodeURIComponent(id)}">Open the full job page →</a></p>`;
 }
 
 /* ============================================================== layout ===

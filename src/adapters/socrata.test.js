@@ -53,14 +53,17 @@ check('maps a real Austin row into a permit with contractor contact', () => {
   assert.strictEqual(permit.contractorTrade, 'Mechanical Contractor');
 });
 
-check('valuation falls through Austin’s many columns to the first non-zero', () => {
-  // total_job_valuation is absent here; the mechanical remodel column holds it.
+check('valuation is the job total only, never one trade\'s column (ADR-34)', () => {
+  // total_job_valuation is absent here and only the mechanical remodel column
+  // holds a value: that is one trade's share, so no declared value is shown.
   const [permit] = mapRows([REAL_ROW], AUSTIN, { log: fakeLog() });
-  assert.strictEqual(permit.valuation, 8500);
+  assert.strictEqual(permit.valuation, null);
 
-  // An explicit zero must not win over a later populated column.
-  const [zeroFirst] = mapRows([{ ...REAL_ROW, total_job_valuation: '0' }], AUSTIN, { log: fakeLog() });
-  assert.strictEqual(zeroFirst.valuation, 8500);
+  // The total wins when present; a zero total falls to the remodel total.
+  const [withTotal] = mapRows([{ ...REAL_ROW, total_job_valuation: '250000' }], AUSTIN, { log: fakeLog() });
+  assert.strictEqual(withTotal.valuation, 250000);
+  const [remodel] = mapRows([{ ...REAL_ROW, total_job_valuation: '0', total_valuation_remodel: '40000' }], AUSTIN, { log: fakeLog() });
+  assert.strictEqual(remodel.valuation, 40000);
 });
 
 check('buildAddress reassembles the split address columns', () => {

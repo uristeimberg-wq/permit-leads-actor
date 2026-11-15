@@ -6,6 +6,9 @@ name: fidelity
 # how many edits fall outside the sync windows. Read-only against the database.
 # On demand only for now (owner, 2026-11-14: measure first, no new jobs).
 on:
+  # Weekly, Mondays (owner OK 2026-11-15: accuracy checks run on a schedule).
+  schedule:
+    - cron: '30 6 * * 1'
   workflow_dispatch:
     inputs:
       per_stratum:
