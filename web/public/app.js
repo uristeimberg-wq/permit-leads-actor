@@ -158,10 +158,14 @@ function shortMoney(n) {
   }
   return '';
 }
-function valueTag(v, cls = 'card-value') {
+function valueTag(v, cls = 'card-value', repeats = 0) {
   const n = Number(v);
   if (!(n > 1)) return '';
   const full = `$${Math.round(n).toLocaleString('en-US')}`;
+  // The same value on several permits: the project's figure, not this one's (values.js).
+  if (Number(repeats) > 1) {
+    return `<span class="${cls} is-odd" title="${esc(window.Values.repeatNote(n, repeats))}">${shortMoney(n)}<span class="sub"> ${esc(window.Values.repeatSuffix(repeats))}</span></span>`;
+  }
   if (n >= ODD_VALUE) {
     return `<span class="${cls} is-odd" title="Declared as ${full} on the permit. Unusually high: likely a filing error, shown as filed.">${shortMoney(n)}<span aria-hidden="true"> ?</span><span class="visually-hidden"> (as filed, unusually high)</span></span>`;
   }
@@ -584,7 +588,7 @@ function renderCard(p) {
   el.innerHTML = `
     <div class="card-top">
       <h3 class="card-addr">${esc(p.address || 'Address not listed')}</h3>
-      <span class="card-meta">${valueTag(p.valuation)}<span class="card-date">${esc(fmtDate(p.filed_date) || 'No date')}</span></span>
+      <span class="card-meta">${valueTag(p.valuation, 'card-value', p.valuation_repeats)}<span class="card-date">${esc(fmtDate(p.filed_date) || 'No date')}</span></span>
       ${window.Saved ? Saved.heartHtml(p.id) : ''}
     </div>
     ${p.permit_type ? `<div class="card-type">${esc(p.permit_type)}</div>` : ''}
@@ -1014,7 +1018,7 @@ async function openProject(id, cardEl, { keepFocus = false } = {}) {
         <div class="tl-main">
           <div class="tl-head"><span class="kind-chip"><span class="stage-dot ${esc(p.status_stage || 'unknown')}" aria-hidden="true"></span>${esc(p.kind)}</span>
             <span class="tl-type">${esc(p.permit_type || KIND_LABEL[p.kind] || 'Permit')}</span>
-            ${valueTag(p.valuation)}</div>
+            ${valueTag(p.valuation, 'card-value', p.valuation_repeats)}</div>
           <div class="tl-status">${stageBadge(p)}${p.permit_number ? `<span class="sub">#${esc(p.permit_number)}</span>` : ''}</div>
           ${p.work_description ? `<p class="tl-desc">${esc(p.work_description)}</p>` : ''}
           ${p.contractor_name || p.contractor_phone || p.contractor_withheld ? `<div class="tl-who">
@@ -1678,7 +1682,7 @@ async function openDetail(id, cardEl, { fromProject = null } = {}) {
   $('dAddr').textContent = p.address || 'Address not listed';
   $('dType').textContent = p.permit_type || '';
   // The filing date and the declared value, side by side (nothing when missing).
-  const dVal = valueTag(p.valuation, 'd-value');
+  const dVal = valueTag(p.valuation, 'd-value', p.valuation_repeats);
   $('dMeta').innerHTML = [p.filed_date ? `<span>Filed ${esc(fmtDate(p.filed_date))}</span>` : '', dVal ? `<span>${dVal} declared</span>` : '']
     .filter(Boolean).join('<span class="sep" aria-hidden="true"></span>');
   $('dStage').innerHTML = stageBadge(p);
@@ -1700,6 +1704,7 @@ async function openDetail(id, cardEl, { fromProject = null } = {}) {
       ${row('Permit no.', p.permit_number)}
       ${row('Type', p.permit_type)}
       ${row('Valuation', money(p.valuation) && (Number(p.valuation) >= ODD_VALUE ? `${money(p.valuation)} (as filed; unusually high, likely a filing error)` : money(p.valuation)), 'money')}
+      ${row('', window.Values.repeatNote(p.valuation, p.valuation_repeats))}
       ${row('Description', p.work_description)}
     </dl>
 

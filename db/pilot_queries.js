@@ -19,7 +19,7 @@ const insight = require('./insight_queries.js');
 const F = require('../src/forecast.js');
 
 const { SOURCES: CONFIG, PILOT_AREAS } = require('../src/sources.js');
-const { locationSql } = require('../src/display_policy.js');
+const { locationSql, valueRepeatsSql } = require('../src/display_policy.js');
 
 const TRADES = ['electrical', 'mechanical', 'plumbing'];
 // Every pilot market the screens can show: the synced permit feeds, not the
@@ -298,7 +298,7 @@ async function sourceMeta(source) {
 // Permit columns a client may see (no owner/applicant: src/privacy.js).
 const PERMIT_COLS = `p.id, p.source_area, p.permit_number, p.address, p.city, p.state, p.zip, p.permit_type,
   p.work_description, p.valuation, p.status_raw, p.status_stage, p.lifecycle_stage, p.filing_kind, p.permit_url, p.filed_date, p.trade_scores,
-  p.first_seen_at, p.last_seen_at`;
+  p.first_seen_at, p.last_seen_at, ${valueRepeatsSql('p')} AS valuation_repeats`;
 
 async function provenanceFor(rawRecordId) {
   if (!rawRecordId) return null;

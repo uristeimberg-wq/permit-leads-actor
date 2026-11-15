@@ -33,6 +33,7 @@
   <div id="foot"></div>
 </main>
 <script src="../../links.js"></script>
+<script src="../../values.js"></script>
 <script src="live.js"></script>
 <script src="tour.js"></script>
 <script>
@@ -92,7 +93,7 @@
           ${hid ? '' : `<td>${forecastCell(r)}</td>`}
           <td>${L.esc(r.address || 'Address not published')}${r.zip && !String(r.address || '').includes(r.zip) ? `, ${L.esc(r.zip)}` : ''}<div class="sub">${L.esc((r.work_description || '').slice(0, 140))}${(r.work_description || '').length > 140 ? '…' : ''}</div></td>
           <td class="hide-sm">${L.esc(r.permit_type || '')}</td>
-          <td class="n mono hide-sm">${L.esc(L.money(r.valuation))}</td>
+          <td class="n mono hide-sm" title="${L.esc(window.Values.repeatNote(r.valuation, r.valuation_repeats))}">${L.esc(window.Values.valueText(r.valuation, r.valuation_repeats))}</td>
           <td>${r.contractor ? `${L.who(r.contractor)}${r.contractor.name ? `<div>${L.phoneCell(r.contractor.phone)}</div>` : ''}` : filerCell(r)}</td>
           ${hid ? '' : `<td>${subsCell(r)}</td>`}
           <td class="hide-sm">${num}</td></tr>`;

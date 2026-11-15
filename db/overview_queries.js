@@ -11,6 +11,7 @@
 // (src/sources.js maps Austin issue_date and Miami-Dade PermitIssuedDate).
 
 const { query } = require('./index.js');
+const { valueRepeatsSql } = require('../src/display_policy.js');
 const { publicContractor, marketBaseline, sourceMeta, TRADES } = require('./pilot_queries.js');
 
 const WEEKS = 26;
@@ -187,6 +188,7 @@ async function topGcs(source, limit = 10) {
 async function recentBuilding(source, limit = 12) {
   const { rows } = await query(`
     SELECT p.id, p.permit_number, p.address, p.city, p.zip, p.permit_type, p.valuation, p.filed_date,
+           ${valueRepeatsSql('p')} AS valuation_repeats,
            p.status_raw, p.status_stage, pp.contractor_id,
            c.id AS c_id, c.display_name, c.party_kind,
            (SELECT coalesce(array_agg(DISTINCT t.trade), '{}')
@@ -206,6 +208,7 @@ async function recentBuilding(source, limit = 12) {
     zip: r.zip,
     permitType: r.permit_type,
     valuation: num(r.valuation),
+    valuationRepeats: r.valuation_repeats,
     issuedOn: r.filed_date,
     statusRaw: r.status_raw,
     statusStage: r.status_stage,

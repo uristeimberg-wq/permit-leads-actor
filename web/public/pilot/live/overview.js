@@ -208,7 +208,7 @@
         <td class="mono">${L.esc(L.date(r.issuedOn))}</td>
         <td class="mono"><a href="job.html?${L.qs({ id: r.id, trade: 'electrical' })}">${L.esc(r.permitNumber)}</a></td>
         <td class="hide-sm">${L.esc(r.address || 'Address not published')}</td>
-        <td class="n hide-sm">${L.esc(r.valuation == null ? 'not published' : L.money(r.valuation))}</td>
+        <td class="n hide-sm">${L.esc(window.Values.valueText(r.valuation, r.valuationRepeats))}</td>
         <td>${L.who(r.gc)}</td>
         <td>${tradeCell(r)}</td></tr>`).join('')}</tbody></table>
       <p class="note">"No trade permit on record" means the source has published no issued trade permit on this job. It says nothing about whether a sub is hired: one may be in review, or lined up already.

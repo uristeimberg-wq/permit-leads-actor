@@ -15,6 +15,7 @@
 <div id="top"></div>
 <main id="main"><div class="state">Loading…</div></main>
 <script src="../../links.js"></script>
+<script src="../../values.js"></script>
 <script src="live.js"></script>
 <script src="tour.js"></script>
 <script>
@@ -68,7 +69,7 @@
       <table><thead><tr><th>Permit</th><th>Type</th><th class="hide-sm">Address</th><th>Issued</th><th class="n">Value</th></tr></thead><tbody>
       ${d.recentPermits.map((r) => `<tr><td class="mono"><a href="job.html?${L.qs({ id: r.id, trade: r.trade || 'electrical' })}">${L.esc(r.permit_number)}</a></td>
         <td>${L.esc(r.isBuilding ? 'Building' : (L.TRADE[r.trade] || r.permit_type || ''))}</td><td class="hide-sm">${L.esc(r.address || '')}</td>
-        <td class="mono">${L.esc(L.date(r.issuedOn))}</td><td class="n mono">${L.esc(L.money(r.valuation))}</td></tr>`).join('')}
+        <td class="mono">${L.esc(L.date(r.issuedOn))}</td><td class="n mono" title="${L.esc(window.Values.repeatNote(r.valuation, r.valuation_repeats))}">${L.esc(window.Values.valueText(r.valuation, r.valuation_repeats))}</td></tr>`).join('')}
       </tbody></table>
     </div>
     ${L.attribution(null)}`;

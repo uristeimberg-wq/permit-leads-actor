@@ -100,6 +100,32 @@ async function main() {
         FROM permits WHERE source_area = ANY($1) AND valuation IS NOT NULL) x WHERE rk <= 8 ORDER BY source_area, rk`, [slugs]);
   table(['Source', 'Permit', 'Type', 'Value', 'Description (start)'], big.map((r) => [r.source_area, r.permit_number, r.permit_type, money(r.valuation), r.d]));
 
+  // One project's total copied onto each of its permits (a pergola at $830M).
+  // Three groupings, from strict to loose: same value at the same address;
+  // same value filed the same day; same value anywhere in the source.
+  out('## The same value on several permits (project totals repeated per permit)');
+  out();
+  table(['Source', 'Valued', 'Same value + address, 2+ permits', 'Same value + filed day, 2+ permits', 'Same value $1M+ anywhere, 2+ permits'], (await q(`
+    WITH v AS (
+      SELECT source_area, id, valuation,
+             count(*) OVER (PARTITION BY source_area, valuation, upper(trim(address))) AS by_addr,
+             count(*) OVER (PARTITION BY source_area, valuation, filed_date) AS by_day,
+             count(*) OVER (PARTITION BY source_area, valuation) AS by_val
+        FROM permits WHERE source_area = ANY($1) AND valuation IS NOT NULL)
+    SELECT source_area, count(*)::int AS n,
+           count(*) FILTER (WHERE by_addr > 1)::int AS a,
+           count(*) FILTER (WHERE by_day > 1 AND valuation >= 100000)::int AS d,
+           count(*) FILTER (WHERE by_val > 1 AND valuation >= 1000000)::int AS g
+      FROM v GROUP BY 1 ORDER BY 1`, [slugs])).map((r) => [r.source_area, r.n, r.a, r.d, r.g]));
+  out('Largest repeated values (same value + address or same filed day):');
+  out();
+  table(['Source', 'Value', 'Permits', 'Addresses', 'Filed days', 'Example descriptions'], (await q(`
+    SELECT source_area, valuation, count(*)::int AS n, count(DISTINCT upper(trim(address)))::int AS addrs,
+           count(DISTINCT filed_date)::int AS days, left(string_agg(DISTINCT left(work_description, 40), ' ; '), 160) AS ex
+      FROM permits WHERE source_area = ANY($1) AND valuation >= 1000000
+     GROUP BY 1, 2 HAVING count(*) > 1 AND (count(DISTINCT upper(trim(address))) < count(*) OR count(DISTINCT filed_date) < count(*))
+     ORDER BY valuation DESC LIMIT 25`, [slugs])).map((r) => [r.source_area, money(r.valuation), r.n, r.addrs, r.days, r.ex]));
+
   out('## Small values (under $100) by source and type');
   out();
   table(['Source', 'Type', 'Records'], (await q(`

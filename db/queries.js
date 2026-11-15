@@ -9,7 +9,7 @@ const { DEFAULT_STAGES, isValidStage } = require('../src/status.js');
 const { redactContractor, isShownContractor, dropSuppressedPhone } = require('../src/privacy.js');
 const { maskDescription } = require('../src/description_names.js');
 const { SOURCES: SOURCE_CONFIG } = require('../src/sources.js');
-const { locationSql } = require('../src/display_policy.js');
+const { locationSql, valueRepeatsSql } = require('../src/display_policy.js');
 
 // Names inside a description are masked for display (rule 5).
 const maskRow = (r) => (r && r.work_description != null ? { ...r, work_description: maskDescription(r.work_description) } : r);
@@ -42,6 +42,9 @@ const RESULT_COLUMNS = `
 // The job site's located point (015_permit_locations.sql), with how it was
 // found, so the map can say "this job site" only when we hold one. NULL when
 // the permit is not located; the UI then falls back to its area's centre.
+// How many permits of this source carry the same declared value (ADR-35).
+const VALUE_REPEATS = () => `${valueRepeatsSql('permits')} AS valuation_repeats`;
+
 const LOCATION_COLUMN = () => `(
   SELECT json_build_object('lat', l.lat, 'lng', l.lng, 'method', l.method, 'quality', l.quality)
     FROM permit_locations l WHERE l.permit_id = permits.id AND ${locationSql('l')}) AS location`;
@@ -189,7 +192,7 @@ async function searchPermits(filters = {}) {
 
   const countSql = `SELECT count(*)::int AS total FROM permits ${where}`;
   const rowsSql = `
-    SELECT ${RESULT_COLUMNS}, ${LOCATION_COLUMN()}
+    SELECT ${RESULT_COLUMNS}, ${VALUE_REPEATS()}, ${LOCATION_COLUMN()}
       FROM permits
       ${where}
      ORDER BY ${orderBy}
@@ -475,7 +478,7 @@ async function getContractorHistory(name) {
 
 /** One permit, with everything we hold — backs the in-app detail view. */
 async function getPermit(id) {
-  const { rows } = await query(`SELECT ${RESULT_COLUMNS}, ${LOCATION_COLUMN()} FROM permits WHERE id = $1`, [Number(id)]);
+  const { rows } = await query(`SELECT ${RESULT_COLUMNS}, ${VALUE_REPEATS()}, ${LOCATION_COLUMN()} FROM permits WHERE id = $1`, [Number(id)]);
   return rows[0] ? maskRow(dropSuppressedPhone(redactContractor(rows[0]), await suppressedPhones())) : null;
 }
 
@@ -503,7 +506,7 @@ async function projectRows(filters = {}, { limit = PROJECT_ROW_CAP } = {}) {
   const { sql: where, params } = buildWhere(filters);
   const facet = buildWhere({ ...filters, stage: 'any' });
   const [rows, counted, stageCounts, suppressed] = await Promise.all([
-    query(`SELECT ${RESULT_COLUMNS}, ${JOB_COLUMN} FROM permits ${where}
+    query(`SELECT ${RESULT_COLUMNS}, ${VALUE_REPEATS()}, ${JOB_COLUMN} FROM permits ${where}
             ORDER BY filed_date DESC NULLS LAST, id DESC LIMIT $${params.length + 1}`, [...params, limit]),
     query(`SELECT count(*)::int AS total FROM permits ${where}`, params),
     query(`SELECT status_stage, count(*)::int AS permits FROM permits ${facet.sql} GROUP BY status_stage`, facet.params),
@@ -549,7 +552,7 @@ async function projectCandidates(permitId, { limit = 400 } = {}) {
       UNION
       SELECT q.id FROM t JOIN permits q ON q.source_area = t.t_source
         AND q.permit_number = substring(t.t_desc from '(?i)ref\\.?\\s*:?\\s*#?\\s*(\\d{4}-\\d{5,6}\\s*BP)'))
-    SELECT ${RESULT_COLUMNS}, ${JOB_COLUMN}
+    SELECT ${RESULT_COLUMNS}, ${VALUE_REPEATS()}, ${JOB_COLUMN}
       FROM permits WHERE id IN (SELECT id FROM ids)
      ORDER BY filed_date ASC NULLS LAST, id
      LIMIT $2`, [id, limit]);
@@ -617,7 +620,7 @@ async function permitsByIds(ids) {
   const wanted = [...new Set((ids || []).map(Number).filter(Number.isSafeInteger))];
   if (!wanted.length) return [];
   const [{ rows }, suppressed] = await Promise.all([
-    query(`SELECT ${RESULT_COLUMNS}, ${LOCATION_COLUMN()} FROM permits WHERE id = ANY($1::bigint[])`, [wanted]),
+    query(`SELECT ${RESULT_COLUMNS}, ${VALUE_REPEATS()}, ${LOCATION_COLUMN()} FROM permits WHERE id = ANY($1::bigint[])`, [wanted]),
     suppressedPhones(),
   ]);
   const byId = new Map(rows.map((r) => [Number(r.id), maskRow(dropSuppressedPhone(redactContractor(r), suppressed))]));

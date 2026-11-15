@@ -901,3 +901,26 @@ what would make us revisit it. Never delete an entry; supersede it.
   $100M and $1B are shown as published and may still contain source typos
   (Miami-Dade has a $580M "TEMP FOR TESTILITY"). A per-type plausibility
   check would be an inference and is not built.
+
+## ADR-35: A declared value repeated on several permits is the project's figure
+
+- **Context (2026-11-15, after ADR-34):** sources copy one project's total
+  onto each of its permits. Austin lists $830,000,000 on 77 permits filed the
+  same day (pergolas, a gatehouse, a garage); Miami-Dade lists $580,000,000 on
+  "LIGHT POLES", "LOW VOLTAGE CCTVS" and "LAWN SPRINKLER" at one address.
+  Measured on the live database (recon/value_audit.js): the same value on 2+
+  permits at the same address is on 337 Austin, 11,335 Miami-Dade, 426 City
+  of Miami, 10 Raleigh and 8 plan-review records; the same value of $100K+
+  filed the same day on 851 Austin and 624 Raleigh.
+- **Decision:** every displayed permit carries `valuation_repeats`: how many
+  permits of its source have the same value at the same address, or the
+  same value of $1M or more filed the same day (src/display_policy.js, index
+  in migration 038). Above 1, the screens show the value as the source gives
+  it with "on N permits" and say it is the project's figure, not this
+  permit's own cost (web/public/values.js). Project totals already count a
+  repeated value once (web/projects.js).
+- **Consequences:** no value is dropped. Sorting by value and the
+  minimum-value filter still use the stored value, so a repeated project
+  total can still sort high; overview medians include repeats. The grouping
+  is by address text and filing day, not by the source's job key, because
+  job links are not hand-checked (ADR-33).

@@ -98,6 +98,23 @@ async function main() {
       const one = await get(`/api/permits/${id(4)}`);
       assert.strictEqual(one.body.location, null);
     });
+    await check('a declared value on several permits carries its count (ADR-35)', async () => {
+      // Different addresses, $1,000 each, filed the same day: under $1M, a coincidence.
+      let { body } = await get('/api/permits?stage=any&zip=78704');
+      assert.deepStrictEqual(body.results.map((r) => r.valuation_repeats), [1, 1]);
+      // $5M on both, filed the same day: one project's figure repeated.
+      await db.query('UPDATE permits SET valuation = 5000000 WHERE id = ANY($1)', [[id(1), id(2)]]);
+      ({ body } = await get('/api/permits?stage=any&zip=78704'));
+      assert.deepStrictEqual(body.results.map((r) => r.valuation_repeats), [2, 2]);
+      const one = await get(`/api/permits/${id(1)}`);
+      assert.strictEqual(one.body.valuation_repeats, 2);
+      // A permit with no value has nothing repeated.
+      const none = await get(`/api/permits/${id(4)}`);
+      await db.query('UPDATE permits SET valuation = NULL WHERE id = $1', [id(4)]);
+      assert.ok(none.body.valuation_repeats >= 1);
+      const after = await get(`/api/permits/${id(4)}`);
+      assert.strictEqual(after.body.valuation_repeats, 0);
+    });
   } finally {
     if (server) server.close();
     await db.close();

@@ -16,6 +16,7 @@
 <main id="main"><div class="state">Loading…</div></main>
 <script src="../../links.js"></script>
 <script src="../../stages.js"></script>
+<script src="../../values.js"></script>
 <script src="live.js"></script>
 <script src="tour.js"></script>
 <script src="photos.js"></script>
@@ -121,7 +122,7 @@
           <dt>Permit</dt><dd class="mono">${val(d, 'permit_number', L.esc(pm.permit_number))}${window.safeHttpUrl(pm.permit_url) ? ` · <a href="${L.esc(window.safeHttpUrl(pm.permit_url))}" rel="noopener noreferrer" target="_blank">view at source</a>` : ''}</dd>
           <dt>Status</dt><dd>${val(d, 'status', L.esc(pm.status_raw || 'unknown'))} <span class="sub">(${L.esc(window.Stages.badge(pm).label)})</span></dd>
           <dt>${pm.filing_kind === 'building_application' ? 'Applied' : 'Issued'}</dt><dd>${val(d, pm.filing_kind === 'building_application' ? 'application date' : 'issue date', L.esc(L.date(pm.filed_date)))}${age != null ? ` <span class="sub">· ${age} days ago</span>` : ''}</dd>
-          <dt>Declared value</dt><dd>${val(d, 'valuation', L.esc(L.money(pm.valuation)))}</dd>
+          <dt>Declared value</dt><dd>${val(d, 'valuation', L.esc(window.Values.valueText(pm.valuation, pm.valuation_repeats)))}${pm.valuation_repeats > 1 ? `<div class="sub">${L.esc(window.Values.repeatNote(pm.valuation, pm.valuation_repeats))}</div>` : ''}</dd>
           ${pm.trade_scores ? `<dt>Trade fit score</dt><dd class="mono">${pm.trade_scores[trade === 'mechanical' ? 'hvac' : trade] != null ? pm.trade_scores[trade === 'mechanical' ? 'hvac' : trade] : '—'} <span class="sub">from the description's wording</span></dd>` : ''}
         </dl>
         <h2 class="h-gap">Description, as filed</h2>
