@@ -530,18 +530,20 @@ function renderCard(p) {
   const areaKey = areaKeyOf(p);
   if (areaKey) el.dataset.area = areaKey;
 
-  const contact = phoneLink(p.contractor_phone, ' data-tel');
+  const who = p.contractor_name
+    ? (isRealContractor(p.contractor_name)
+        ? `<button type="button" class="link-btn" data-open-contractor="${esc(p.contractor_name)}"
+              >${esc(p.contractor_name)}</button>`
+        : `<span>${esc(p.contractor_name)}</span>`)
+    : (p.contractor_withheld ? '<span title="Looks like an individual; name and contact withheld">Individual (withheld)</span>' : '');
+  // With a phone, the call is the card's main action: its own row, with the
+  // company it reaches. Without one, the card is laid out as before.
+  const pill = phonePill(p.contractor_phone);
 
   const foot = [
     stageBadge(p),
     p.jurisdiction ? `<span class="pill">${esc(p.jurisdiction)}</span>` : '',
-    p.contractor_name
-      ? (isRealContractor(p.contractor_name)
-          ? `<button type="button" class="link-btn" data-open-contractor="${esc(p.contractor_name)}"
-                >${esc(p.contractor_name)}</button>`
-          : `<span>${esc(p.contractor_name)}</span>`)
-      : (p.contractor_withheld ? '<span title="Looks like an individual; name and contact withheld">Individual (withheld)</span>' : ''),
-    contact,
+    pill ? '' : who,
     p.permit_number ? `<span>#${esc(p.permit_number)}</span>` : '',
   ].filter(Boolean).join('<span class="sep" aria-hidden="true"></span>');
 
@@ -553,6 +555,7 @@ function renderCard(p) {
     </div>
     ${p.permit_type ? `<div class="card-type">${esc(p.permit_type)}</div>` : ''}
     ${p.work_description ? `<p class="card-desc">${esc(p.work_description)}</p>` : ''}
+    ${pill ? `<div class="card-call">${pill}${who ? `<span class="card-call-who">${who}</span>` : ''}</div>` : ''}
     <div class="card-foot">${foot}</div>`;
 
   const open = (e) => {
@@ -775,7 +778,7 @@ async function openContractor(name, { from = null } = {}) {
       ${daysQuiet !== null ? row('Last permit', relativeDays(daysQuiet)) : ''}
       ${row('Declared value', money(c.total_valuation) || '—')}
       ${row('', valuationNote)}
-      ${c.phone ? `<dt>Phone</dt><dd>${phoneLink(c.phone)}</dd>` : ''}
+      ${c.phone ? `<dt>Phone</dt><dd>${phonePill(c.phone)}</dd>` : ''}
       ${row('Licence', c.licence)}
       ${row('Based in', c.city)}
     </dl>
@@ -1244,16 +1247,50 @@ function useMyLocation() {
   );
 }
 
-// A phone as a tel: link when it normalizes to a dialable number (links.js),
-// else as plain text. Owner and applicant phones are never rendered
-// (CLAUDE.md hard rule 5); only the contractor's business contact is.
-const phoneLink = (v, attrs = '') => {
+/**
+ * The contractor's phone as the card's main action: a pill with a handset
+ * icon. On a phone it is a tel: link that dials; on a desktop a click copies
+ * the number (see the copy handler below), since most desktops cannot dial.
+ * Only the business contact ever gets here (rule 5, src/privacy.js).
+ */
+const PHONE_ICON = `<svg class="phone-ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+  stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h3.5l1.8 4.6-2.3 1.4a11 11 0 0 0 6 6l1.4-2.3L20 15.5V19a2 2 0 0 1-2.2 2A17 17 0 0 1 3 6.2 2 2 0 0 1 5 4Z"/></svg>`;
+function phonePill(v) {
   if (!v) return '';
+  const shown = phone(v);
   const href = telHref(v);
-  return href
-    ? `<a href="${esc(href)}"${attrs}>${esc(phone(v))}</a>`
-    : `<span>${esc(phone(v))}</span>`;
-};
+  if (!href) return `<span class="phone-pill is-plain">${PHONE_ICON}<span class="phone-num">${esc(shown)}</span></span>`;
+  return `<a class="phone-pill" href="${esc(href)}" data-tel data-phone="${esc(shown)}"
+    title="Call ${esc(shown)} (on a computer, click to copy)">${PHONE_ICON}<span class="phone-num">${esc(shown)}</span></a>`;
+}
+
+// Desktop: a phone pill copies its number instead of opening a dialer that
+// usually isn't there. Touch screens keep the tel: link and dial.
+const dialsNatively = matchMedia('(hover: none), (pointer: coarse)');
+function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text).then(() => true, () => false);
+  const ta = Object.assign(document.createElement('textarea'), { value: text });
+  ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch { ok = false; }
+  ta.remove();
+  return Promise.resolve(ok);
+}
+document.addEventListener('click', async (e) => {
+  const pill = e.target.closest('a.phone-pill');
+  if (!pill || dialsNatively.matches) return;
+  e.preventDefault();
+  const number = pill.dataset.phone;
+  const ok = await copyText(number);
+  const label = pill.querySelector('.phone-num');
+  pill.dataset.state = ok ? 'copied' : 'failed';
+  label.textContent = ok ? 'Copied ✓' : number;
+  $('liveNote').textContent = ok ? `Copied ${number}` : `Couldn't copy. The number is ${number}.`;
+  clearTimeout(pill._t);
+  pill._t = setTimeout(() => { delete pill.dataset.state; label.textContent = number; }, 1600);
+});
+
 
 /* ------------------------------------------------------------------ drawer */
 
@@ -1335,7 +1372,7 @@ async function openDetail(id, cardEl) {
             ? `<button type="button" class="link-btn" data-open-contractor="${esc(p.contractor_name)}"
                   >${esc(p.contractor_name)}</button>`
             : esc(p.contractor_name)}</dd>` : ''}
-        ${p.contractor_phone ? `<dt>Phone</dt><dd>${phoneLink(p.contractor_phone)}</dd>` : ''}
+        ${p.contractor_phone ? `<dt>Phone</dt><dd>${phonePill(p.contractor_phone)}</dd>` : ''}
         ${row('Trade', p.contractor_trade)}
         ${row('Licence', p.contractor_licence)}
         ${row('City', p.contractor_city)}
