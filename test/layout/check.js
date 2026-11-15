@@ -28,6 +28,8 @@ async function signIn(ctx) {
   if (!PASSWORD) return;
   const page = await ctx.newPage();
   await page.goto(`${BASE}/login`);
+  // Email sign-in tucks the owner key into a closed <details>; open it first.
+  if (await page.$('details.owner')) await page.click('details.owner summary');
   await page.fill('#pw', PASSWORD);
   await Promise.all([page.waitForNavigation(), page.click('button[type=submit]')]);
   await page.close();

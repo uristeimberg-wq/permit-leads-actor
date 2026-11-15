@@ -22,6 +22,8 @@ const PER_MARKET = 3;
   if (PASSWORD) {
     const p = await ctx.newPage();
     await p.goto(`${BASE}/login`);
+    // Email sign-in tucks the owner key into a closed <details>; open it first.
+    if (await p.$('details.owner')) await p.click('details.owner summary');
     await p.fill('#pw', PASSWORD);
     await Promise.all([p.waitForNavigation(), p.click('button[type=submit]')]);
     await p.close();

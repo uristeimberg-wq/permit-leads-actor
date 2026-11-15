@@ -48,7 +48,7 @@ const { INDUSTRIES, cleanIndustry } = require('./invites.js');
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-function loginPage({ next = '/', error = '', invites = false } = {}) {
+function loginPage({ next = '/', error = '', invites = false, email = false } = {}) {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -90,6 +90,11 @@ input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px s
 button { margin-top: 12px; min-height: 44px; border: 0; border-radius: 0; cursor: pointer; background: var(--color-accent); color: var(--color-accent-ink); box-shadow: 0 3px 0 var(--color-accent-deep); font: 700 15px/1 var(--font-display); text-transform: uppercase; letter-spacing: 0.02em; transition: translate 120ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 120ms cubic-bezier(0.22, 1, 0.36, 1), background-color 120ms cubic-bezier(0.22, 1, 0.36, 1); }
 button:hover { background: var(--color-accent-deep); }
 button:active { translate: 0 3px; box-shadow: 0 0 0 var(--color-accent-deep); }
+details.owner { margin-top: 8px; font-size: 13px; color: var(--color-muted); }
+details.owner summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
+details.owner summary::before { content: '▸'; margin-right: 6px; }
+details.owner[open] summary::before { content: '▾'; }
+details.owner[open] { display: flex; flex-direction: column; gap: 8px; }
 .err { margin: 16px 0 0; padding: 8px 12px; background: var(--color-err-wash); color: var(--color-err); border-left: 3px solid var(--color-err); font-size: 14px; }
 footer { font-size: 12px; color: var(--color-muted); }
 footer div { padding-top: 16px; padding-bottom: 16px; border-top: 1px solid oklch(84% 0.012 85); }
@@ -102,12 +107,17 @@ footer div { padding-top: 16px; padding-bottom: 16px; border-top: 1px solid oklc
 <main>
   <section class="plate" aria-labelledby="t">
     <h1 id="t">Construction permit data</h1>
-    <p>Permit, planning and property records from public sources, with the source behind every value. ${invites ? 'Access is by invitation: enter the code you were given.' : 'Enter the password to continue.'}</p>
+    <p>Permit, planning and property records from public sources, with the source behind every value. ${email ? 'Sign in with your email to see leads and keep your saved permits.' : invites ? 'Access is by invitation: enter the code you were given.' : 'Enter the password to continue.'}</p>
     ${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}
     <form method="post" action="/login">
       <input type="hidden" name="next" value="${esc(next)}">
-      <label for="pw">${invites ? 'Access code' : 'Password'}</label>
-      <input id="pw" name="password" type="password" autocomplete="current-password" required autofocus>
+      ${email ? `<label for="em">Email</label>
+      <input id="em" name="email" type="email" autocomplete="email" inputmode="email" maxlength="254" autofocus>
+      <details class="owner"><summary>Owner key</summary>
+        <label for="pw">Owner key</label>
+        <input id="pw" name="password" type="password" autocomplete="current-password">
+      </details>` : `<label for="pw">${invites ? 'Access code' : 'Password'}</label>
+      <input id="pw" name="password" type="password" autocomplete="current-password" required autofocus>`}
       ${invites ? `<label for="ind">Your industry (optional)</label>
       <select id="ind" name="industry">${Object.entries(INDUSTRIES).map(([k, v]) => `<option value="${esc(k)}">${esc(v)}</option>`).join('')}</select>
       <label for="ind-o">If other, which (optional)</label>
@@ -116,7 +126,7 @@ footer div { padding-top: 16px; padding-bottom: 16px; border-top: 1px solid oklc
     </form>
   </section>
 </main>
-<footer><div>Built on public records. Individuals' names and contacts are withheld. Your industry only tells us who uses the data; it does not change what you see.</div></footer>
+<footer><div>Built on public records. Individuals' names and contacts are withheld. ${email ? 'Your email only keeps your saved permits; we do not check it or send you mail.' : 'Your industry only tells us who uses the data; it does not change what you see.'}</div></footer>
 </body>
 </html>`;
 }
@@ -124,15 +134,20 @@ footer div { padding-top: 16px; padding-bottom: 16px; border-top: 1px solid oklc
 /**
  * The gate, as a router to mount before everything it protects.
  * @param {string} password DEMO_PASSWORD; empty means open
- * @param {{now?: () => number, invites?: {find, isLive, record}}} [opts]
- *   clock override for tests; the invite store (web/invites.js pgStore)
+ * @param {{now?: () => number, invites?: {find, isLive, record},
+ *          users?: {store: {findOrCreate}, sessions: object, normalEmail: Function}}} [opts]
+ *   clock override for tests; the invite store (web/invites.js pgStore); or
+ *   email sign-in (web/users.js), which replaces invite codes: the page asks
+ *   for an email, and a signed `ct_user` cookie is a session. DEMO_PASSWORD
+ *   still signs in as the owner ("Owner key").
  */
 function demoGate(password = process.env.DEMO_PASSWORD, opts = {}) {
   const router = express.Router();
   if (!password) return router;
   const now = opts.now || Date.now;
-  const store = opts.invites || null;
-  const page = (o) => loginPage({ ...o, invites: Boolean(store) });
+  const users = opts.users || null;
+  const store = users ? null : (opts.invites || null);
+  const page = (o) => loginPage({ ...o, invites: Boolean(store), email: Boolean(users) });
   const live = new Map(); // invite id -> { ok, at }, so a revoked code stops within a minute
   const inviteLive = async (id) => {
     if (id === 0) return true;
@@ -150,6 +165,7 @@ function demoGate(password = process.env.DEMO_PASSWORD, opts = {}) {
   const fails = new Map(); // ip -> { n, since }
 
   const validSession = async (req) => {
+    if (users && users.sessions.userId(req)) return true;
     const v = readCookie(req.headers.cookie, COOKIE);
     const m = /^(\d{10,16})\.(\d{1,18})\.([\w-]{20,})$/.exec(v || '');
     if (!m || Number(m[1]) < now()) return false;
@@ -189,6 +205,20 @@ function demoGate(password = process.env.DEMO_PASSWORD, opts = {}) {
       return html(res, 429, page({ next, error: 'Too many attempts. Wait 15 minutes, then try again.' }));
     }
     const given = (req.body && req.body.password) || '';
+    // Email sign-in (no verification, by owner decision): any well-formed
+    // address is a user. The owner key, when typed, takes precedence.
+    if (users && !given) {
+      const email = users.normalEmail(req.body && req.body.email);
+      if (!email) {
+        noteFail(ip);
+        return html(res, 400, page({ next, error: 'Enter a valid email address.' }));
+      }
+      const user = await users.store.findOrCreate(email).catch((e) => { console.error(`sign-in failed: ${e.message}`); return null; });
+      if (!user) return html(res, 503, page({ next, error: 'Sign-in is unavailable right now. Try again in a minute.' }));
+      fails.delete(ip);
+      users.sessions.set(res, req, user.id);
+      return res.redirect(303, next);
+    }
     let inviteId = same(sha(given), want) ? 0 : null;
     if (inviteId == null && store) {
       const inv = await store.find(given).catch((e) => { console.error(`invite lookup failed: ${e.message}`); return null; });
@@ -196,7 +226,7 @@ function demoGate(password = process.env.DEMO_PASSWORD, opts = {}) {
     }
     if (inviteId == null) {
       noteFail(ip);
-      return html(res, 401, page({ next, error: store ? 'That code didn’t work.' : 'That password didn’t work.' }));
+      return html(res, 401, page({ next, error: users ? 'That owner key didn’t work.' : store ? 'That code didn’t work.' : 'That password didn’t work.' }));
     }
     fails.delete(ip);
     live.set(inviteId, { ok: true, at: now() });
@@ -214,6 +244,7 @@ function demoGate(password = process.env.DEMO_PASSWORD, opts = {}) {
 
   router.get('/logout', (req, res) => {
     res.clearCookie(COOKIE, { httpOnly: true, sameSite: 'lax', secure: req.secure, path: '/' });
+    if (users) users.sessions.clear(res, req);
     return res.redirect(303, '/login');
   });
 

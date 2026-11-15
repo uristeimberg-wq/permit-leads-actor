@@ -48,12 +48,13 @@
   --accent-ink:  oklch(40% 0.12 48);
   --on-accent:   oklch(98.6% 0.005 85);
 
-  /* Lifecycle stages: ink-family text on pale tints; the dot carries the hue. */
-  --pending:    oklch(42% 0.1 70);   --pending-bg:   oklch(94% 0.04 85);  --pending-dot:  oklch(70% 0.14 75);
-  --approved:   oklch(40% 0.09 150); --approved-bg:  oklch(94% 0.03 150); --approved-dot: oklch(58% 0.12 150);
-  --finished:   oklch(44% 0.014 260);--finished-bg:  oklch(93.2% 0.011 85); --finished-dot: oklch(70% 0.012 260);
-  --cancelled:  oklch(46% 0.16 25);  --cancelled-bg: oklch(94% 0.03 25);  --cancelled-dot:oklch(58% 0.18 25);
-  --unknown:    oklch(44% 0.014 260);--unknown-bg:   oklch(93.2% 0.011 85); --unknown-dot:  oklch(80% 0.01 260);
+  /* Lifecycle stages: one hue each, so no two stages read alike at a glance:
+     amber waiting, green approved, blue finished, red cancelled, grey unknown. */
+  --pending:    oklch(44% 0.12 60);  --pending-bg:   oklch(91% 0.09 82);  --pending-dot:  oklch(70% 0.17 62);
+  --approved:   oklch(37% 0.11 150); --approved-bg:  oklch(90% 0.08 150); --approved-dot: oklch(57% 0.15 150);
+  --finished:   oklch(40% 0.12 255); --finished-bg:  oklch(91.5% 0.05 255); --finished-dot: oklch(57% 0.15 255);
+  --cancelled:  oklch(44% 0.17 25);  --cancelled-bg: oklch(92% 0.05 25);  --cancelled-dot:oklch(58% 0.19 25);
+  --unknown:    oklch(44% 0.014 260);--unknown-bg:   oklch(93.2% 0.011 85); --unknown-dot:  oklch(72% 0.01 260);
 
   --ok:    oklch(58% 0.12 150);
   --warn:  oklch(70% 0.14 75);
@@ -71,7 +72,8 @@
   --e-2: 3px 3px 0 var(--n-900);
   --e-3: 6px 6px 0 var(--n-900);
 
-  --topbar-h:  68px;
+  --masthead-h: 52px;
+  --topbar-h:  119px;   /* masthead 52 + toolbar 64 + 3px rule */
   --sidebar-w: 288px;
   --map-w:     minmax(380px, 0.9fr);
   --drawer-w:  520px;
@@ -272,13 +274,51 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
 
 /* ============================================================ topbar ===== */
 
+/* Two rows inside the one grid row: the masthead (product, lens slot, nav) and
+   the toolbar (search and this screen's controls). --topbar-h is their sum. */
 .topbar {
   grid-area: topbar;
-  display: flex; align-items: center; gap: var(--sp-4);
-  padding: 0 var(--sp-5);
+  display: flex; flex-direction: column;
   background: var(--surface);
   border-bottom: 3px solid var(--ink);
   z-index: 40;
+}
+
+.masthead {
+  display: flex; align-items: center; gap: var(--sp-4);
+  height: var(--masthead-h); flex: none;
+  padding: 0 var(--sp-5);
+  border-bottom: 1px solid var(--line);
+}
+.masthead-right { display: flex; align-items: center; gap: var(--sp-4); margin-left: auto; }
+
+/* FUTURE (step 2): holds the "Your lens" button. Takes no space while empty. */
+.lens-slot { display: flex; align-items: center; }
+.lens-slot:empty { display: none; }
+
+.mainnav { display: flex; align-items: stretch; height: 100%; }
+.mainnav a {
+  display: inline-flex; align-items: center;
+  padding: 0 var(--sp-2);
+  font-family: var(--font-display); font-size: var(--t-md); font-weight: 700;
+  letter-spacing: .02em; text-transform: uppercase;
+  color: var(--ink-3); text-decoration: none;
+  border-bottom: 3px solid transparent; margin-bottom: -1px;
+}
+.mainnav a:hover { color: var(--ink); }
+.mainnav a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--accent); }
+.mainnav a:focus-visible, .signout:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.signout {
+  display: inline-flex; align-items: center;
+  font-size: var(--t-sm); color: var(--ink-3); white-space: nowrap;
+}
+.signout:hover { color: var(--ink); }
+
+.toolbar {
+  display: flex; align-items: center; gap: var(--sp-4);
+  flex: 1 1 auto; min-height: 0;
+  padding: 0 var(--sp-5);
 }
 
 .brand { display: flex; align-items: center; gap: 9px; flex: none; color: var(--ink); text-decoration: none; }
@@ -503,7 +543,15 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
   border-radius: var(--r-pill); font-weight: 600;
 }
 
-/* Stage: a coloured dot plus the portal's exact wording. */
+/* Stage: our stage in its colour, then the portal's exact wording, quieter. */
+.stage-raw { font-size: var(--t-xs); color: var(--ink-3); white-space: nowrap; }
+.stage + .stage-raw { margin-left: 6px; }
+/* The same colour as a dot beside each Stage filter checkbox. */
+.stage-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--unknown-dot); }
+.stage-dot.pending   { background: var(--pending-dot); }
+.stage-dot.approved  { background: var(--approved-dot); }
+.stage-dot.finished  { background: var(--finished-dot); }
+.stage-dot.cancelled { background: var(--cancelled-dot); }
 .stage {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 3px 10px 3px 8px;
@@ -841,24 +889,26 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
 }
 
 @media (max-width: 620px) {
-  /* The topbar wraps to two rows: controls on the first, a full-width search on
-     the second. On one row the search field collapsed to about three visible
-     characters, which made the main input of the app unusable. */
-  :root { --topbar-h: 104px; }
+  /* The toolbar wraps to two lines: a full-width search on the first (on one
+     line it collapsed to about three visible characters), then the labelled
+     Filters button and the List | Map toggle. Split is already withdrawn
+     below 1181px, so the toggle is two choices here. */
+  :root { --masthead-h: 48px; --topbar-h: 167px; }   /* 48 + 116 + 3px rule */
 
-  .topbar {
+  .masthead { padding: 0 var(--sp-3); gap: var(--sp-2); }
+  .masthead-right { gap: var(--sp-3); }
+
+  .toolbar {
     flex-wrap: wrap;
     align-content: center;
-    gap: var(--sp-2) var(--sp-2);
+    gap: var(--sp-2);
     padding: var(--sp-2) var(--sp-3);
   }
-  .brand-name { display: none; }
-  .search { order: 3; flex: 1 0 100%; max-width: none; }
-  .topbar-right { gap: 6px; }
+  .search { flex: 1 0 100%; max-width: none; }
+  .topbar-right { gap: var(--sp-2); flex: 1 0 100%; margin-left: 0; }
+  .fresh-wrap { margin-left: auto; }
 
-  /* Icons only: at this width the labels cost more than they explain. */
-  #filtersToggleLabel, .segmented button span { display: none; }
-  .segmented button { padding: 8px 13px; }
+  .segmented button { padding: 8px 14px; }
   .filters-toggle { padding: 9px 13px; }
 
   .fresh .label { display: none; }
@@ -918,6 +968,7 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
      without moving the text. */
   .link-btn, #results a { padding-block: 8px; }
   .btn-quiet { min-height: 44px; margin-block: -8px; }
+  .mainnav a, .signout, .brand { min-height: 44px; }
 }
 
 /* ------------------------------------------------ mobile sheets + drawer -- */
@@ -976,17 +1027,6 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
   .site::after { content: ''; position: absolute; inset: -14px; }
 }
 
-/* Screens menu: the other pilot screens, from the search topbar. */
-.screens-wrap { position: relative; }
-.screens { width: 240px; display: grid; gap: 2px; padding: var(--sp-2); }
-.screens a {
-  display: flex; align-items: center; min-height: 40px; padding: 0 var(--sp-3);
-  color: var(--ink); text-decoration: none; font-weight: 600; border-radius: var(--r-md, 6px);
-}
-.screens a:hover, .screens a:focus-visible { background: var(--surface-2); }
-.screens a[aria-current="page"] { color: var(--accent-ink, var(--accent)); }
-@media (pointer: coarse) { .screens a { min-height: 44px; } }
-@media (max-width: 620px) { #screensLabel { display: none; } .screens { width: auto; } }
 
 /* Source credits under the results: required for CC BY data (City of Miami)
    and asked for by the licence boards and the Census geocoder. */
@@ -994,3 +1034,170 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
   font-size: var(--t-sm); color: var(--ink-3); line-height: 1.5; }
 .credits p { margin: 0 0 var(--sp-2); }
 .src-row .lag { grid-column: 1 / -1; font-size: var(--t-sm); color: var(--ink-3); }
+
+/* ===================================================== location picker === */
+/* location.js: one search box, several places. The list sits in the flow (not
+   floating) so it works the same in the sidebar, the mobile sheet and the
+   welcome popup, none of which may clip it. */
+.loc { display: grid; gap: var(--sp-2); }
+.loc-label { font-size: var(--t-sm); font-weight: 600; color: var(--ink-2); }
+.loc-field { position: relative; }
+.loc-field svg {
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  width: 16px; height: 16px; color: var(--ink-faint); pointer-events: none;
+}
+.loc-field .input { width: 100%; padding-left: 36px; }
+.loc-list {
+  max-height: 320px; overflow-y: auto; overscroll-behavior: contain;
+  border: 1px solid var(--line-strong); background: var(--surface);
+  box-shadow: var(--e-2);
+}
+.loc-group {
+  position: sticky; top: 0; z-index: 1;
+  padding: 8px 12px 4px; background: var(--surface-2);
+  font-size: var(--t-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3);
+}
+.loc-opt {
+  display: flex; align-items: center; gap: 10px;
+  min-height: 44px; padding: 6px 12px; cursor: pointer;
+}
+.loc-opt:hover, .loc-opt.is-active { background: var(--accent-soft); }
+.loc-box {
+  display: grid; place-items: center; flex: none;
+  width: 18px; height: 18px; border: 1.5px solid var(--line-strong);
+  font-size: 12px; font-weight: 700; color: var(--on-accent);
+}
+.loc-opt[aria-selected="true"] .loc-box { background: var(--accent); border-color: var(--accent); }
+.loc-name { flex: 1; min-width: 0; font-weight: 600; font-size: var(--t-base); }
+.loc-name small { display: block; font-weight: 400; font-size: var(--t-xs); color: var(--ink-3); }
+.loc-n { font-size: var(--t-sm); color: var(--ink-faint); font-weight: 600; font-variant-numeric: tabular-nums; }
+.loc-empty { padding: 12px; font-size: var(--t-sm); color: var(--ink-3); }
+.loc-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.loc-chip { gap: 8px; }
+.loc-chip span { font-size: 16px; line-height: 1; color: var(--ink-3); }
+
+/* ======================================================== lens button === */
+.lens-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  max-width: 260px; min-height: 36px; padding: 6px 12px;
+  font: inherit; font-size: var(--t-sm); color: var(--ink);
+  background: var(--accent-soft); border: 1px solid var(--accent); cursor: pointer;
+}
+.lens-btn:hover { background: color-mix(in oklab, var(--accent-soft) 70%, var(--accent) 12%); }
+.lens-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lens-btn svg { flex: none; color: var(--accent-ink); }
+.lens-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lens-where { color: var(--ink-2); }
+
+/* ====================================================== welcome popup === */
+.welcome {
+  width: min(600px, calc(100vw - 32px)); max-height: calc(100dvh - 48px);
+  padding: 0; border: 3px solid var(--ink); background: var(--surface);
+  box-shadow: var(--e-3); color: var(--ink);
+}
+.welcome::backdrop { background: color-mix(in oklab, var(--ink) 45%, transparent); backdrop-filter: blur(2px); }
+.welcome-body { display: grid; gap: var(--sp-5); padding: var(--sp-6); }
+.welcome-head h2 {
+  margin: 0 0 6px; font-family: var(--font-display); font-size: var(--t-2xl);
+  text-transform: uppercase; letter-spacing: .01em;
+}
+.welcome-head p { margin: 0; color: var(--ink-2); }
+.welcome-q { margin: 0; padding: 0; border: 0; min-width: 0; display: grid; gap: var(--sp-2); }
+.welcome-q legend { padding: 0; margin-bottom: var(--sp-2); font-weight: 700; font-size: var(--t-md); }
+.welcome-q legend small { font-weight: 400; color: var(--ink-3); font-size: var(--t-sm); margin-left: 6px; }
+.welcome-roles { display: grid; grid-template-columns: 1fr 1fr; gap: 2px var(--sp-4); }
+.welcome-role { margin: 0; align-items: flex-start; }
+.welcome-role input { margin-top: 2px; }
+.welcome-role small { display: block; font-size: var(--t-xs); color: var(--ink-3); }
+.welcome-trades { display: flex; flex-wrap: wrap; gap: 6px; }
+.welcome-note {
+  margin: 0; padding: var(--sp-3); background: var(--surface-2);
+  font-size: var(--t-sm); color: var(--ink-2); border-left: 3px solid var(--accent);
+}
+.welcome-foot { display: flex; justify-content: flex-end; gap: var(--sp-2); }
+
+@media (max-width: 620px) {
+  /* Full screen on a phone: a sheet the size of the screen, footer always in reach. */
+  .welcome { width: 100vw; max-width: none; height: 100dvh; max-height: none; margin: 0; border: 0; }
+  .welcome-body { min-height: 100%; padding: var(--sp-5) var(--sp-4) 0; align-content: start; }
+  .welcome-roles { grid-template-columns: 1fr; }
+  .welcome-foot {
+    position: sticky; bottom: 0; margin: 0 calc(-1 * var(--sp-4));
+    padding: var(--sp-3) var(--sp-4); background: var(--surface); border-top: 1px solid var(--line);
+  }
+  .welcome-foot .btn { flex: 1; justify-content: center; }
+  /* Room for the lens button: the wordmark gives way first. */
+  .masthead .brand-name { display: none; }
+  .lens-btn { max-width: 170px; }
+  .lens-where { display: none; }
+}
+
+@media (pointer: coarse) {
+  .lens-btn { min-height: 44px; }
+}
+
+/* ============================================================== saving === */
+/* The heart (saved.js): on every card, beside the date, and in the drawer. */
+.heart {
+  display: inline-grid; place-items: center; flex: none;
+  width: 36px; height: 36px; margin: -8px -8px -8px 0; padding: 0;
+  color: var(--ink-faint); background: none; border: 0; cursor: pointer;
+}
+.heart:hover { color: var(--cancelled-dot); }
+.heart[aria-pressed="true"] { color: var(--cancelled-dot); }
+.heart:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.heart-label {
+  display: inline-flex; gap: 6px; width: auto; height: auto; margin: 10px 0 0; padding: 6px 12px;
+  font: inherit; font-size: var(--t-sm); font-weight: 700; color: var(--ink-2);
+  border: 1px solid var(--line-strong); background: var(--surface);
+}
+.heart-label[aria-pressed="true"] { color: var(--cancelled); border-color: var(--cancelled-dot); background: var(--cancelled-bg); }
+.card-top .heart { align-self: center; }
+
+/* Header: Saved count and the account corner. */
+.nav-count {
+  display: inline-grid; place-items: center; min-width: 20px; height: 20px; margin-left: 6px; padding: 0 5px;
+  font-family: var(--font); font-size: 11px; font-weight: 700; letter-spacing: 0;
+  color: var(--on-accent); background: var(--accent);
+}
+.mainnav { gap: var(--sp-2); }
+.account { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
+.acct-email { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-sm); color: var(--ink-2); }
+.account button.signout { font: inherit; font-size: var(--t-sm); background: none; border: 0; padding: 0; cursor: pointer; color: var(--accent-ink); font-weight: 600; }
+
+/* The Saved view: no toolbar, no filters, no map; just the list. */
+.app[data-mode="saved"] { --topbar-h: calc(var(--masthead-h) + 3px); --col-sidebar: 0px; --col-map: 0px; }
+.app[data-mode="saved"] .toolbar,
+.app[data-mode="saved"] .sidebar,
+.app[data-mode="saved"] .mappane,
+.app[data-mode="saved"] .sort,
+.app[data-mode="saved"] .source-note { display: none !important; }
+.app[data-mode="saved"] .feed-inner { max-width: 820px; margin: 0 auto; }
+.saved-filter { margin-bottom: var(--sp-4); }
+.saved-ctl {
+  display: grid; grid-template-columns: auto 1fr auto; gap: var(--sp-2); align-items: center;
+  margin-top: var(--sp-3); padding-top: var(--sp-3); border-top: 1px dashed var(--line);
+}
+.saved-status .select { min-width: 150px; }
+.card[data-status="not_relevant"] { opacity: .55; }
+.card[data-status="not_relevant"]:hover, .card[data-status="not_relevant"]:focus-within { opacity: 1; }
+.card[data-status="won"] { border-left: 4px solid var(--approved-dot); }
+.card[data-status="called"], .card[data-status="quoted"] { border-left: 4px solid var(--pending-dot); }
+
+@media (max-width: 620px) {
+  .saved-ctl { grid-template-columns: 1fr auto; }
+  .saved-ctl .saved-note { grid-column: 1 / -1; grid-row: 2; }
+  /* The account corner moves out of the crowded phone header; the Saved view
+     and the drawer still offer sign-in, and Sign out stays in the Saved view. */
+  .masthead .account { display: none; }
+  .app[data-mode="saved"] .masthead .account { display: flex; }
+  .app[data-mode="saved"] .masthead .lens-slot { display: none; }
+  .acct-email { max-width: 120px; }
+  .mainnav a { padding: 0 6px; }
+}
+
+@media (pointer: coarse) {
+  .heart { width: 44px; height: 44px; margin: -10px -10px -10px 0; }
+  .heart-label { min-height: 44px; }
+  .account button.signout, .account a.signout { min-height: 44px; display: inline-flex; align-items: center; }
+}
