@@ -68,4 +68,40 @@ function zipIsTrusted(z, located, coords = AREA_COORDS) {
   return Boolean(placed && placed.kind === 'zip');
 }
 
-module.exports = { placeArea, zipIsTrusted, farApart, cityKeyOf };
+// ── Broad areas (the "general location" in the Leads picker) ────────────────
+//
+// One per state we hold, because each state we sync is one market: Texas is
+// Austin and its ETJ, Florida is Miami-Dade and the City of Miami, North
+// Carolina is Raleigh. A state with only a handful of rows (a typo'd "CT" on
+// a Raleigh record) is not offered as an area; those rows stay reachable by
+// city. Keys are `a:<STATE>`, alongside the picker's `z:` and `c:` keys.
+const REGION_LABELS = { TX: 'Austin area, TX', FL: 'Miami area, FL', NC: 'Raleigh area, NC', OR: 'Oregon (older data)' };
+const MIN_REGION_PERMITS = 50;
+
+/** The broad areas to offer, busiest first, from listAreas() rows. */
+function regionsFrom(areas) {
+  const byState = new Map();
+  for (const c of areas.cities || []) {
+    const st = String(c.state || '').toUpperCase();
+    if (!st) continue;
+    byState.set(st, (byState.get(st) || 0) + c.permits);
+  }
+  return [...byState.entries()]
+    .filter(([, permits]) => permits >= MIN_REGION_PERMITS)
+    .map(([state, permits]) => ({ key: `a:${state}`, state, label: REGION_LABELS[state] || state, permits }))
+    .sort((a, b) => b.permits - a.permits);
+}
+
+/**
+ * The query filters for an `areas` value: each broad area `a:XX` becomes the
+ * state key `s:XX` that db/queries.js matches on the state column. That is
+ * exact, and it reaches the sources that publish no city or ZIP at all (City
+ * of Miami, Austin's plan-review feed), alone or mixed with other places.
+ * Returns the fields to merge over the request's filters.
+ */
+function areaFilters(areasParam) {
+  const keys = String(areasParam || '').split(',').map((k) => k.trim()).filter(Boolean);
+  return { areas: keys.map((k) => (k.startsWith('a:') ? `s:${k.slice(2).toUpperCase()}` : k)).join(',') };
+}
+
+module.exports = { placeArea, zipIsTrusted, farApart, cityKeyOf, regionsFrom, areaFilters, REGION_LABELS };

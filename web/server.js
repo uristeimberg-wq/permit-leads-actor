@@ -47,12 +47,20 @@ app.set('trust proxy', 1);
 // demo password; the token is the only key (web/digest_routes.js).
 app.use(digestRoutes.publicRouter());
 
-// A hosted demo sets DEMO_PASSWORD; see web/access.js.
-// Invite-only access (ADR-27): personal codes from `npm run invite`.
-app.use(demoGate(undefined, { invites: require('./invites.js').pgStore(db.query) }));
+// A hosted demo sets DEMO_PASSWORD; see web/access.js. Sign-in is by email
+// (web/users.js), which replaced the invite codes of ADR-27 (owner decision,
+// 2026-11-15); DEMO_PASSWORD stays the owner's key. Unset, the app is open and
+// the email is asked the first time someone saves a permit.
+const users = require('./users.js');
+const userStore = users.pgStore(db.query);
+const userSessions = users.sessions();
+app.use(demoGate(undefined, { users: { store: userStore, sessions: userSessions, normalEmail: users.normalEmail } }));
 
 // Digest email previews, behind the gate.
 app.use(digestRoutes.previewRouter());
+
+// The signed-in user and their saved permits (/api/me...).
+app.use(users.router({ store: userStore, sessions: userSessions, permitsByIds: queries.permitsByIds }));
 app.disable('x-powered-by');
 
 // Only these reach the query builder. Anything else a client sends is ignored
@@ -61,17 +69,30 @@ const FILTER_PARAMS = [
   'zip', 'city', 'state', 'jurisdiction', 'sourceArea', 'from', 'to',
   'stage', 'statusRaw', 'status', 'permitType', 'minValuation',
   'trade', 'minScore', 'q', 'page', 'pageSize', 'sort',
-  'hasContact', 'contractor', 'areas',
+  'hasContact', 'contractor', 'areas', 'ownerBuilder',
 ];
+
+const showOwnerBuilder = () => process.env.SHOW_OWNER_BUILDER === '1';
 
 function pickFilters(query) {
   const filters = {};
   // The trade filter selects by keyword fit scores, an inference (ADR-26).
-  const keys = trust.showInferences() ? FILTER_PARAMS : FILTER_PARAMS.filter((k) => k !== 'trade' && k !== 'minScore');
+  let keys = trust.showInferences() ? FILTER_PARAMS : FILTER_PARAMS.filter((k) => k !== 'trade' && k !== 'minScore');
+  // The owner-builder filter lists homeowner-pulled permits, which is the
+  // homeowner track (ADR-10). Owner's decision 2026-11-15: keep it hidden until
+  // that track's gate passes. SHOW_OWNER_BUILDER=1 turns it on.
+  if (!showOwnerBuilder()) keys = keys.filter((k) => k !== 'ownerBuilder');
   for (const key of keys) {
     const value = query[key];
     if (value !== undefined && value !== '') filters[key] = value;
   }
+  return filters;
+}
+
+/** pickFilters, with broad-area keys `a:XX` rewritten to state keys (web/areas.js). */
+function pickFiltersExpanded(query) {
+  const filters = pickFilters(query);
+  if (filters.areas) Object.assign(filters, areaFilters(filters.areas));
   return filters;
 }
 
@@ -84,7 +105,7 @@ const asyncRoute = (handler) => (req, res) => {
 };
 
 app.get('/api/permits', asyncRoute(async (req, res) => {
-  const filters = pickFilters(req.query);
+  const filters = await pickFiltersExpanded(req.query);
   const result = await queries.searchPermits(filters);
 
   // An uncovered ZIP and a ZIP with no matches look identical in the results
@@ -109,7 +130,7 @@ app.get('/api/permits/:id', asyncRoute(async (req, res) => {
 // Map and picker placement (web/areas.js): an area sits at the median of its
 // permits' located job sites, falling back to the committed prototype
 // centroids. No geocoding happens at request time.
-const { placeArea, zipIsTrusted } = require('./areas.js');
+const { placeArea, zipIsTrusted, regionsFrom, areaFilters } = require('./areas.js');
 // Past this, a cold centroid cache answers from the area file for one request.
 const CENTROID_WAIT_MS = 2000;
 
@@ -120,7 +141,7 @@ const CENTROID_WAIT_MS = 2000;
  * so. Street-level job sites come from /api/map/points instead.
  */
 app.get('/api/map', asyncRoute(async (req, res) => {
-  const [rows, located] = await Promise.all([queries.mapClusters(pickFilters(req.query)), queries.areaCentroids({ maxWaitMs: CENTROID_WAIT_MS })]);
+  const [rows, located] = await Promise.all([queries.mapClusters(await pickFiltersExpanded(req.query)), queries.areaCentroids({ maxWaitMs: CENTROID_WAIT_MS })]);
 
   const pins = new Map();
   let unplaced = 0;
@@ -156,7 +177,7 @@ app.get('/api/map/points', asyncRoute(async (req, res) => {
     && south < north && west < east && north - south <= 1 && east - west <= 1;
   // A box wider than about a city would scan most of the table: refuse it.
   if (!valid) return res.status(400).json({ error: 'bbox must be south,west,north,east and at most 1 degree across' });
-  return res.json(await queries.mapPoints(pickFilters(req.query), { south, west, north, east }));
+  return res.json(await queries.mapPoints(await pickFiltersExpanded(req.query), { south, west, north, east }));
 }));
 
 /**
@@ -174,6 +195,8 @@ app.get('/api/areas', asyncRoute(async (_req, res) => {
 
   res.json({
     ...areas,
+    // Broad areas for the Leads location picker (web/areas.js regionsFrom).
+    regions: regionsFrom(areas),
     zips: trusted,
     // Stated rather than silently dropped, so the difference is auditable.
     zipsHidden: areas.zips.length - trusted.length,
@@ -223,10 +246,11 @@ app.get('/api/pilot/imagery', (_req, res) => {
 app.use('/api/pilot', overviewApi);
 app.use('/api/pilot', pilotApi);
 
-// The overview is the front door; the original search tool stays reachable at
-// /search.html (and /index.html, so old links keep working).
-app.get('/', (_req, res) => res.redirect(302, '/pilot/live/'));
-app.get(['/search', '/search.html'], (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+// The Leads screen (the search tool) is the front door. /search and
+// /search.html stay as aliases so old links keep working. The pilot screens
+// (/pilot/live/*) are no longer linked from it but still load by URL.
+// /saved is the same page in its Saved view (app.js reads the path).
+app.get(['/', '/search', '/search.html', '/saved'], (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 app.use(express.static(path.join(__dirname, 'public')));
 

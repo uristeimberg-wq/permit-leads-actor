@@ -66,11 +66,13 @@ async function main() {
     const base = `http://127.0.0.1:${server.address().port}`;
     const get = async (p) => { const r = await realFetch(base + p); return { status: r.status, body: await r.json() }; };
 
-    await check('front door: / redirects to the overview, search stays reachable', async () => {
+    await check('front door: / serves the Leads page, /search stays an alias', async () => {
       const r = await realFetch(`${base}/`, { redirect: 'manual' });
-      assert.strictEqual(r.status, 302);
-      assert.strictEqual(r.headers.get('location'), '/pilot/live/');
+      assert.strictEqual(r.status, 200);
+      assert.match(await r.text(), /id="app"/);
+      assert.strictEqual((await realFetch(`${base}/search`)).status, 200);
       assert.strictEqual((await realFetch(`${base}/search.html`)).status, 200);
+      assert.strictEqual((await realFetch(`${base}/pilot/live/`)).status, 200);
     });
 
     let d;

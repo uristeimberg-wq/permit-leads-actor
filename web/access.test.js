@@ -200,5 +200,64 @@ const cookieOf = (r) => (r.headers.get('set-cookie') || '').split(';')[0];
     } finally { console.error = err; }
   });
 
+  // Email sign-in (web/users.js), which replaced invite codes on 2026-11-15.
+  const { sessions: userSessions, normalEmail } = require('./users.js');
+  const emailUsers = () => {
+    const made = [];
+    const store = { findOrCreate: async (email) => { made.push(email); return { id: made.length, email }; } };
+    return { made, opts: { users: { store, sessions: userSessions({ key: Buffer.alloc(32, 3) }), normalEmail } } };
+  };
+  const emailIn = (go, fields, ip = '10.4.4.4') => go('/login', {
+    method: 'POST', body: new URLSearchParams({ next: '/page', ...fields }),
+    headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-forwarded-for': ip },
+  });
+
+  await check('email mode: the page asks for an email, with the owner key tucked away', async () => {
+    const { opts } = emailUsers();
+    await withApp('s3cret', async (go) => {
+      const html = await (await go('/login')).text();
+      assert.match(html, /name="email"/);
+      assert.match(html, /<details class="owner">/);
+      assert.doesNotMatch(html, /Access code/);
+    }, opts);
+  });
+
+  await check('email mode: any well-formed email signs in, lower-cased, and opens pages and the API', async () => {
+    const { made, opts } = emailUsers();
+    await withApp('s3cret', async (go) => {
+      const r = await emailIn(go, { email: ' Dana@Example.com ' });
+      assert.strictEqual(r.status, 303);
+      assert.strictEqual(r.headers.get('location'), '/page');
+      assert.deepStrictEqual(made, ['dana@example.com']);
+      const cookie = cookieOf(r);
+      assert.match(cookie, /^ct_user=/);
+      assert.strictEqual((await go('/page', { headers: { cookie } })).status, 200);
+      assert.strictEqual((await go('/api/x', { headers: { cookie } })).status, 200);
+    }, opts);
+  });
+
+  await check('email mode: a malformed email is refused; the owner key still works, a wrong one does not', async () => {
+    const { made, opts } = emailUsers();
+    await withApp('s3cret', async (go) => {
+      assert.strictEqual((await emailIn(go, { email: 'not-an-email' })).status, 400);
+      assert.strictEqual((await emailIn(go, {})).status, 400);
+      assert.strictEqual((await emailIn(go, { password: 'nope' })).status, 401);
+      const owner = await emailIn(go, { password: 's3cret', email: 'ignored@example.com' });
+      assert.strictEqual(owner.status, 303);
+      assert.match(cookieOf(owner), /^demo_session=/);
+      assert.deepStrictEqual(made, [], 'the owner key signs in without creating a user');
+    }, opts);
+  });
+
+  await check('email mode: /logout clears both sessions', async () => {
+    const { opts } = emailUsers();
+    await withApp('s3cret', async (go) => {
+      const r = await go('/logout');
+      const set = r.headers.get('set-cookie') || '';
+      assert.match(set, /demo_session=;/);
+      assert.match(set, /ct_user=;/);
+    }, opts);
+  });
+
   if (failures) process.exitCode = 1;
 })();

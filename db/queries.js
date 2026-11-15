@@ -74,11 +74,15 @@ function buildWhere(filters, params = []) {
   if (filters.areas) {
     const zips = [];
     const cities = [];
+    const states = [];
     for (const key of String(filters.areas).split(',')) {
       const value = key.slice(2).trim();
       if (!value) continue;
       if (key.startsWith('z:')) zips.push(value);
       else if (key.startsWith('c:')) cities.push(value.toUpperCase());
+      // `s:TX`: a whole market (the Leads screen's broad areas). It reaches the
+      // sources that publish no city or ZIP (City of Miami, Austin plan review).
+      else if (key.startsWith('s:')) states.push(value.toUpperCase());
     }
     const parts = [];
     if (zips.length) { params.push(zips); parts.push(`zip = ANY($${params.length}::text[])`); }
@@ -86,6 +90,7 @@ function buildWhere(filters, params = []) {
       params.push(cities);
       parts.push(`upper(city) || '|' || upper(state) = ANY($${params.length}::text[])`);
     }
+    if (states.length) { params.push(states); parts.push(`upper(state) = ANY($${params.length}::text[])`); }
     // No recognised key means the viewport covers nothing we hold. Say that
     // with a false clause rather than silently returning the whole table.
     clauses.push(parts.length ? `(${parts.join(' OR ')})` : 'false');
@@ -117,7 +122,22 @@ function buildWhere(filters, params = []) {
   if (filters.contractor) add('contractor_name ILIKE ?', `%${String(filters.contractor).trim()}%`);
   if (filters.statusRaw) add('lower(status_raw) = lower(?)', String(filters.statusRaw).trim());
   if (filters.status) add('status = ?', String(filters.status).trim().toLowerCase());
-  if (filters.permitType) add('permit_type = ?', String(filters.permitType).trim());
+  // One type, or several separated by `|` (some raw types contain commas, none
+  // contain a pipe). A single value, as in old links, behaves as before.
+  if (filters.permitType) {
+    const types = String(filters.permitType).split('|').map((t) => t.trim()).filter(Boolean);
+    if (types.length === 1) add('permit_type = ?', types[0]);
+    else if (types.length > 1) { params.push(types); clauses.push(`permit_type = ANY($${params.length}::text[])`); }
+  }
+  // Owner-builder: the homeowner pulled the permit, so the contractor field
+  // holds an owner marker. The SQL twin of src/contractors.js isOwnerBuilder,
+  // except a missing name: "no contractor listed" is not "the homeowner".
+  // Only the marker is shown; the owner's name and phone never are (rule 5).
+  if (filters.ownerBuilder === 'true' || filters.ownerBuilder === true) {
+    params.push(NON_CONTRACTORS);
+    clauses.push(`(contractor_name IS NOT NULL AND (upper(trim(contractor_name)) = ANY($${params.length}::text[])
+      OR contractor_name ~* '^\\s*owner\\M' OR contractor_name ~* '\\mhomeowner\\M'))`);
+  }
   if (filters.minValuation != null && filters.minValuation !== '') {
     add('valuation >= ?', Number(filters.minValuation) || 0);
   }
@@ -447,6 +467,22 @@ async function getPermit(id) {
   return rows[0] ? maskRow(dropSuppressedPhone(redactContractor(rows[0]), await suppressedPhones())) : null;
 }
 
+/**
+ * Several permits by id, for a user's saved list. The same columns and the
+ * same redaction as getPermit, so a saved permit never shows more than the
+ * search does. Order follows `ids`; ids we no longer hold are skipped.
+ */
+async function permitsByIds(ids) {
+  const wanted = [...new Set((ids || []).map(Number).filter(Number.isSafeInteger))];
+  if (!wanted.length) return [];
+  const [{ rows }, suppressed] = await Promise.all([
+    query(`SELECT ${RESULT_COLUMNS}, ${LOCATION_COLUMN} FROM permits WHERE id = ANY($1::bigint[])`, [wanted]),
+    suppressedPhones(),
+  ]);
+  const byId = new Map(rows.map((r) => [Number(r.id), maskRow(dropSuppressedPhone(redactContractor(r), suppressed))]));
+  return wanted.map((id) => byId.get(id)).filter(Boolean);
+}
+
 /** Phones under a removal request (009_suppressions.sql), as a Set of E.164. */
 async function suppressedPhones() {
   const { rows } = await query('SELECT value FROM suppressed_phones');
@@ -486,7 +522,7 @@ async function enrichmentCredits() {
 
 module.exports = {
   RESULT_COLUMNS,
-  searchPermits, listAreas, listFilterOptions, getPermit, isZipCovered, getFreshness, enrichmentCredits,
+  searchPermits, listAreas, listFilterOptions, getPermit, permitsByIds, isZipCovered, getFreshness, enrichmentCredits,
   mapClusters, mapPoints, areaCentroids, searchContractors, getContractorHistory, isRealContractor,
   buildWhere, MAX_PAGE_SIZE, DEFAULT_PAGE_SIZE,
 };
