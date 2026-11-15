@@ -281,6 +281,12 @@ jobs:
         env:
           DATABASE_URL: ${{ env.DB_URL }}
         run: node ingest/prune.js
+      # Usage analytics older than 13 months (ADR-37, owner decision 2026-11-15).
+      - name: Analytics retention
+        if: always() && steps.secret.outputs.ready == 'true' && !inputs.ephemeral
+        env:
+          DATABASE_URL: ${{ env.DB_URL }}
+        run: set -o pipefail; node ingest/analytics_retention.js | tee -a "$GITHUB_STEP_SUMMARY"
       # Data-quality scorecard (ADR-23): today's value per market and metric,
       # with the day-30 and day-90 targets, into scorecard_snapshots.
       - name: Scorecard

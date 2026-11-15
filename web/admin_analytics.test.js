@@ -53,7 +53,9 @@ async function withApp(password, fn) {
 
   await check('a signed-in email user (not the owner) gets 403, page and API', () => withApp('owner-key', async (go, { userCookie, queries }) => {
     for (const p of PATHS) assert.strictEqual((await go(p, { headers: { cookie: userCookie } })).status, 403, p);
-    assert.strictEqual((await go('/admin/analytics', { headers: { cookie: userCookie, accept: 'text/html' } })).status, 403);
+    const page = await go('/admin/analytics', { headers: { cookie: userCookie, accept: 'text/html' } });
+    assert.strictEqual(page.status, 302, 'a browser is sent to the owner sign-in, not shown JSON');
+    assert.strictEqual(page.headers.get('location'), '/login?next=%2Fadmin%2Fanalytics');
     assert.strictEqual(queries.length, 0);
   }));
 
@@ -64,7 +66,21 @@ async function withApp(password, fn) {
   await check('the sign-in page asks for the owner key when an email user is sent to /admin', () => withApp('owner-key', async (go, { userCookie }) => {
     const r = await go('/login?next=%2Fadmin%2Fanalytics', { headers: { cookie: userCookie } });
     assert.strictEqual(r.status, 200);
-    assert.match(await r.text(), /Owner key/);
+    const html = await r.text();
+    assert.match(html, /Owner sign-in/);
+    assert.match(html, /name="password"[^>]*required autofocus/);
+    assert.doesNotMatch(html, /name="email"/, 'only the owner key is asked');
+    assert.match(html, /name="next" value="\/admin\/analytics"/);
+  }));
+
+  await check('owner sign-in: an empty key is refused on the page; the right key returns to the dashboard', () => withApp('owner-key', async (go) => {
+    const form = (pw) => go('/login', { method: 'POST', body: new URLSearchParams({ password: pw, next: '/admin/analytics' }), headers: { 'content-type': 'application/x-www-form-urlencoded' } });
+    const empty = await form('');
+    assert.strictEqual(empty.status, 400);
+    assert.match(await empty.text(), /Enter the owner key/);
+    const ok = await form('owner-key');
+    assert.strictEqual(ok.status, 303);
+    assert.strictEqual(ok.headers.get('location'), '/admin/analytics');
   }));
 
   await check('wrong owner key: 401', () => withApp('owner-key', async (go) => {

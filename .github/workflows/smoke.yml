@@ -41,7 +41,10 @@ jobs:
           # and an ingestion endpoint that refuses a malformed batch (nothing written).
           c=$(code -H 'accept: application/json' "$BASE/api/admin/analytics/summary"); echo "no session analytics API: $c (want 401)"; [ "$c" = 401 ] || fail=1
           c=$(code -H 'accept: application/json' "$BASE/admin/analytics"); echo "no session analytics page: $c (want 401)"; [ "$c" = 401 ] || fail=1
+          c=$(code -H 'accept: text/html' "$BASE/admin/analytics"); echo "browser, no session, analytics page: $c (want 302 to the owner sign-in)"; [ "$c" = 302 ] || fail=1
+          curl -s --max-time 30 "$BASE/login?next=%2Fadmin%2Fanalytics" | grep -q 'Owner sign-in' && echo "owner sign-in page shown" || { echo "owner sign-in page missing"; fail=1; }
           c=$(code "$BASE/privacy"); echo "privacy page: $c (want 200)"; [ "$c" = 200 ] || fail=1
+          curl -s --max-time 30 "$BASE/privacy" | grep -q '13 months' && echo "privacy page states 13-month retention" || { echo "privacy page: no retention statement"; fail=1; }
           c=$(code -X POST -H 'content-type: application/json' --data '{}' "$BASE/api/telemetry/events"); echo "telemetry malformed batch: $c (want 400)"; [ "$c" = 400 ] || fail=1
           c=$(code -u "x:wrong-password" -H 'accept: application/json' "$BASE/digest/preview"); echo "wrong password: $c (want 401)"; [ "$c" = 401 ] || fail=1
           c=$(code -X POST --data-urlencode "password=wrong-password" "$BASE/login"); echo "wrong sign-in: $c (want 401)"; [ "$c" = 401 ] || fail=1

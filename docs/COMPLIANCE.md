@@ -55,8 +55,10 @@ are in `docs/DATA_SOURCES.md`, "Licence and terms review".
   `/privacy` says what is collected and has an opt-out; Do Not Track and
   Global Privacy Control switch it off.
 - Emails and phone numbers typed into search are redacted before storage.
-- Open: a retention limit for raw events (proposal: 13 months, then delete),
-  a link to `/privacy` in the customer terms, and whether any market we sell
+- Retention: raw events and sessions are deleted 13 months after they were
+  recorded (owner decision 2026-11-15), daily by `ingest/analytics_retention.js`
+  in the sync workflow.
+- Open: a link to `/privacy` in the customer terms, and whether any market we sell
   into needs a cookie/localStorage consent banner rather than a notice
   (counsel question).
 - Deleting a person's analytics on request: `DELETE FROM analytics_events

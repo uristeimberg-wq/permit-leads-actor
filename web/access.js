@@ -48,7 +48,7 @@ const { INDUSTRIES, cleanIndustry } = require('./invites.js');
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-function loginPage({ next = '/', error = '', invites = false, email = false } = {}) {
+function loginPage({ next = '/', error = '', invites = false, email = false, owner = false } = {}) {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -106,19 +106,21 @@ footer div { padding-top: 16px; padding-bottom: 16px; border-top: 1px solid oklc
 <header><div><span class="wordmark"><i aria-hidden="true"></i>Contractos</span></div></header>
 <main>
   <section class="plate" aria-labelledby="t">
-    <h1 id="t">Construction permit data</h1>
-    <p>Permit, planning and property records from public sources, with the source behind every value. ${email ? 'Sign in with your email to see leads and keep your saved permits.' : invites ? 'Access is by invitation: enter the code you were given.' : 'Enter the password to continue.'}</p>
+    <h1 id="t">${owner ? 'Owner sign-in' : 'Construction permit data'}</h1>
+    <p>${owner ? 'This page is for the site owner. Enter the owner key to continue.' : `Permit, planning and property records from public sources, with the source behind every value. ${email ? 'Sign in with your email to see leads and keep your saved permits.' : invites ? 'Access is by invitation: enter the code you were given.' : 'Enter the password to continue.'}`}</p>
     ${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}
     <form method="post" action="/login">
       <input type="hidden" name="next" value="${esc(next)}">
-      ${email ? `<label for="em">Email</label>
+      ${owner ? `<label for="pw">Owner key</label>
+      <input id="pw" name="password" type="password" autocomplete="current-password" required autofocus>`
+      : email ? `<label for="em">Email</label>
       <input id="em" name="email" type="email" autocomplete="email" inputmode="email" maxlength="254" autofocus>
       <details class="owner"><summary>Owner key</summary>
         <label for="pw">Owner key</label>
         <input id="pw" name="password" type="password" autocomplete="current-password">
       </details>` : `<label for="pw">${invites ? 'Access code' : 'Password'}</label>
       <input id="pw" name="password" type="password" autocomplete="current-password" required autofocus>`}
-      ${invites ? `<label for="ind">Your industry (optional)</label>
+      ${invites && !owner ? `<label for="ind">Your industry (optional)</label>
       <select id="ind" name="industry">${Object.entries(INDUSTRIES).map(([k, v]) => `<option value="${esc(k)}">${esc(v)}</option>`).join('')}</select>
       <label for="ind-o">If other, which (optional)</label>
       <input id="ind-o" name="industryOther" maxlength="80" autocomplete="organization-title">` : ''}
@@ -126,7 +128,7 @@ footer div { padding-top: 16px; padding-bottom: 16px; border-top: 1px solid oklc
     </form>
   </section>
 </main>
-<footer><div>Built on public records. Individuals' names and contacts are withheld. ${email ? 'Your email only keeps your saved permits; we do not check it or send you mail.' : 'Your industry only tells us who uses the data; it does not change what you see.'}</div></footer>
+<footer><div>Built on public records. Individuals' names and contacts are withheld. ${owner ? '' : email ? 'Your email only keeps your saved permits; we do not check it or send you mail.' : 'Your industry only tells us who uses the data; it does not change what you see.'}</div></footer>
 </body>
 </html>`;
 }
@@ -154,7 +156,10 @@ function demoGate(password = process.env.DEMO_PASSWORD, opts = {}) {
   const now = opts.now || Date.now;
   const users = opts.users || null;
   const store = users ? null : (opts.invites || null);
-  const page = (o) => loginPage({ ...o, invites: Boolean(store), email: Boolean(users) });
+  // A sign-in on the way to an owner-only page (/admin/analytics) asks for
+  // the owner key alone: an email sign-in could never open it.
+  const ownerPath = (next) => Boolean(opts.ownerOnly && opts.ownerOnly({ path: String(next || '/').split('?')[0] }));
+  const page = (o) => loginPage({ ...o, invites: Boolean(store), email: Boolean(users), owner: ownerPath(o.next) });
   const live = new Map(); // invite id -> { ok, at }, so a revoked code stops within a minute
   const inviteLive = async (id) => {
     if (id === 0) return true;
@@ -224,6 +229,7 @@ function demoGate(password = process.env.DEMO_PASSWORD, opts = {}) {
       return html(res, 429, page({ next, error: 'Too many attempts. Wait 15 minutes, then try again.' }));
     }
     const given = (req.body && req.body.password) || '';
+    if (!given && ownerPath(next)) return html(res, 400, page({ next, error: 'Enter the owner key.' }));
     // Email sign-in (no verification, by owner decision): any well-formed
     // address is a user. The owner key, when typed, takes precedence.
     if (users && !given) {
@@ -275,7 +281,9 @@ function demoGate(password = process.env.DEMO_PASSWORD, opts = {}) {
       const signedIn = await validSession(req);
       const wantsPage = (req.method === 'GET' || req.method === 'HEAD') && !req.path.startsWith('/api/')
         && /text\/html/.test(String(req.headers.accept || ''));
-      if (wantsPage && !signedIn) return res.redirect(302, `/login?next=${encodeURIComponent(req.originalUrl)}`);
+      // A browser gets the owner sign-in page (even when signed in by email),
+      // never a JSON error; API calls keep 401/403.
+      if (wantsPage) return res.redirect(302, `/login?next=${encodeURIComponent(req.originalUrl)}`);
       return res.status(signedIn ? 403 : 401).set('Cache-Control', 'no-store')
         .json({ error: signedIn ? 'Owner only' : 'Sign in required' });
     }

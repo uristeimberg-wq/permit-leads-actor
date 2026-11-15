@@ -174,10 +174,29 @@ async function main() {
     await check('the dashboard and its API: 401 without a key, 403 for an email user', async () => {
       assert.strictEqual((await adminGet('/api/admin/analytics/summary', {})).status, 401);
       assert.strictEqual((await adminGet('/api/admin/analytics/summary', { cookie })).status, 403);
-      assert.strictEqual((await adminGet('/admin/analytics', { cookie, accept: 'text/html' })).status, 403);
+      assert.strictEqual((await adminGet('/admin/analytics', { cookie, accept: 'text/html' })).status, 302, 'a browser goes to the owner sign-in');
       assert.strictEqual((await adminGet('/admin/analytics', { accept: 'text/html' })).status, 302);
       assert.strictEqual((await adminGet('/admin/analytics', ownerAuth)).status, 200);
       assert.strictEqual((await adminGet('/api/permits?stage=any', {})).status, 200, 'the app itself stays open');
+    });
+
+    await check('retention: events and sessions past 13 months are deleted, newer ones kept', async () => {
+      const { pruneAnalytics } = require('../../ingest/analytics_retention.js');
+      const oldS = uuid('9', 9); const oldD = uuid('8', 8);
+      await db.query(`INSERT INTO analytics_sessions (session_id, anonymous_device_id, started_at, last_active_at)
+                      VALUES ($1, $2, now() - interval '14 months', now() - interval '14 months')`, [oldS, oldD]);
+      await db.query(`INSERT INTO analytics_events (event_id, session_id, anonymous_device_id, event_name, event_category, client_timestamp, server_received_at)
+                      VALUES ($1, $2, $3, 'page_view', 'navigation', now() - interval '14 months', now() - interval '14 months')`, [uuid('7', 7), oldS, oldD]);
+      // A recent session with one event just past the window and one inside it.
+      await db.query(`INSERT INTO analytics_events (event_id, session_id, anonymous_device_id, event_name, event_category, client_timestamp, server_received_at)
+                      VALUES ($1, $2, $3, 'page_view', 'navigation', now() - interval '13 months 1 day', now() - interval '13 months 1 day')`, [uuid('6', 6), S1, D1]);
+      const before = (await one('SELECT count(*)::int AS n FROM analytics_events')).n;
+      const r = await pruneAnalytics(db.query, { batch: 1 });
+      assert.deepStrictEqual([r.events, r.sessions], [2, 1]);
+      assert.strictEqual((await one('SELECT count(*)::int AS n FROM analytics_events')).n, before - 2);
+      assert.strictEqual((await one('SELECT count(*)::int AS n FROM analytics_sessions WHERE session_id = $1', [oldS])).n, 0);
+      assert.strictEqual((await one('SELECT count(*)::int AS n FROM analytics_sessions WHERE session_id = $1', [S1])).n, 1, 'a recent session stays');
+      assert.deepStrictEqual(await pruneAnalytics(db.query).then((x) => [x.events, x.sessions]), [0, 0], 'a re-run deletes nothing');
     });
 
     await check('the privacy page is public', async () => {

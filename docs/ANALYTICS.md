@@ -86,6 +86,14 @@ dashboard says how many were excluded.
   opened after that search, then contact/save/export/alert after that, then a
   session that starts after that action.
 
+## Retention
+
+Events and sessions are deleted 13 months after they were recorded (owner
+decision 2026-11-15). `ingest/analytics_retention.js` runs daily in the sync
+workflow and prints what it deleted; events go by `server_received_at`,
+sessions by `last_active_at`, and a device-to-user link once its device has
+no session left.
+
 ## Ingestion
 
 `POST /api/telemetry/events`, JSON (or text/plain from old beacons), at most

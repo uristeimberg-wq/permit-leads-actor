@@ -67,6 +67,8 @@ function measure(minTarget) {
     const ids = await pickIds(ctx);
     const pages = [
       ['login', '/login'],
+      // Signed out, on the way to the owner-only dashboard: the owner-key form.
+      ['owner-login', '/login?next=%2Fadmin%2Fanalytics'],
       ['overview', '/pilot/live/'],
       ['early', '/pilot/live/early.html'],
       ['early-raleigh', '/pilot/live/early.html?source=raleigh-nc'],
@@ -86,7 +88,7 @@ function measure(minTarget) {
     if (!ids.job || !ids.gc) console.log(`${vp.name}: no ${ids.job ? '' : 'job '}${ids.gc ? '' : 'contractor '}to open (empty data?)`);
     for (const [name, url] of pages) {
       // The sign-in page is checked signed out, as a visitor sees it.
-      const page = name === 'login' ? await (await browser.newContext({ viewport: { width: vp.width, height: vp.height }, hasTouch: true, isMobile: true })).newPage() : await ctx.newPage();
+      const page = name === 'login' || name === 'owner-login' ? await (await browser.newContext({ viewport: { width: vp.width, height: vp.height }, hasTouch: true, isMobile: true })).newPage() : await ctx.newPage();
       const errors = [];
       page.on('pageerror', (e) => errors.push(e.message));
       await page.goto(BASE + url, { waitUntil: 'networkidle', timeout: 60000 }).catch((e) => errors.push(`load: ${e.message}`));

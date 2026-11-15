@@ -978,5 +978,5 @@ what would make us revisit it. Never delete an entry; supersede it.
   de-duplicate; partitioning later needs dedup moved to a staging step.
   Because sign-in is unverified, anyone typing someone's email links their
   own device to that user; the timelines are a discovery aid, not an audit
-  trail. Retention of raw events is not yet capped (open item in
-  docs/COMPLIANCE.md).
+  trail. Retention: events and sessions are deleted after 13 months (owner
+  decision 2026-11-15; `ingest/analytics_retention.js`, daily in the sync).
