@@ -166,13 +166,16 @@
               <span class="check-label">Has a phone number</span>
             </label>
             <!-- Owner-builder permits: the homeowner pulled it. Only the marker
-                 is used; owners' names and phones are never shown (ADR-10). -->
-            <label class="check">
+                 is used; owners' names and phones are never shown (ADR-10).
+                 Hidden by the owner's decision (2026-11-15) until the homeowner
+                 track's gate passes; the server ignores the filter unless
+                 SHOW_OWNER_BUILDER=1. -->
+            <label class="check" hidden>
               <input type="checkbox" id="ownerBuilder" name="ownerBuilder" value="true">
               <span class="check-label">Filed by the homeowner (owner-builder)</span>
             </label>
           </div>
-          <p class="hint">Mostly Miami-Dade; other cities don't record it. Owners' names and phones are never shown.</p>
+          <p class="hint" hidden>Mostly Miami-Dade; other cities don't record it. Owners' names and phones are never shown.</p>
           <div class="field">
             <label for="contractor">Contractor or company</label>
             <input class="input" id="contractor" name="contractor" list="contractorList"

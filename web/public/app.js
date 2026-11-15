@@ -133,7 +133,8 @@ function currentFilters() {
   if (jurisdictionFilter) f.jurisdiction = jurisdictionFilter;
   if (typeSelection.length) f.permitType = typeSelection.join(TYPE_SEP);
   if ($('hasContact').checked) f.hasContact = 'true';
-  if ($('ownerBuilder').checked) f.ownerBuilder = 'true';
+  // The owner-builder filter is hidden (ADR-10, index.html); a hidden box never filters.
+  if ($('ownerBuilder').checked && !$('ownerBuilder').closest('[hidden]')) f.ownerBuilder = 'true';
 
   const stages = checkedStages();
   // Three cases, so the URL stays as short as the query is plain:
@@ -173,7 +174,7 @@ function applyUrl() {
   areaSelection = p.get('areas') ? p.get('areas').split(',').filter(Boolean) : null;
   jurisdictionFilter = p.get('jurisdiction') || '';
   typeSelection = p.get('permitType') ? p.get('permitType').split(TYPE_SEP).map((t) => t.trim()).filter(Boolean) : [];
-  $('ownerBuilder').checked = p.get('ownerBuilder') === 'true';
+  $('ownerBuilder').checked = p.get('ownerBuilder') === 'true' && !$('ownerBuilder').closest('[hidden]');
   // An old `zip=`/`city=` link is turned into a picker key once the places are
   // loaded (loadOptions). The raw params are kept meanwhile, because a URL can
   // name a place we hold nothing for, and answering that with the whole table

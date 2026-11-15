@@ -24,8 +24,7 @@ const rows = [
   row(1, 'BP'),
   row(2, 'EP', { contractor_company_name: 'Volt Electric LLC', contractor_phone: '5125550111' }),
   // Homeowner pulled it, written the way the data has it (Miami-Dade "OWNER").
-  // Not "OWNER BUILDER": src/contractors.js partyKind reads BUILDER as a
-  // business word, so that spelling keeps its phone (reported for a fix there).
+  // "OWNER BUILDER" is covered by src/privacy.test.js (fixed in #96).
   row(3, 'PP', { contractor_company_name: 'OWNER', contractor_phone: '5125550199' }),
   row(4, 'BP', { contractor_company_name: '', contractor_phone: '' }),                            // no contractor listed
   row(5, 'BP', { original_city: '', original_zip: '' }),                                          // no city or ZIP, state only
@@ -72,8 +71,15 @@ async function main() {
       assert.strictEqual(await total('permitType=Building%20Permit%7CElectrical%20Permit'), 5);
     });
 
+    await check('ownerBuilder is ignored while the filter is hidden (ADR-10, owner decision 2026-11-15)', async () => {
+      delete process.env.SHOW_OWNER_BUILDER;
+      assert.strictEqual(await total('ownerBuilder=true'), await total(''));
+    });
+
     await check('ownerBuilder: the homeowner-pulled permit only; no phone, no owner field', async () => {
+      process.env.SHOW_OWNER_BUILDER = '1';
       const { body } = await get('/api/permits?stage=any&ownerBuilder=true');
+      delete process.env.SHOW_OWNER_BUILDER;
       assert.deepStrictEqual(body.results.map((r) => r.id), [id(3)], 'a missing contractor is not "the homeowner"');
       assert.strictEqual(body.results[0].contractor_phone, null);
       assert.ok(!('owner' in body.results[0]));

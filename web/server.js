@@ -72,10 +72,16 @@ const FILTER_PARAMS = [
   'hasContact', 'contractor', 'areas', 'ownerBuilder',
 ];
 
+const showOwnerBuilder = () => process.env.SHOW_OWNER_BUILDER === '1';
+
 function pickFilters(query) {
   const filters = {};
   // The trade filter selects by keyword fit scores, an inference (ADR-26).
-  const keys = trust.showInferences() ? FILTER_PARAMS : FILTER_PARAMS.filter((k) => k !== 'trade' && k !== 'minScore');
+  let keys = trust.showInferences() ? FILTER_PARAMS : FILTER_PARAMS.filter((k) => k !== 'trade' && k !== 'minScore');
+  // The owner-builder filter lists homeowner-pulled permits, which is the
+  // homeowner track (ADR-10). Owner's decision 2026-11-15: keep it hidden until
+  // that track's gate passes. SHOW_OWNER_BUILDER=1 turns it on.
+  if (!showOwnerBuilder()) keys = keys.filter((k) => k !== 'ownerBuilder');
   for (const key of keys) {
     const value = query[key];
     if (value !== undefined && value !== '') filters[key] = value;
