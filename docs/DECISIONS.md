@@ -807,3 +807,27 @@ what would make us revisit it. Never delete an entry; supersede it.
 - **Consequences:** source_url fills on older raw rows only as runs see their
   keys again. The first runs after a long outage are bigger and may hit
   `maxPerRun`, which is recorded and keeps the watermark in place.
+
+## ADR-31: One signal model as views, links carry their provenance class
+
+- **Date:** 2026-11-15. Data-engine brief, phases 2 and 3.
+- **Context:** permits, applications, planning cases and inspections live in
+  their own tables and link tables. The brief asked for a unified
+  `construction_signals` / `projects` model and a provenance tag on every
+  entity relationship.
+- **Decision (migration 036):** `construction_signals`, `signal_links`,
+  `entity_links` and `contractor_portfolio` are views, so nothing is copied
+  and nothing can drift. Each link carries `provenance`, the brief's word for
+  the ADR-26 trust classes: `cross_source_verified` for official keys
+  (permit or master number, licence number, the source's parcel id),
+  `parsed_inferred` for name, phone, parcel-window and address joins and
+  rules on text, `missing` for nothing linked. No `projects` table: one parcel
+  carries many projects over the years, so a parcel grouping would invent
+  projects; filings connect only through explicit links. Portfolios count
+  licence-linked and name-linked permits apart. The 035 lifecycle CHECKs are
+  validated (0 rows outside the vocabulary, measured live).
+- **Consequences:** no screen reads these views yet; anything shown from
+  them still passes `web/trust.js`. The Florida "split firm" count drops from
+  1,421 names to 294 once entities with no permits left (merged away by
+  rule 3 and kept by `ingest/resolve.js`) are excluded; the 294 have 2+ or
+  no Sunbiz candidates and stay apart until a rule is measured.
