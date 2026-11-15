@@ -21,13 +21,8 @@
 
 const $ = (id) => document.getElementById(id);
 
-const STAGES = [
-  ['pending',   'Waiting for approval'],
-  ['approved',  'Approved'],
-  ['finished',  'Finished'],
-  ['cancelled', 'Cancelled'],
-  ['unknown',   'Unknown'],
-];
+// The Stage filter's groups and their labels: one vocabulary (stages.js).
+const STAGES = window.Stages.GROUPS;
 // Matches DEFAULT_STAGES in src/status.js: work that might still happen.
 const DEFAULT_STAGES = ['pending', 'approved'];
 
@@ -444,12 +439,12 @@ function clearFilter(key) {
 /* ----------------------------------------------------------------- results */
 
 function stageBadge(p) {
-  // Our stage in its own colour, so it always agrees with the Stage filter: a
-  // plan-review "Approved" is still waiting for its permit, and showing the
-  // portal's word alone read as approved. The portal's wording follows in
-  // small type, because it is the record's own status.
-  const stage = STAGES.some(([k]) => k === p.status_stage) ? p.status_stage : 'unknown';
-  const label = STAGES.find(([k]) => k === stage)[1];
+  // The colour is the Stage filter's group; the text is the finer stage the
+  // source's wording maps to (stages.js), so a plan-review "Approved and
+  // Released" reads "Approved, not issued", never "waiting for approval". The
+  // portal's wording follows in small type, because it is the record's own
+  // status.
+  const { group: stage, label } = window.Stages.badge(p);
   const raw = p.status_raw || p.status || '';
   const showRaw = raw && raw.toLowerCase() !== label.toLowerCase();
   return `<span class="stage ${stage}">${esc(label)}</span>${showRaw
@@ -972,7 +967,7 @@ function pinHtml(count, pending, title, extra = '') {
 function addPin(pin) {
   const title = `${pin.label}${pin.sublabel ? ` · ${pin.sublabel}` : ''} — ` +
     `${plural(pin.permits, 'permit', 'permits')}` +
-    (pin.pending ? `, ${pin.pending} waiting for approval` : '');
+    (pin.pending ? `, ${pin.pending} not issued yet` : '');
 
   const marker = L.marker([pin.lat, pin.lng], {
     icon: L.divIcon({ className: 'pin-wrap', html: pinHtml(pin.permits, pin.pending, title), iconSize: [0, 0] }),
@@ -989,7 +984,7 @@ function addCluster(group, zoom) {
   const centre = map.unproject([group.x / group.permits, group.y / group.permits], zoom);
   const title = `${plural(group.permits, 'permit', 'permits')} across ` +
     `${plural(group.members.length, 'area', 'areas')}` +
-    (group.pending ? `, ${group.pending} waiting for approval` : '') +
+    (group.pending ? `, ${group.pending} not issued yet` : '') +
     ' — click to zoom in';
 
   const marker = L.marker(centre, {
@@ -1203,8 +1198,8 @@ async function openDetail(id, cardEl) {
     <div class="sect">Permit</div>
     <dl class="kv">
       ${row('Status', p.status_raw)}
-      ${row('Stage', p.status_stage)}
-      ${row('Filed', fmtDate(p.filed_date))}
+      ${row('Stage', window.Stages.badge(p).label)}
+      ${row(p.filing_kind === 'building_application' ? 'Applied' : 'Issued', fmtDate(p.filed_date))}
       ${row('Permit no.', p.permit_number)}
       ${row('Type', p.permit_type)}
       ${row('Valuation', money(p.valuation), 'money')}
@@ -1312,11 +1307,7 @@ async function openDetail(id, cardEl) {
  * matched company profile and its state licences. Fetched only when a panel
  * opens, so the search itself loads nothing extra. Missing reads as missing.
  */
-const LIFECYCLE = {
-  pre_application: 'Pre-application', submitted: 'Submitted', in_review: 'In review', corrections: 'Corrections',
-  approved: 'Approved, not issued', issued: 'Issued', inspections: 'Inspections', completed: 'Completed',
-  expired: 'Expired', withdrawn: 'Withdrawn', cancelled: 'Cancelled', denied: 'Denied', unknown: 'Stage not mapped',
-};
+const LIFECYCLE = window.Stages.LIFECYCLE_LABEL;
 const LICENCE_BOARD = { 'fl-dbpr': 'Florida DBPR', 'tx-tdlr': 'Texas TDLR' };
 const num = (v, unit = '') => (v == null ? '' : `${Number(v).toLocaleString('en-US', { maximumFractionDigits: 1 })}${unit}`);
 let extrasFor = null;
@@ -1342,8 +1333,7 @@ async function loadJobExtras(id) {
     <dl class="kv">
       ${row('Stage', LIFECYCLE[lc.stage] || lc.stage)}
       ${row('Applied', lc.submittedOn ? `${fmtDate(lc.submittedOn)} (the source’s date)` : '')}
-      ${row('Stage since', lc.stageSince ? fmtDate(lc.stageSince) : '')}
-      ${row('First seen by us', lc.firstSeenAt ? `${fmtDate(lc.firstSeenAt)}${lc.firstSeenStage ? `, while ${(LIFECYCLE[lc.firstSeenStage] || lc.firstSeenStage).toLowerCase()}` : ''}` : '')}
+      ${row('Status date', lc.stageSince ? `${fmtDate(lc.stageSince)} (the source’s date for its current status)` : '')}
       ${apps.map((a) => `<dt>Application</dt><dd>${esc(a.permitNumber)} · ${esc(LIFECYCLE[a.stage] || a.stage)} · submitted ${esc(a.submittedOn ? fmtDate(a.submittedOn) : 'date not published')}<br><span class="check-count">Linked by ${esc(a.link.detail)}</span></dd>`).join('')}
     </dl>` : '';
 

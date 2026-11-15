@@ -15,6 +15,7 @@
 <div id="top"></div>
 <main id="main"><div class="state">Loading…</div></main>
 <script src="../../links.js"></script>
+<script src="../../stages.js"></script>
 <script src="live.js"></script>
 <script src="tour.js"></script>
 <script src="photos.js"></script>
@@ -59,10 +60,8 @@
   }
 
   // How the job got here (ADR-16): the application behind the permit, with the
-  // source's own dates beside the day we first saw each filing.
-  const STAGE = { pre_application: 'Pre-application', submitted: 'Submitted', in_review: 'In review', corrections: 'Corrections',
-    approved: 'Approved, not issued', issued: 'Issued', inspections: 'Inspections', completed: 'Completed', expired: 'Expired',
-    withdrawn: 'Withdrawn', cancelled: 'Cancelled', denied: 'Denied', unknown: 'Stage not mapped' };
+  // source's own dates. Labels: one vocabulary for every screen (stages.js).
+  const STAGE = window.Stages.LIFECYCLE_LABEL;
   function lifecycleCard(lc) {
     if (!lc) return '';
     const hist = (h) => h.length ? `<ol class="sub">${h.map((x) => `<li>${L.esc(x.status || 'no status')} · ${L.esc(x.stage ? STAGE[x.stage] || x.stage : 'stage not recorded')}${x.stageSince ? ` · source date ${L.esc(L.date(x.stageSince))}` : ''} · seen ${L.esc(L.date(x.observedAt))}</li>`).join('')}</ol>` : '';
@@ -70,7 +69,7 @@
       const url = window.safeHttpUrl ? window.safeHttpUrl(a.url) : null;
       return `<div><p><strong>Application ${url ? `<a class="mono" href="${L.esc(url)}" rel="noopener noreferrer" target="_blank">${L.esc(a.permitNumber)}</a>` : `<span class="mono">${L.esc(a.permitNumber)}</span>`}</strong>
         · ${L.esc(STAGE[a.stage] || a.stage)}</p>
-        <p class="sub">Submitted ${L.esc(a.submittedOn ? L.date(a.submittedOn) : 'date not published')} (the city's date) · first seen by us ${L.esc(L.date(a.firstSeenAt))}${a.firstSeenStage ? ` while ${L.esc((STAGE[a.firstSeenStage] || a.firstSeenStage).toLowerCase())}` : ''}.
+        <p class="sub">Submitted ${L.esc(a.submittedOn ? L.date(a.submittedOn) : 'date not published')} (the city's date).
         Linked by ${L.esc(a.link && a.link.detail)} (the city's own reference).</p>${hist(a.history || [])}</div>`;
     }).join('');
     return `<div class="card"><h2>How this job started</h2>
@@ -117,13 +116,12 @@
 
     <div class="grid2">
       <div class="card">
-        <h2>Building permit</h2>
+        <h2>${pm.filing_kind === 'building_application' ? 'Building application (no permit issued yet)' : 'Building permit'}</h2>
         <dl class="kv">
           <dt>Permit</dt><dd class="mono">${val(d, 'permit_number', L.esc(pm.permit_number))}${window.safeHttpUrl(pm.permit_url) ? ` · <a href="${L.esc(window.safeHttpUrl(pm.permit_url))}" rel="noopener noreferrer" target="_blank">view at source</a>` : ''}</dd>
-          <dt>Status</dt><dd>${val(d, 'status', L.esc(pm.status_raw || 'unknown'))} <span class="sub">(${L.esc(pm.status_stage || 'unknown')})</span></dd>
-          <dt>Issued</dt><dd>${val(d, 'issue date', L.esc(L.date(pm.filed_date)))}${age != null ? ` <span class="sub">· ${age} days ago</span>` : ''}</dd>
+          <dt>Status</dt><dd>${val(d, 'status', L.esc(pm.status_raw || 'unknown'))} <span class="sub">(${L.esc(window.Stages.badge(pm).label)})</span></dd>
+          <dt>${pm.filing_kind === 'building_application' ? 'Applied' : 'Issued'}</dt><dd>${val(d, pm.filing_kind === 'building_application' ? 'application date' : 'issue date', L.esc(L.date(pm.filed_date)))}${age != null ? ` <span class="sub">· ${age} days ago</span>` : ''}</dd>
           <dt>Declared value</dt><dd>${val(d, 'valuation', L.esc(L.money(pm.valuation)))}</dd>
-          <dt>First seen by us</dt><dd>${L.esc(L.dateTime(pm.first_seen_at))}</dd>
           ${pm.trade_scores ? `<dt>Trade fit score</dt><dd class="mono">${pm.trade_scores[trade === 'mechanical' ? 'hvac' : trade] != null ? pm.trade_scores[trade === 'mechanical' ? 'hvac' : trade] : '—'} <span class="sub">from the description's wording</span></dd>` : ''}
         </dl>
         <h2 class="h-gap">Description, as filed</h2>

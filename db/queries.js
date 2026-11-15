@@ -27,7 +27,7 @@ const SORTS = {
 const RESULT_COLUMNS = `
   id, source_area, permit_number, jurisdiction, address, street, city, state, zip,
   permit_type, work_description, valuation,
-  status, status_raw, status_stage,
+  status, status_raw, status_stage, lifecycle_stage, filing_kind, stage_since,
   permit_url, filed_date, trade_scores, first_seen_at, last_seen_at,
   parcel_number, parcel_block, parcel_lot, parcel_subdivision,
   construction_type, other_construction_type,
