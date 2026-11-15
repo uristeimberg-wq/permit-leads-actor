@@ -136,7 +136,8 @@ check('onRaw receives the unmapped rows and the request count', async () => {
   await fetchSocrataSource(AUSTIN, { log: fakeLog(), fetchImpl, maxRecords: 5000, onRaw: (rows, meta) => { got = { rows, meta }; } });
   assert.strictEqual(got.rows.length, 1002);
   assert.strictEqual(got.rows[0], REAL_ROW);
-  assert.deepStrictEqual(got.meta, { requests: 2, truncated: false });
+  assert.deepStrictEqual({ ...got.meta, recordUrls: got.meta.recordUrls.length }, { requests: 2, truncated: false, recordUrls: 1002 });
+  assert.strictEqual(got.meta.recordUrls[0], 'https://data.austintexas.gov/resource/3syk-w9eu.json?permit_number=2026-117073+MP');
 });
 
 check('two windows: rows found by both come back once, with :id as the paging tiebreak', async () => {
@@ -155,7 +156,7 @@ check('two windows: rows found by both come back once, with :id as the paging ti
   assert.match(urls[0], /issue_date >= /); assert.match(urls[0], /\$order=issue_date DESC, :id/);
   assert.match(urls[1], /statusdate >= /); assert.match(urls[1], /\$order=statusdate DESC, :id/);
   assert.deepStrictEqual(got.rows.map((r) => r.permit_number), ['A', 'B']);
-  assert.deepStrictEqual(got.meta, { requests: 2, truncated: false });
+  assert.deepStrictEqual({ ...got.meta, recordUrls: undefined }, { requests: 2, truncated: false, recordUrls: undefined });
   assert.strictEqual(permits.length, 2);
 });
 

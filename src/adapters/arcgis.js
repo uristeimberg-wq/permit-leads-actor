@@ -10,6 +10,7 @@
 const { createStatusNormalizer, normalizePermit } = require('../normalize.js');
 const { lifecycleStage } = require('../lifecycle.js');
 const { fetchWithRetry } = require('./http.js');
+const { parsePage } = require('./validate.js');
 
 const PAGE_SIZE = 500;
 
@@ -58,16 +59,19 @@ async function fetchArcgisSource(source, options) {
   // that layer has (Raleigh: applieddate vs CreationDate).
   if (Array.isArray(source.layerUrls)) {
     let raw = [];
+    let recordUrls = [];
     let requests = 0;
     let truncated = false;
     const permits = [];
     for (const [i, layerUrl] of source.layerUrls.entries()) {
       const windows = options.windows && options.windows.filter((w) => w.layer == null || w.layer === i);
       permits.push(...await fetchArcgisSource({ ...source, layerUrls: undefined, layerUrl }, {
-        ...options, windows, onRaw: async (rows, meta) => { raw = raw.concat(rows); requests += meta.requests; truncated = truncated || meta.truncated; },
+        ...options, windows, onRaw: async (rows, meta) => {
+          raw = raw.concat(rows); recordUrls = recordUrls.concat(meta.recordUrls); requests += meta.requests; truncated = truncated || meta.truncated;
+        },
       }));
     }
-    if (options.onRaw) await options.onRaw(raw, { requests, truncated });
+    if (options.onRaw) await options.onRaw(raw, { requests, truncated, recordUrls });
     return permits;
   }
   const { daysBack = 30, maxRecords = 2000, includeIssued = true, log, fetchImpl = fetch, onRaw, retry } = options;
@@ -102,7 +106,9 @@ async function fetchArcgisSource(source, options) {
     requests += 1;
     const response = await fetchWithRetry(fetchImpl, url, undefined, { log, ...retry });
     if (!response.ok) throw new Error(`Failed to query ${source.layerUrl}: HTTP ${response.status}`);
-    const body = await response.json();
+    // Zod check of the envelope (src/adapters/validate.js): anything but
+    // features-with-attributes or an error body fails as a schema error.
+    const body = parsePage('arcgis', await response.json(), source.layerUrl);
 
     // ArcGIS reports failures in a 200 body rather than an HTTP status.
     if (body.error) {
@@ -130,8 +136,24 @@ async function fetchArcgisSource(source, options) {
   }
 
   // Hand the unmapped attributes to the caller for raw_records before mapping.
-  if (onRaw) await onRaw(features.map((f) => f.attributes ?? f), { requests, truncated });
+  if (onRaw) {
+    const rows = features.map((f) => f.attributes ?? f);
+    await onRaw(rows, { requests, truncated, recordUrls: rows.map((r) => recordUrl(source, r)) });
+  }
   return mapFeatures(features, source, { includeIssued, log });
+}
+
+/**
+ * A URL that asks the layer again for the rows published under this row's
+ * key (raw_records.source_url). Null when the row has no key.
+ */
+function recordUrl(source, row) {
+  const keyField = source.fieldMap && source.fieldMap.permitNumber;
+  const key = row && typeof keyField === 'string' ? row[keyField] : null;
+  if (key == null || String(key).trim() === '' || !source.layerUrl) return null;
+  const literal = typeof key === 'number' ? String(key) : `'${String(key).replace(/'/g, "''")}'`;
+  const params = new URLSearchParams({ where: `${keyField} = ${literal}`, outFields: '*', returnGeometry: 'false', f: 'json' });
+  return `${source.layerUrl.replace(/\/+$/, '')}/query?${params.toString()}`;
 }
 
 /** Pure feature -> permit mapping, unit tested offline. */
@@ -196,4 +218,4 @@ function mapFeatures(features, source, { includeIssued = true, log }) {
   return includeIssued ? permits : permits.filter((p) => p.status !== 'issued');
 }
 
-module.exports = { fetchArcgisSource, mapFeatures, buildQueryUrl, buildWhere };
+module.exports = { fetchArcgisSource, mapFeatures, buildQueryUrl, buildWhere, recordUrl };

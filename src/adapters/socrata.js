@@ -13,6 +13,7 @@
 const { createStatusNormalizer, normalizePermit } = require('../normalize.js');
 const { lifecycleStage, statusKey } = require('../lifecycle.js');
 const { fetchWithRetry } = require('./http.js');
+const { parsePage } = require('./validate.js');
 
 // Socrata's own per-request ceiling for the JSON endpoint.
 const PAGE_SIZE = 1000;
@@ -102,10 +103,9 @@ async function fetchSocrataSource(source, options) {
       throw new Error(`Failed to query ${source.datasetId}: HTTP ${response.status} ${detail.slice(0, 200)}`);
     }
 
-    const page = await response.json();
-    if (!Array.isArray(page)) {
-      throw new Error(`Socrata error from ${source.datasetId}: ${JSON.stringify(page).slice(0, 200)}`);
-    }
+    // Zod check of the envelope: an error object or an HTML page in place of
+    // the row array fails the run as a schema error (src/adapters/validate.js).
+    const page = parsePage('socrata', await response.json(), `Socrata ${source.datasetId}`);
 
     fetched += page.length;
     for (const row of page) {
@@ -126,8 +126,20 @@ async function fetchSocrataSource(source, options) {
   }
 
   // Hand the unmodified rows to the caller for raw_records before mapping.
-  if (onRaw) await onRaw(rows, { requests, truncated });
+  if (onRaw) await onRaw(rows, { requests, truncated, recordUrls: rows.map((r) => recordUrl(source, r)) });
   return mapRows(rows, source, { includeIssued, log });
+}
+
+/**
+ * A URL that asks the dataset again for the rows published under this row's
+ * key (raw_records.source_url). Null when the row has no key.
+ */
+function recordUrl(source, row) {
+  const keyField = source.fieldMap && source.fieldMap.permitNumber;
+  const key = row && typeof keyField === 'string' ? row[keyField] : null;
+  if (key == null || String(key).trim() === '') return null;
+  const params = new URLSearchParams({ [keyField]: String(key) });
+  return `https://${source.domain}/resource/${source.datasetId}.json?${params.toString()}`;
 }
 
 const urlOf = (v) => (v && typeof v === 'object' ? v.url ?? null : v);
@@ -213,4 +225,4 @@ function buildAddress(row, map) {
   return tail ? `${street}, ${tail}` : String(street);
 }
 
-module.exports = { fetchSocrataSource, mapRows, buildAddress, buildQueryUrl, buildWhere };
+module.exports = { fetchSocrataSource, mapRows, buildAddress, buildQueryUrl, buildWhere, recordUrl };

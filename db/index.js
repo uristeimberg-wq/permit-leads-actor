@@ -316,6 +316,34 @@ async function recordSourceEvent(sourceId, syncRunId, kind, severity, detail) {
     [sourceId, syncRunId, kind, severity, JSON.stringify(detail)]);
 }
 
+/**
+ * Watermarks for a source (035): last_successful_sync_at by window field, and
+ * the source's last successful window sync as the fallback for a window that
+ * has none yet (the first run after 035, or a window added later).
+ */
+async function getWatermarks(sourceId) {
+  const [{ rows }, { rows: [last] }] = await Promise.all([
+    query('SELECT window_field, last_successful_sync_at FROM source_watermarks WHERE source_id = $1', [sourceId]),
+    query(`SELECT started_at FROM sync_runs WHERE source_id = $1 AND status = 'succeeded' AND kind IN ('scheduled', 'manual')
+            ORDER BY started_at DESC LIMIT 1`, [sourceId]),
+  ]);
+  return { marks: new Map(rows.map((r) => [r.window_field, r.last_successful_sync_at])), fallback: last ? last.started_at : null };
+}
+
+/** Advances each window's watermark to the start of a successful, untruncated run. */
+async function saveWatermarks(sourceId, syncRunId, startedAt, fields, highWater = {}) {
+  if (!fields.length) return;
+  await query(
+    `INSERT INTO source_watermarks (source_id, window_field, last_successful_sync_at, last_sync_run_id, high_water_value)
+     SELECT $1, f, $3, $2, h FROM unnest($4::text[], $5::timestamptz[]) AS t(f, h)
+     ON CONFLICT (source_id, window_field) DO UPDATE
+        SET last_successful_sync_at = GREATEST(source_watermarks.last_successful_sync_at, EXCLUDED.last_successful_sync_at),
+            last_sync_run_id = EXCLUDED.last_sync_run_id,
+            high_water_value = GREATEST(source_watermarks.high_water_value, EXCLUDED.high_water_value),
+            updated_at = now()`,
+    [sourceId, syncRunId, startedAt, fields, fields.map((f) => highWater[f] || null)]);
+}
+
 async function startSyncRun(sourceId, kind) {
   const { rows } = await query(
     `INSERT INTO sync_runs (source_id, kind, status) VALUES ($1, $2, 'running') RETURNING id`,
@@ -352,23 +380,31 @@ async function insertRawRecords(sourceId, syncRunId, records, { batchSize = 500 
     const batch = records.slice(i, i + batchSize);
     const { rows } = await query(
       `WITH input AS (
-         SELECT * FROM unnest($3::text[], $4::text[], $5::jsonb[], $6::timestamptz[])
-                  AS t(source_key, payload_hash, payload, source_updated_at)
+         SELECT * FROM unnest($3::text[], $4::text[], $5::jsonb[], $6::timestamptz[], $7::text[])
+                  AS t(source_key, payload_hash, payload, source_updated_at, source_url)
        ), prior AS (
          SELECT DISTINCT source_key FROM raw_records
           WHERE source_id = $1 AND source_key IN (SELECT source_key FROM input)
        ), ins AS (
-         INSERT INTO raw_records (source_id, source_key, payload_hash, payload, source_updated_at, sync_run_id)
-         SELECT $1, source_key, payload_hash, payload, source_updated_at, $2 FROM input
+         INSERT INTO raw_records (source_id, source_key, payload_hash, payload, source_updated_at, source_url, sync_run_id)
+         SELECT $1, source_key, payload_hash, payload, source_updated_at, source_url, $2 FROM input
          ON CONFLICT (source_id, source_key, payload_hash) DO NOTHING
          RETURNING source_key
+       ), fill AS (
+         -- Rows stored before 035 get their re-fetch URL the next time a run
+         -- sees their key. Only a NULL is filled; nothing stored is changed.
+         UPDATE raw_records r SET source_url = i.source_url
+           FROM input i
+          WHERE r.source_id = $1 AND r.source_key = i.source_key AND r.payload_hash = i.payload_hash
+            AND r.source_url IS NULL AND i.source_url IS NOT NULL
        )
        SELECT count(*) FILTER (WHERE ins.source_key NOT IN (SELECT source_key FROM prior))::int AS new_count,
               count(*) FILTER (WHERE ins.source_key IN (SELECT source_key FROM prior))::int AS changed
          FROM ins`,
       [sourceId, syncRunId,
         batch.map((r) => r.sourceKey), batch.map((r) => r.payloadHash),
-        batch.map((r) => JSON.stringify(r.payload)), batch.map((r) => r.sourceUpdatedAt)],
+        batch.map((r) => JSON.stringify(r.payload)), batch.map((r) => r.sourceUpdatedAt),
+        batch.map((r) => r.sourceUrl || null)],
     );
     newCount += rows[0].new_count; changed += rows[0].changed;
   }
@@ -417,6 +453,7 @@ async function withTransaction(fn) {
 }
 
 module.exports = {
+  getWatermarks, saveWatermarks,
   explicitSsl,
   getPool, query, close, applySchema, schemaVersion, maskStoredDescriptions, withTransaction,
   upsertPermits, existingPermitNumbers,
