@@ -58,6 +58,10 @@ const asAreaKey = (filters) =>
 
 let page = 1;
 let lastFocused = null;   // card to restore focus to when the drawer closes
+let projectReturn = null;  // project to go back to from a permit opened in its timeline
+// Group permits into projects (web/projects.js); `group=0` in the URL shows raw permits.
+let grouping = true;
+let lastInferences = false;  // whether the server shows inferred links and stages
 let reqId = 0;            // guards against a slow response overwriting a fast one
 
 /* Map state. `areaSelection` is the one filter with no form control behind it:
@@ -196,6 +200,7 @@ function currentFilters() {
   }
   if (jurisdictionFilter) f.jurisdiction = jurisdictionFilter;
   if (typeSelection.length) f.permitType = typeSelection.join(TYPE_SEP);
+  if (!grouping) f.group = '0';
   if ($('hasContact').checked) f.hasContact = 'true';
   // The owner-builder filter is hidden (ADR-10, index.html); a hidden box never filters.
   if ($('ownerBuilder').checked && !$('ownerBuilder').closest('[hidden]')) f.ownerBuilder = 'true';
@@ -237,6 +242,8 @@ function applyUrl() {
   }
   areaSelection = p.get('areas') ? p.get('areas').split(',').filter(Boolean) : null;
   jurisdictionFilter = p.get('jurisdiction') || '';
+  grouping = p.get('group') !== '0';
+  $('groupToggle').checked = grouping;
   typeSelection = p.get('permitType') ? p.get('permitType').split(TYPE_SEP).map((t) => t.trim()).filter(Boolean) : [];
   $('ownerBuilder').checked = p.get('ownerBuilder') === 'true' && !$('ownerBuilder').closest('[hidden]');
   // An old `zip=`/`city=` link is turned into a picker key once the places are
@@ -642,6 +649,8 @@ async function run({ resetPage = false } = {}) {
   $('results').innerHTML = skeletons(6);
   $('count').textContent = 'Searching…';
 
+  if (grouping) { runProjects(filters, mine); return; }
+
   let data;
   try {
     const params = new URLSearchParams({ ...filters, page: String(page), pageSize: String(PAGE_SIZE) });
@@ -684,6 +693,190 @@ async function run({ resetPage = false } = {}) {
        <span class="pos">Page ${data.page} of ${pages.toLocaleString('en-US')}</span>
        <button type="button" class="btn btn-ghost" data-page="next" ${data.page >= pages ? 'disabled' : ''}>Next →</button>`
     : '';
+}
+
+/* ============================================================ projects ===
+ *
+ * Grouped view (default): one card per project (web/projects.js), with its
+ * total declared value, latest activity, a chip per permit kind coloured by
+ * status, and the contractors' phones. The drawer shows the timeline.
+ */
+
+const KIND_LABEL = { BP: 'Building', EP: 'Electrical', MP: 'Mechanical', PP: 'Plumbing', DM: 'Demolition', OT: 'Other' };
+const BASIS_LABEL = {
+  'permit number': 'linked by permit number',
+  'ref in description': 'linked by a “Ref:” in a description',
+  'same address': 'same address (our grouping)',
+  'single permit': 'one permit',
+};
+
+async function runProjects(filters, mine) {
+  let data;
+  try {
+    const params = new URLSearchParams({ ...filters, page: String(page), pageSize: String(PAGE_SIZE) });
+    data = await getJSON('/api/projects?' + params);
+  } catch (err) {
+    if (mine !== reqId) return;
+    $('results').innerHTML = `<div class="empty">${emptyIcon()}
+      <strong>Couldn't load projects</strong><p>${esc(err.message)}</p></div>`;
+    $('count').textContent = '';
+    return;
+  }
+  if (mine !== reqId) return;
+  lastInferences = Boolean(data.inferences);
+  paintStageCounts(data.facets);
+
+  if (!data.results.length) {
+    $('results').innerHTML = emptyState(data, filters);
+    $('count').textContent = 'No projects';
+    $('pager').innerHTML = '';
+    setSheetCount(0);
+    return;
+  }
+  const list = document.createElement('div');
+  list.className = 'cards';
+  for (const pr of data.results) list.appendChild(renderProjectCard(pr));
+  $('results').replaceChildren(list);
+  paintPinState();
+  setSheetCount(data.total);
+
+  const first = (data.page - 1) * data.pageSize + 1;
+  const last = Math.min(data.page * data.pageSize, data.total);
+  $('count').innerHTML = `${plural(data.total, 'project', 'projects')}
+    <span class="sub">· ${plural(data.permitsMatched, 'permit', 'permits')} · showing ${first}–${last}</span>`;
+  if (data.capped) {
+    $('results').insertAdjacentHTML('afterbegin', `<p class="callout">Grouping covers the newest
+      ${data.cap.toLocaleString('en-US')} of ${data.permitsTotal.toLocaleString('en-US')} matching permits. Narrow the location to see every project.</p>`);
+  }
+  const pages = Math.ceil(data.total / data.pageSize);
+  $('pager').innerHTML = pages > 1
+    ? `<button type="button" class="btn btn-ghost" data-page="prev" ${data.page <= 1 ? 'disabled' : ''}>← Previous</button>
+       <span class="pos">Page ${data.page} of ${pages.toLocaleString('en-US')}</span>
+       <button type="button" class="btn btn-ghost" data-page="next" ${data.page >= pages ? 'disabled' : ''}>Next →</button>`
+    : '';
+}
+
+/** "BP ×3" chips, coloured by the most advanced status of that kind. */
+const kindChips = (chips) => `<div class="kind-chips">${chips.map((c) => `
+  <span class="kind-chip" title="${esc(`${c.label}: ${c.count} permit${c.count === 1 ? '' : 's'}, ${(STAGES.find(([k]) => k === c.stage) || [, 'Unknown'])[1].toLowerCase()}`)}">
+    <span class="stage-dot ${esc(c.stage)}" aria-hidden="true"></span>${esc(c.code)}${c.count > 1 ? `<span class="kind-n">×${c.count}</span>` : ''}</span>`).join('')}</div>`;
+
+/** A project's value with how it was summed, or ''. */
+function projectValueTag(v, cls = 'card-value') {
+  if (!v || v.total == null) return '';
+  const tag = valueTag(v.total, cls);
+  const notes = [];
+  if (v.counted > 1) notes.push(`sum of ${v.counted} declared values`);
+  if (v.repeated) notes.push(`${plural(v.repeated, 'repeated value', 'repeated values')} counted once`);
+  if (v.odd) notes.push(`${plural(v.odd, 'value', 'values')} of $1B+ left out as filing errors`);
+  return notes.length ? tag.replace(/title="([^"]*)"/, (_, t) => `title="${t}: ${esc(notes.join('; '))}"`) : tag;
+}
+
+function renderProjectCard(pr) {
+  const el = document.createElement('article');
+  el.className = 'card project-card';
+  el.tabIndex = 0;
+  el.setAttribute('role', 'button');
+  el.dataset.id = pr.primaryId;
+  const areaKey = areaKeyOf(pr);
+  if (areaKey) el.dataset.area = areaKey;
+
+  const phones = pr.phones.slice(0, 2).map((x) => `<span class="proj-phone">${phonePill(x.phone)}${x.name
+    ? `<span class="card-call-who">${isRealContractor(x.name)
+      ? `<button type="button" class="link-btn" data-open-contractor="${esc(x.name)}">${esc(x.name)}</button>` : esc(x.name)}</span>` : ''}</span>`).join('');
+  const morePhones = pr.phones.length > 2 ? `<span class="sub">+${pr.phones.length - 2} more in the timeline</span>` : '';
+  const sub = [
+    plural(pr.permitCount, 'permit', 'permits'),
+    pr.buildings.length ? pr.buildings.slice(0, 3).join(' · ') + (pr.buildings.length > 3 ? ` +${pr.buildings.length - 3}` : '') : '',
+  ].filter(Boolean).join(' · ');
+
+  el.innerHTML = `
+    <div class="card-top">
+      <h3 class="card-addr">${esc(pr.address || 'Address not listed')}</h3>
+      <span class="card-meta">${projectValueTag(pr.value)}<span class="card-date" title="Latest permit filed">${esc(fmtDate(pr.latest) || 'No date')}</span></span>
+      ${window.Saved ? Saved.heartHtml(pr.primaryId) : ''}
+    </div>
+    <div class="card-type">${esc(sub)}${pr.stage ? ` <span class="proj-stage" title="Our reading of the permits on file, not a site inspection">${esc(pr.stage)}</span>` : ''}</div>
+    ${pr.description ? `<p class="card-desc">${esc(pr.description)}</p>` : ''}
+    ${kindChips(pr.chips)}
+    ${phones ? `<div class="card-call proj-phones">${phones}${morePhones}</div>` : ''}
+    <div class="card-foot">
+      <span class="sub">${esc(pr.basis.map((b) => BASIS_LABEL[b] || b).join(' · '))}</span>
+      ${pr.jurisdiction ? `<span class="sep" aria-hidden="true"></span><span class="pill">${esc(pr.jurisdiction)}</span>` : ''}
+    </div>`;
+
+  const open = (e) => {
+    if (e.target.closest('[data-tel], [data-open-contractor], [data-heart]')) return;
+    openProject(pr.id, el);
+  };
+  el.addEventListener('click', open);
+  el.addEventListener('keydown', (e) => {
+    if (e.target !== el) return;
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openProject(pr.id, el); }
+  });
+  if (areaKey) {
+    el.addEventListener('mouseenter', () => highlightPin(areaKey, true));
+    el.addEventListener('mouseleave', () => highlightPin(areaKey, false));
+  }
+  return el;
+}
+
+/** The project drawer: header facts, then every permit in date order. */
+async function openProject(id, cardEl, { keepFocus = false } = {}) {
+  const dlg = $('detail');
+  if (!keepFocus) lastFocused = cardEl || null;
+  projectReturn = null;
+  for (const c of document.querySelectorAll('.card[aria-current]')) c.removeAttribute('aria-current');
+  if (cardEl) cardEl.setAttribute('aria-current', 'true');
+
+  $('dAddr').textContent = 'Loading…';
+  for (const k of ['dType']) $(k).textContent = '';
+  for (const k of ['dMeta', 'dStage', 'dSave', 'dFoot']) $(k).innerHTML = '';
+  $('dBody').innerHTML = skeletons(3);
+  if (!dlg.open) dlg.showModal();
+
+  let pr;
+  try {
+    pr = await getJSON(`/api/projects/by-permit/${encodeURIComponent(id)}`);
+  } catch (err) {
+    $('dAddr').textContent = 'Could not load project';
+    $('dBody').innerHTML = `<p class="callout">${esc(err.message)}</p>`;
+    return;
+  }
+
+  $('dAddr').textContent = pr.address || 'Address not listed';
+  $('dType').textContent = [plural(pr.permitCount, 'permit', 'permits'), pr.buildings.join(' · ')].filter(Boolean).join(' · ');
+  const val = projectValueTag(pr.value, 'd-value');
+  $('dMeta').innerHTML = [pr.latest ? `<span>Latest ${esc(fmtDate(pr.latest))}</span>` : '', val ? `<span>${val} declared in total</span>` : '']
+    .filter(Boolean).join('<span class="sep" aria-hidden="true"></span>');
+  $('dStage').innerHTML = pr.stage ? `<span class="proj-stage" title="Our reading of the permits on file, not a site inspection">${esc(pr.stage)}</span>` : '';
+  $('dSave').innerHTML = window.Saved ? Saved.heartHtml(pr.primaryId, { label: true }) : '';
+
+  $('dBody').innerHTML = `
+    ${kindChips(pr.chips)}
+    <div class="sect">Timeline</div>
+    <ol class="timeline">${pr.permits.map((p) => `
+      <li class="tl-item">
+        <div class="tl-when">${esc(fmtDate(p.filed_date) || 'No date')}</div>
+        <div class="tl-main">
+          <div class="tl-head"><span class="kind-chip"><span class="stage-dot ${esc(p.status_stage || 'unknown')}" aria-hidden="true"></span>${esc(p.kind)}</span>
+            <span class="tl-type">${esc(p.permit_type || KIND_LABEL[p.kind] || 'Permit')}</span>
+            ${valueTag(p.valuation)}</div>
+          <div class="tl-status">${stageBadge(p)}${p.permit_number ? `<span class="sub">#${esc(p.permit_number)}</span>` : ''}</div>
+          ${p.work_description ? `<p class="tl-desc">${esc(p.work_description)}</p>` : ''}
+          ${p.contractor_name || p.contractor_phone || p.contractor_withheld ? `<div class="tl-who">
+            ${p.contractor_phone ? phonePill(p.contractor_phone) : ''}
+            <span>${p.contractor_name ? (isRealContractor(p.contractor_name)
+              ? `<button type="button" class="link-btn" data-open-contractor="${esc(p.contractor_name)}">${esc(p.contractor_name)}</button>`
+              : esc(p.contractor_name)) : (p.contractor_withheld ? 'Individual (withheld)' : '')}</span></div>` : ''}
+          <button type="button" class="link-btn tl-open" data-open-permit="${esc(p.id)}">Permit details →</button>
+        </div>
+      </li>`).join('')}</ol>
+    <p class="check-count">Grouped by ${esc(pr.basis.map((b) => BASIS_LABEL[b] || b).join(', '))}.${pr.inferences ? '' : ' Same-address grouping and stages are off on this site.'}</p>`;
+
+  for (const b of $('dBody').querySelectorAll('[data-open-permit]')) {
+    b.addEventListener('click', () => openDetail(b.dataset.openPermit, null, { fromProject: pr.id }));
+  }
 }
 
 /** The sheet's action doubles as the result count, so a phone shows the effect
@@ -1302,9 +1495,10 @@ const row = (label, value, cls = '') =>
  * Everything we hold about one permit, shown in-app. The source link at the
  * bottom is provenance only — nothing here requires leaving to read it.
  */
-async function openDetail(id, cardEl) {
+async function openDetail(id, cardEl, { fromProject = null } = {}) {
   const dlg = $('detail');
-  lastFocused = cardEl || null;
+  if (!fromProject) lastFocused = cardEl || null;
+  projectReturn = fromProject;
 
   for (const c of document.querySelectorAll('.card[aria-current]')) c.removeAttribute('aria-current');
   if (cardEl) cardEl.setAttribute('aria-current', 'true');
@@ -1437,6 +1631,12 @@ async function openDetail(id, cardEl) {
     ? `<span>Source record, for verification:</span>
        <a href="${esc(sourceUrl)}" target="_blank" rel="noopener">open the county portal →</a>`
     : '<span>No source link recorded for this permit.</span>'}`;
+  // Opened from a project's timeline: offer the way back to it.
+  if (projectReturn) {
+    $('dFoot').insertAdjacentHTML('afterbegin', '<button type="button" class="btn btn-ghost" id="dBackProject">← Back to project</button>');
+    const back = projectReturn;
+    $('dBackProject').addEventListener('click', () => openProject(back, null, { keepFocus: true }));
+  }
 
   if (mapAction) {
     $('dShowMap').addEventListener('click', () => {
@@ -1650,6 +1850,7 @@ for (const id of TEXT_FILTERS) $(id).addEventListener('input', runSoon);
 for (const id of PICK_FILTERS) $(id).addEventListener('change', runNow);
 $('hasContact').addEventListener('change', runNow);
 $('ownerBuilder').addEventListener('change', runNow);
+$('groupToggle').addEventListener('change', (e) => { grouping = e.target.checked; runNow(); });
 $('sort').addEventListener('change', runNow);
 $('stageGroup').addEventListener('change', runNow);
 

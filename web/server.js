@@ -119,6 +119,46 @@ app.get('/api/permits', asyncRoute(async (req, res) => {
 
 // Everything we hold about one permit, so the UI never has to send a user off
 // to the county portal to read the record.
+// ── Projects: permits grouped into jobs (web/projects.js) ──────────────────
+// The rows for one filter set are kept a minute, so paging through projects
+// does not regroup from scratch. API_CACHE=off (the integration tests) skips it.
+const projects = require('./projects.js');
+const ROWS_TTL_MS = 60 * 1000;
+const rowsMemo = new Map();
+async function projectRowsFor(filters) {
+  const { page: _p, pageSize: _s, sort: _o, ...where } = filters;
+  if (process.env.API_CACHE === 'off') return queries.projectRows(where);
+  const key = JSON.stringify(where);
+  const hit = rowsMemo.get(key);
+  if (hit && Date.now() - hit.at < ROWS_TTL_MS) return hit.value;
+  const value = await queries.projectRows(where);
+  rowsMemo.set(key, { at: Date.now(), value });
+  if (rowsMemo.size > 30) rowsMemo.delete(rowsMemo.keys().next().value);
+  return value;
+}
+const clampInt = (v, lo, hi, d) => { const n = Number.parseInt(v, 10); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
+
+app.get('/api/projects', asyncRoute(async (req, res) => {
+  const filters = pickFiltersExpanded(req.query);
+  const page = clampInt(req.query.page, 1, 10000, 1);
+  const pageSize = clampInt(req.query.pageSize, 1, 100, 25);
+  const data = await projectRowsFor(filters);
+  const inferences = trust.showInferences();
+  const out = projects.listProjects(data.rows, { page, pageSize, sort: req.query.sort, inferences });
+  res.json({
+    ...out, page, pageSize, inferences,
+    permitsTotal: data.total, capped: data.capped, cap: queries.PROJECT_ROW_CAP, facets: data.facets,
+  });
+}));
+
+/** The whole project a permit belongs to, every permit in date order (unfiltered). */
+app.get('/api/projects/by-permit/:id', asyncRoute(async (req, res) => {
+  if (!/^\d{1,18}$/.test(req.params.id)) return res.status(400).json({ error: 'Bad permit id' });
+  const project = await projects.expandProject(req.params.id, (id) => queries.projectCandidates(id), { inferences: trust.showInferences() });
+  if (!project) return res.status(404).json({ error: 'Permit not found' });
+  return res.json({ ...project, inferences: trust.showInferences() });
+}));
+
 app.get('/api/permits/:id', asyncRoute(async (req, res) => {
   const permit = await queries.getPermit(req.params.id);
   if (!permit) return res.status(404).json({ error: 'Permit not found' });

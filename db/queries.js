@@ -470,6 +470,84 @@ async function getPermit(id) {
   return rows[0] ? maskRow(dropSuppressedPhone(redactContractor(rows[0]), await suppressedPhones())) : null;
 }
 
+// ── Projects (web/projects.js groups these rows) ────────────────────────────
+//
+// Each permit row carries its job link from the resolver (permit_parties: the
+// Austin permit-number base, the Miami-Dade master permit, the City of Miami
+// application, the Raleigh parcel PIN) so permits can be grouped into projects
+// in the web layer. Same columns and redaction as the search (rule 5).
+const JOB_COLUMN = `(
+  SELECT json_build_object('jobKey', pp.job_key, 'isBuilding', pp.is_building, 'trade', pp.trade, 'contractorId', pp.contractor_id)
+    FROM permit_parties pp WHERE pp.permit_id = permits.id AND pp.role = 'contractor' LIMIT 1) AS job`;
+// The street part of the address with any "BLDG ..." tail removed, upper-cased:
+// "2501 BRYAN ST BLDG 3, AUSTIN TX" -> "2501 BRYAN ST". A bare "UNIT 120"
+// stays, as it is usually a separate tenant. Mirrors web/projects.js addressKey.
+const ADDRESS_KEY_SQL = (t = 'permits') => `regexp_replace(regexp_replace(upper(trim(split_part(${t}.address, ',', 1))), '\\s+', ' ', 'g'), '\\s+(BLDG|BUILDING)\\M.*$', '')`;
+const PROJECT_ROW_CAP = 15000;
+
+/**
+ * The permits matching `filters`, newest first, up to `limit`, for grouping
+ * into projects. Also the total matched (so a capped answer can say so) and
+ * the stage counts for the sidebar, as searchPermits gives.
+ */
+async function projectRows(filters = {}, { limit = PROJECT_ROW_CAP } = {}) {
+  const { sql: where, params } = buildWhere(filters);
+  const facet = buildWhere({ ...filters, stage: 'any' });
+  const [rows, counted, stageCounts, suppressed] = await Promise.all([
+    query(`SELECT ${RESULT_COLUMNS}, ${JOB_COLUMN} FROM permits ${where}
+            ORDER BY filed_date DESC NULLS LAST, id DESC LIMIT $${params.length + 1}`, [...params, limit]),
+    query(`SELECT count(*)::int AS total FROM permits ${where}`, params),
+    query(`SELECT status_stage, count(*)::int AS permits FROM permits ${facet.sql} GROUP BY status_stage`, facet.params),
+    suppressedPhones(),
+  ]);
+  return {
+    rows: rows.rows.map((r) => maskRow(dropSuppressedPhone(redactContractor(r), suppressed))),
+    total: counted.rows[0].total,
+    capped: counted.rows[0].total > limit,
+    facets: { stages: Object.fromEntries(stageCounts.rows.map((r) => [r.status_stage, r.permits])) },
+  };
+}
+
+/**
+ * Every permit that may belong to the same project as `permitId`, whatever
+ * the filters: the same job link, the same address key, a "Ref: <number> BP"
+ * pointing either way. web/projects.js decides which of them really join.
+ */
+async function projectCandidates(permitId, { limit = 400 } = {}) {
+  const id = Number(permitId);
+  if (!Number.isSafeInteger(id)) return [];
+  // A union of narrow lookups, each on an index or one ZIP/city, rather than
+  // one OR across the table (which scanned every description: ~1 s).
+  const sameArea = (p) => `((t.t_zip IS NOT NULL AND ${p}.zip = t.t_zip)
+      OR (t.t_zip IS NULL AND ${p}.state = t.t_state AND upper(${p}.city) = t.t_city))`;
+  const { rows } = await query(`
+    WITH t AS (
+      SELECT p.id AS t_id, p.source_area AS t_source, p.work_description AS t_desc,
+             ${ADDRESS_KEY_SQL('p')} AS t_ak, p.zip AS t_zip, p.state AS t_state, upper(p.city) AS t_city,
+             (SELECT pp.job_key FROM permit_parties pp WHERE pp.permit_id = p.id AND pp.role = 'contractor' LIMIT 1) AS t_job
+        FROM permits p WHERE p.id = $1),
+    ids AS (
+      SELECT t.t_id AS id FROM t
+      UNION
+      SELECT pp.permit_id FROM t JOIN permit_parties pp ON pp.job_key = t.t_job AND pp.role = 'contractor'
+        JOIN permits q ON q.id = pp.permit_id AND q.source_area = t.t_source
+      UNION
+      SELECT q.id FROM t JOIN permits q ON ${sameArea('q')}
+       WHERE t.t_ak <> '' AND ${ADDRESS_KEY_SQL('q')} = t.t_ak
+      UNION
+      SELECT q.id FROM t JOIN permits q ON ${sameArea('q')}
+       WHERE t.t_job IS NOT NULL AND q.work_description ILIKE '%' || t.t_job || ' BP%'
+      UNION
+      SELECT q.id FROM t JOIN permits q ON q.source_area = t.t_source
+        AND q.permit_number = substring(t.t_desc from '(?i)ref\\.?\\s*:?\\s*#?\\s*(\\d{4}-\\d{5,6}\\s*BP)'))
+    SELECT ${RESULT_COLUMNS}, ${JOB_COLUMN}
+      FROM permits WHERE id IN (SELECT id FROM ids)
+     ORDER BY filed_date ASC NULLS LAST, id
+     LIMIT $2`, [id, limit]);
+  const suppressed = await suppressedPhones();
+  return rows.map((r) => maskRow(dropSuppressedPhone(redactContractor(r), suppressed)));
+}
+
 /**
  * Several permits by id, for a user's saved list. The same columns and the
  * same redaction as getPermit, so a saved permit never shows more than the
@@ -525,7 +603,7 @@ async function enrichmentCredits() {
 
 module.exports = {
   RESULT_COLUMNS,
-  searchPermits, listAreas, listFilterOptions, getPermit, permitsByIds, isZipCovered, getFreshness, enrichmentCredits,
+  searchPermits, listAreas, listFilterOptions, getPermit, permitsByIds, projectRows, projectCandidates, PROJECT_ROW_CAP, isZipCovered, getFreshness, enrichmentCredits,
   mapClusters, mapPoints, areaCentroids, searchContractors, getContractorHistory, isRealContractor,
   buildWhere, MAX_PAGE_SIZE, DEFAULT_PAGE_SIZE,
 };
