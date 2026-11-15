@@ -38,7 +38,7 @@ const say = (m) => process.stdout.write(`${m}\n`);
 /** The permit sources a re-read covers: the pilot permit feeds with a raw-row adapter. */
 function refreshable(slug) {
   const s = SOURCES[slug];
-  return Boolean(s && s.kind !== 'planning' && (s.type === 'socrata' || s.type === 'arcgis'));
+  return Boolean(s && !['planning', 'inspections'].includes(s.kind) && (s.type === 'socrata' || s.type === 'arcgis'));
 }
 
 function mapLive(source, rows) {

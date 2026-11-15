@@ -41,10 +41,13 @@ for (const [slug, src] of Object.entries(SOURCES).filter(([, s]) => s.registry))
     // A planning source (kind 'planning') writes planning_cases, not permits:
     // no contractor and no "newest permit" age check.
     const planning = src.kind === 'planning';
+    // An inspections source (kind 'inspections') writes inspections: no
+    // contractor, no "newest permit" age check, and its own block.
+    const inspections = src.kind === 'inspections';
     // A snapshot source is read whole each run (Miami-Dade zoning hearings
     // publish no date at all), so it has no window field and no row date.
     const snapshot = planning && reg.syncMode === 'snapshot' && !src.dateField;
-    for (const k of ['label', 'type', 'fieldMap', 'maxPerRun', ...(snapshot ? [] : ['dateField']), 'defaultState', ...(planning ? ['planning'] : ['maxDataAgeDays']), ...(src.filingKind || planning ? [] : ['parties'])]) {
+    for (const k of ['label', 'type', 'fieldMap', 'maxPerRun', ...(snapshot ? [] : ['dateField']), 'defaultState', ...(planning ? ['planning'] : inspections ? ['inspections'] : ['maxDataAgeDays']), ...(src.filingKind || planning || inspections ? [] : ['parties'])]) {
       assert.ok(src[k] != null, `missing ${k}`);
     }
     assert.ok(MAPPERS[src.type], `type ${src.type} has no offline mapper; connectors must use socrata or arcgis, or add one here`);
@@ -113,6 +116,24 @@ for (const [slug, src] of Object.entries(SOURCES).filter(([, s]) => s.registry))
     const usable = cases.filter((c) => c.caseNumber && dated(c));
     assert.ok(usable.length / fx.rows.length >= MIN_MAPPED, `only ${usable.length}/${fx.rows.length} rows map to a case with a number and filing date`);
     assert.strictEqual(new Set(cases.map((c) => c.caseNumber)).size, cases.length, 'case numbers repeat within the fixture');
+  });
+
+  if (src.kind === 'inspections') check(`${slug}: inspections block is valid and maps the fixture`, () => {
+    const { mapInspection, validateInspections } = require('./inspections.js');
+    assert.deepStrictEqual(validateInspections(slug, src), []);
+    const fx = JSON.parse(fs.readFileSync(path.join(ROOT, reg.fixture), 'utf8'));
+    // Every column the block names was read off the live layer.
+    const declared = new Set(fx.declaredFields || []);
+    const named = [...Object.values(src.inspections.fields), ...src.inspections.keyParts, ...src.outFields];
+    assert.deepStrictEqual(named.filter((f) => !declared.has(f)), [], 'inspection columns not on the live layer (guessed?)');
+    // The fixture holds only the columns the connector requests: no names.
+    const extra = [...new Set(fx.rows.flatMap((r) => Object.keys(r)))].filter((k) => !src.outFields.includes(k));
+    assert.deepStrictEqual(extra, [], 'fixture holds columns the connector never requests');
+    const rows = fx.rows.map((r) => mapInspection(src, r));
+    const usable = rows.filter((x) => x && x.permitNumber && /^\d{4}-\d{2}-\d{2}$/.test(String(x.scheduledOn)));
+    assert.ok(usable.length / fx.rows.length >= MIN_MAPPED, `only ${usable.length}/${fx.rows.length} rows map to an inspection`);
+    const known = usable.filter((x) => x.resultClass !== 'unknown').length;
+    assert.ok(known / usable.length >= MIN_MAPPED, `only ${known}/${usable.length} fixture results are in the vocabulary`);
   });
 
   if (src.lifecycle) check(`${slug}: lifecycle vocabulary uses known stages`, () => {

@@ -621,6 +621,21 @@ CREATE TABLE agenda_items (                   -- from Legistar or published agen
 );
 ```
 
+### Inspections (migration 033)
+
+Building inspections as a department publishes them, one row per
+(source, inspection key), linked to the permit by the source's own permit
+number when the house number also agrees (`permit_id`, NULL otherwise). The
+two sources (Miami-Dade, Raleigh) publish a rolling window of days, so the
+daily read is the record. `result_raw` is kept as published; `result_class`
+(approved, partial, rejected, not_ready, not_inspected, cancelled,
+scheduled, other, unknown) is a lookup of that wording in the source's
+vocabulary (`src/sources.js`), never a guess: an unlisted wording is
+`unknown` and reported. `inspection_result_history` gains a row (trigger)
+whenever the result wording or the completed flag changes: the transition
+log. A result is a fact about an inspection, not a claim about what anyone
+needs. Nothing displays these tables yet.
+
 ### Lifecycle events
 
 Versions say *what the record looked like*; events say *what happened*. A

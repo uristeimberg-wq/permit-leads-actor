@@ -1,0 +1,279 @@
+{
+ "source": "raleigh-inspections-nc",
+ "endpoint": "https://services.arcgis.com/v400IkDOw1ad7Yad/arcgis/rest/services/Inspection_Schedule_Public/FeatureServer/1",
+ "capturedAt": "2026-11-15T06:03:28.426Z",
+ "note": "Read with the connector outFields and where (src/sources.js); staff and contact names are never requested.",
+ "declaredFields": [
+  "OBJECTID",
+  "GlobalID",
+  "created_user",
+  "created_date",
+  "last_edited_user",
+  "last_edited_date",
+  "Address",
+  "IMInspectionID",
+  "PrimaryInspector",
+  "InspectionStatus",
+  "InspectionType",
+  "IsCompleted",
+  "LinkNumber",
+  "ContactCompanyName",
+  "ContactFirstName",
+  "ContactLastName",
+  "LocationGUID",
+  "InspectionOrder",
+  "Scheduled"
+ ],
+ "rows": [
+  {
+   "OBJECTID": 7,
+   "IMInspectionID": "2ebdf422-e805-4309-9750-d1b3d73e6113",
+   "Scheduled": 1794459600000,
+   "InspectionStatus": "Passed",
+   "InspectionType": "Service [Electrical | Residential]",
+   "IsCompleted": "True",
+   "LinkNumber": "ELR-053892-2026",
+   "Address": "1000 Ironstone Ct, Raleigh, NC 27615"
+  },
+  {
+   "OBJECTID": 8,
+   "IMInspectionID": "1f4665b3-c829-44ce-9eff-46592b8c1655",
+   "Scheduled": 1794459600000,
+   "InspectionStatus": "Passed",
+   "InspectionType": "Rough-In [Electrical | Residential]",
+   "IsCompleted": "True",
+   "LinkNumber": "ELR-053892-2026",
+   "Address": "1000 Ironstone Ct, Raleigh, NC 27615"
+  },
+  {
+   "OBJECTID": 9,
+   "IMInspectionID": "d9554041-f1a0-4533-8628-7f619f9b5d79",
+   "Scheduled": 1794459600000,
+   "InspectionStatus": "Passed",
+   "InspectionType": "Final [Electrical | Residential]",
+   "IsCompleted": "True",
+   "LinkNumber": "ELR-053892-2026",
+   "Address": "1000 Ironstone Ct, Raleigh, NC 27615"
+  },
+  {
+   "OBJECTID": 10,
+   "IMInspectionID": "3e67b6f3-71be-4183-96ff-c3ac6ccaa3e0",
+   "Scheduled": 1794546000000,
+   "InspectionStatus": "Scheduled/Rolled",
+   "InspectionType": "Ground Work Exterior\t [Electrical | Residential]",
+   "IsCompleted": "False",
+   "LinkNumber": "ELR-048730-2026",
+   "Address": "1082 Shelley Rd, Raleigh, NC 27609"
+  },
+  {
+   "OBJECTID": 11,
+   "IMInspectionID": "8afce0bb-2169-4bb6-bfa8-78fd3b5fca53",
+   "Scheduled": 1794459600000,
+   "InspectionStatus": "Passed",
+   "InspectionType": "Footing [Residential]",
+   "IsCompleted": "True",
+   "LinkNumber": "BLDR-047136-2026",
+   "Address": "1082 Shelley Rd, Raleigh, NC 27609"
+  },
+  {
+   "OBJECTID": 12,
+   "IMInspectionID": "943e59e8-0dcc-433e-9fba-128dc8c0b700",
+   "Scheduled": 1794546000000,
+   "InspectionStatus": "Passed",
+   "InspectionType": "Footing [Residential]",
+   "IsCompleted": "True",
+   "LinkNumber": "BLDR-040451-2026",
+   "Address": "1101 Theresa Ct, Raleigh, NC 27615"
+  },
+  {
+   "OBJECTID": 13,
+   "IMInspectionID": "47fdd340-f4b3-4466-b554-3372e2b28df2",
+   "Scheduled": 1794546000000,
+   "InspectionStatus": "Scheduled",
+   "InspectionType": "Final [Residential]",
+   "IsCompleted": "False",
+   "LinkNumber": "BLDR-050739-2025",
+   "Address": "1201 Kimberly Dr, Raleigh, NC 27609"
+  },
+  {
+   "OBJECTID": 14,
+   "IMInspectionID": "f6b1cdda-a9d3-436c-802e-ec39bb79437a",
+   "Scheduled": 1794546000000,
+   "InspectionStatus": "Re-inspection Required",
+   "InspectionType": "Framing [Residential]",
+   "IsCompleted": "True",
+   "LinkNumber": "BLDR-051949-2025",
+   "Address": "1209 Wimbleton Dr, Raleigh, NC 27609"
+  },
+  {
+   "OBJECTID": 15,
+   "IMInspectionID": "86392809-a3d2-48de-ae7f-7717ce2792fb",
+   "Scheduled": 1794459600000,
+   "InspectionStatus": "Passed",
+   "InspectionType": "Final [Plumbing | Residential]",
+   "IsCompleted": "True",
+   "LinkNumber": "PLMR-044990-2026",
+   "Address": "1429 Kershaw Dr, Raleigh, NC 27609"
+  },
+  {
+   "OBJECTID": 16,
+   "IMInspectionID": "73c841a7-674c-4d15-8e71-0ca7dcf1deb8",
+   "Scheduled": 1794459600000,
+   "InspectionStatus": "Passed",
+   "InspectionType": "Ground Work Int\t[Electrical | Residential]",
+   "IsCompleted": "True",
+   "LinkNumber": "ELR-033508-2026",
+   "Address": "1608 Stannard Trl, Raleigh, NC 27612"
+  },
+  {
+   "OBJECTID": 17,
+   "IMInspectionID": "c518d667-8348-4b45-928e-cc62ee09c6db",
+   "Scheduled": 1794546000000,
+   "InspectionStatus": "Passed",
+   "InspectionType": "Framing [Residential]",
+   "IsCompleted": "True",
+   "LinkNumber": "BLDR-053676-2025",
+   "Address": "1825 Lynn Park Ct, Raleigh, NC 27612"
+  },
+  {
+   "OBJECTID": 18,
+   "IMInspectionID": "5c7c0db3-26af-4a7e-b3de-d6114ea88e87",
+   "Scheduled": 1794546000000,
+   "InspectionStatus": "Passed",
+   "InspectionType": "Rough-In [Electrical | Residential]",
+   "IsCompleted": "True",
+   "LinkNumber": "ELR-055925-2025",
+   "Address": "1825 Lynn Park Ct, Raleigh, NC 27612"
+  },
+  {
+   "OBJECTID": 19,
+   "IMInspectionID": "08658cd6-7bea-4b45-ac3d-91df3ce57c47",
+   "Scheduled": 1794546000000,
+   "InspectionStatus": "Passed",
+   "InspectionType": "Rough-In [Mechanical | Residential]",
+   "IsCompleted": "True",
+   "LinkNumber": "MECHR-055926-2025",
+   "Address": "1825 Lynn Park Ct, Raleigh, NC 27612"
+  },
+  {
+   "OBJECTID": 20,
+   "IMInspectionID": "c6c6a563-d47c-4eb6-ad5d-3f2c8dc18918",
+   "Scheduled": 1794546000000,
+   "InspectionStatus": "Passed",
+   "InspectionType": "Rough-In [Plumbing | Residential]",
+   "IsCompleted": "True",
+   "LinkNumber": "PLMR-055928-2025",
+   "Address": "1825 Lynn Park Ct, Raleigh, NC 27612"
+  },
+  {
+   "OBJECTID": 21,
+   "IMInspectionID": "e94a9818-357b-4e72-8118-eae7ecf8ddb0",
+   "Scheduled": 1794546000000,
+   "InspectionStatus": "Canceled",
+   "InspectionType": "Rough-In [Plumbing | Residential]",
+   "IsCompleted": "True",
+   "LinkNumber": "PLMR-036643-2026",
+   "Address": "1900 Rangecrest Rd, Raleigh, NC 27612"
+  },
+  {
+   "OBJECTID": 22,
+   "IMInspectionID": "f890eda8-895a-4d94-9081-8847ea35d515",
+   "Scheduled": 1794546000000,
+   "InspectionStatus": "Passed",
+   "InspectionType": "Ground Work Int\t[Electrical | Residential]",
+   "IsCompleted": "True",
+   "LinkNumber": "ELR-036629-2026",
+   "Address": "1900 Rangecrest Rd, Raleigh, NC 27612"
+  },
+  {
+   "OBJECTID": 23,
+   "IMInspectionID": "d70cdad7-c703-461d-afa2-91c750e5b764",
+   "Scheduled": 1794546000000,
+   "InspectionStatus": "Scheduled/Rolled",
+   "InspectionType": "Framing [Residential]",
+   "IsCompleted": "False",
+   "LinkNumber": "BLDR-016878-2026",
+   "Address": "1906 French Dr, Raleigh, NC 27612"
+  },
+  {
+   "OBJECTID": 24,
+   "IMInspectionID": "57c04ffc-e16b-47dc-8fc6-48e009d2f93f",
+   "Scheduled": 1794546000000,
+   "InspectionStatus": "Scheduled",
+   "InspectionType": "Insulation [Residential]",
+   "IsCompleted": "False",
+   "LinkNumber": "BLDR-049683-2026",
+   "Address": "2005 Lodestar Dr, Raleigh, NC 27615"
+  },
+  {
+   "OBJECTID": 25,
+   "IMInspectionID": "1cfc5603-4242-4692-8825-618402453a94",
+   "Scheduled": 1794459600000,
+   "InspectionStatus": "Passed",
+   "InspectionType": "Footing [Residential]",
+   "IsCompleted": "True",
+   "LinkNumber": "BLDR-045901-2026",
+   "Address": "2013 Nancy Ann Dr, Raleigh, NC 27607"
+  },
+  {
+   "OBJECTID": 26,
+   "IMInspectionID": "c696c94e-6768-456b-a673-4f64ff9c4694",
+   "Scheduled": 1794546000000,
+   "InspectionStatus": "Scheduled",
+   "InspectionType": "Final [Electrical | Residential]",
+   "IsCompleted": "False",
+   "LinkNumber": "ELR-035333-2026",
+   "Address": "2105 Lodestar Dr, Raleigh, NC 27615"
+  },
+  {
+   "OBJECTID": 27,
+   "IMInspectionID": "068dd5ab-5b6a-4a43-8f02-def77ef87d8c",
+   "Scheduled": 1794459600000,
+   "InspectionStatus": "Passed",
+   "InspectionType": "Final [Residential]",
+   "IsCompleted": "True",
+   "LinkNumber": "BLDR-051966-2026",
+   "Address": "2341 Brisbayne Cir, Raleigh, NC 27615"
+  },
+  {
+   "OBJECTID": 28,
+   "IMInspectionID": "27e2250d-343d-4050-bc24-feff93a36fac",
+   "Scheduled": 1794546000000,
+   "InspectionStatus": "Canceled",
+   "InspectionType": "Insulation [Residential]",
+   "IsCompleted": "True",
+   "LinkNumber": "BLDR-037103-2026",
+   "Address": "2862 Wycliff Rd, Raleigh, NC 27607"
+  },
+  {
+   "OBJECTID": 29,
+   "IMInspectionID": "9b3e1d7d-6576-4851-a3e0-9d5c41950041",
+   "Scheduled": 1794546000000,
+   "InspectionStatus": "Scheduled",
+   "InspectionType": "Final [Electrical | Residential]",
+   "IsCompleted": "False",
+   "LinkNumber": "ELR-052820-2026",
+   "Address": "3108 Westbury Dr, Raleigh, NC 27607"
+  },
+  {
+   "OBJECTID": 30,
+   "IMInspectionID": "f3899f03-2835-4c8c-be96-e4aa727d2168",
+   "Scheduled": 1794546000000,
+   "InspectionStatus": "Scheduled/Rolled",
+   "InspectionType": "Footing [Residential]",
+   "IsCompleted": "False",
+   "LinkNumber": "BLDR-035506-2026",
+   "Address": "3116 Umstead View Dr, Raleigh, NC 27607"
+  },
+  {
+   "OBJECTID": 31,
+   "IMInspectionID": "8527ef56-5b83-48f5-97b0-e9cf2c8b0743",
+   "Scheduled": 1794546000000,
+   "InspectionStatus": "Scheduled/Rolled",
+   "InspectionType": "Framing [Residential]",
+   "IsCompleted": "False",
+   "LinkNumber": "BLDR-043176-2026",
+   "Address": "3128 Westbury Dr, Raleigh, NC 27607"
+  }
+ ]
+}

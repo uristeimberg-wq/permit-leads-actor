@@ -33,7 +33,9 @@ function buildQueryUrl(source, { daysBack, offset, pageSize }) {
   const params = new URLSearchParams({
     f: 'json',
     where: buildWhere(source, daysBack),
-    outFields: '*',
+    // A source may list the columns it reads (inspections: no inspector or
+    // contact names are ever requested); otherwise every column.
+    outFields: Array.isArray(source.outFields) && source.outFields.length ? source.outFields.join(',') : '*',
     returnGeometry: 'false',
     resultOffset: String(offset),
     resultRecordCount: String(pageSize),

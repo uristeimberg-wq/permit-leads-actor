@@ -49,6 +49,9 @@ on:
       discover:
         description: "Discovery scan (recon/discovery_scan.js): 'all', a comma list of orgs,search,socrata,layers, or 'specs:<url|socrata:domain/id>,...'; runs only this"
         default: ''
+      lifecycle:
+        description: "Lifecycle/demolition scan (recon/lifecycle_scan.js): 'all', a comma list of orgs,socrata,search,robots, 'specs:<url|socrata:domain/id>,...' or 'sample:<url|socrata:...>,...'; runs only this"
+        default: ''
 
 jobs:
   measure:
@@ -115,6 +118,16 @@ jobs:
           esac
         env:
           DISCOVER: ${{ inputs.discover }}
+      - if: inputs.lifecycle != ''
+        run: |
+          case "$LIFECYCLE" in
+            all) node recon/lifecycle_scan.js --pad ;;
+            specs:*) node recon/lifecycle_scan.js --specs="${LIFECYCLE#specs:}" --pad ;;
+            sample:*) node recon/lifecycle_scan.js --specs="${LIFECYCLE#sample:}" --sample=5 --pad ;;
+            *) node recon/lifecycle_scan.js --only="$LIFECYCLE" --pad ;;
+          esac
+        env:
+          LIFECYCLE: ${{ inputs.lifecycle }}
       - if: inputs.descriptions != ''
         run: node recon/description_names.js --out=feasibility-report/description-names --months="$MONTHS"
         env:
@@ -127,10 +140,10 @@ jobs:
         run: node recon/market_terms.js --only="$TERMS"
         env:
           TERMS: ${{ inputs.market_terms }}
-      - if: inputs.only == '' && inputs.markets == '' && inputs.market_links == '' && inputs.market_terms == '' && inputs.descriptions == '' && inputs.tcad == '' && inputs.preapproval == '' && inputs.backtest == '' && inputs.planning == '' && inputs.discover == ''
+      - if: inputs.only == '' && inputs.markets == '' && inputs.market_links == '' && inputs.market_terms == '' && inputs.descriptions == '' && inputs.tcad == '' && inputs.preapproval == '' && inputs.backtest == '' && inputs.planning == '' && inputs.discover == '' && inputs.lifecycle == ''
         run: node recon/plan_review.js --out=feasibility-report/plan-review --months=24
       # Inputs go through env, not inline, so they can't inject shell.
-      - if: always() && !startsWith(inputs.only, 'enrichment') && inputs.markets == '' && inputs.market_links == '' && inputs.market_terms == '' && inputs.descriptions == '' && inputs.tcad == '' && inputs.preapproval == '' && inputs.backtest == '' && inputs.planning == '' && inputs.discover == ''
+      - if: always() && !startsWith(inputs.only, 'enrichment') && inputs.markets == '' && inputs.market_links == '' && inputs.market_terms == '' && inputs.descriptions == '' && inputs.tcad == '' && inputs.preapproval == '' && inputs.backtest == '' && inputs.planning == '' && inputs.discover == '' && inputs.lifecycle == ''
         run: node recon/feasibility.js --out=feasibility-report --months="$MONTHS" ${ONLY:+--only="$ONLY"}
         env:
           MONTHS: ${{ inputs.months }}

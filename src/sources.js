@@ -948,6 +948,132 @@ const SOURCES = {
     lifecycle: { statuses: MIAMI_HEARING_STATUSES },
   },
 
+  // kind 'inspections' (migration 033, src/inspections.js): building
+  // inspections and their results, linked to the permit by the source's own
+  // permit number. Found and measured 2026-11-15 (recon/lifecycle_scan.js,
+  // feasibility.yml input `lifecycle`). Both layers hold a rolling window
+  // only, so every day not read is lost; history is ours (result changes are
+  // kept by a trigger). Nothing here is displayed yet.
+
+  // Miami-Dade inspectionsData: 8,366 rows on 2026-11-15, request dates
+  // 2026-11-06 .. 2026-11-16 (the next day's schedule is published). No
+  // inspection id: 41% of rows repeat another row on every non-name column
+  // (the layer joins staff tables), leaving 4,984 distinct inspections, and
+  // permit + sequence + request date + input order + inspector id is unique
+  // among them. GlobalID is unique but the layer is reloaded (ObjectId runs
+  // 1..n), so it is not trusted as a key. Whether the key holds from one day
+  // to the next is checked after the second daily read (raw rows are kept, so
+  // the table can be rebuilt with another key). inspector_id is a staff
+  // number, not a name; names, emails and phones of staff are never fetched.
+  'miami-dade-inspections-fl': {
+    label: 'Miami-Dade, FL (inspections)',
+    kind: 'inspections',
+    type: 'arcgis',
+    layerUrl: 'https://services.arcgis.com/8Pc9XBTAsYuxx9Ny/arcgis/rest/services/inspectionsData/FeatureServer/0',
+    outFields: ['ObjectId', 'permit_number', 'sequence_number', 'input_order', 'inspector_id', 'date', 'request_date',
+      'permit_type', 'inspection_description', 'disp_description', 'job_site_address'],
+    orderByFields: 'ObjectId',
+    syncWindows: [{ field: 'request_date', days: 30 }],
+    maxPerRun: 20000,
+    backfillMaxPerRun: 20000,
+    registry: {
+      jurisdiction: 'miami-dade-county-fl', syncMode: 'snapshot', expectedInterval: '1 day',
+      // Item licence text: "provided as is ... not suitable for site-specific
+      // decision making"; the county user agreement grants no licence (as the
+      // permit layer, migration 007).
+      terms: { url: 'https://www.miamidade.gov/global/disclaimer/disclaimer.page', reviewedOn: '2026-11-15', automatedAccess: 'unknown', redistribution: 'unknown' },
+      fixture: 'test/fixtures/sources/miami-dade-inspections-fl.json',
+    },
+    dateField: 'request_date',
+    defaultState: 'FL',
+    fieldMap: { permitNumber: 'permit_number', filedDate: 'request_date' },
+    inspections: {
+      keyParts: ['permit_number', 'sequence_number', 'request_date', 'input_order', 'inspector_id'],
+      fields: {
+        permitNumber: 'permit_number', permitType: 'permit_type', inspectionType: 'inspection_description',
+        result: 'disp_description', scheduledOn: 'request_date', address: 'job_site_address',
+      },
+      // 278 of 300 sampled permit numbers (92.7%) are a PermitNumber in the
+      // county permit layer (BLDG 111/116, ELEC 53/56, ROOF 51/53); the rest
+      // are short legacy numbers, pre-2015 permits and permits issued in the
+      // last few days. Precision: of 150 matched numbers, the permit's
+      // address agreed (house number and street) on 142; 8 were another
+      // permit with the same number (or no address). So a link also needs
+      // the house number to agree (ingest/inspections.js).
+      link: { to: 'miami-dade-fl', detail: 'inspectionsData.permit_number = PermitNumber, same house number',
+        measured: { checkedOn: '2026-11-15', sampled: 300, found: 278, addressChecked: 150, addressAgreed: 142 } },
+      // Every wording on the layer on 2026-11-15. "NOT INSPECTED" is also the
+      // value of the next day's not-yet-done inspections.
+      results: {
+        approved: 'approved', 'insp. & approved by engineer': 'approved', completed: 'approved',
+        'partial approve complx struct': 'partial', 'approved partial': 'partial', 'apprvd partial/extra insp req': 'partial',
+        'inspect qty assurance partial': 'partial',
+        'corrections required': 'rejected', rejected: 'rejected', 'rejected plan & permit missing': 'rejected',
+        'rejected not accessible': 'rejected', 'rejected work concealed': 'rejected', 'rejected revise plans req': 'rejected',
+        'rejected approved plans req.': 'rejected', 'rejected , notice commencement': 'rejected', 'rejected multi inspected bldg': 'rejected',
+        'rejected , new permit required': 'rejected', 'rejected for pool barrier req': 'rejected', 'perm by affdvit/correct req': 'rejected',
+        '110.1 fbc req inspect conceal': 'rejected',
+        'not ready for inspection': 'not_ready', 'no progress': 'not_ready',
+        'not inspected': 'not_inspected', 'carry over': 'not_inspected', 'unable to locate/add/apt/space': 'not_inspected',
+        'inspection cancellation': 'cancelled', 'cancellation by internet': 'cancelled', 'cancellation by voice response': 'cancelled',
+        'inspection for qty assurance': 'other', 'referred to regulation': 'other', 'field check only': 'other', inactive: 'other',
+        'virtual/insp see comment&call': 'other',
+      },
+    },
+  },
+
+  // Raleigh Inspection_Schedule_Public, layer 1 (Inspections): the inspectors'
+  // route sheet, "sourced from EnerGov first thing in the morning and updated
+  // every 5 minutes" (item description). 2,074 rows on 2026-11-15, scheduled
+  // 2026-11-12 .. 2026-11-14: yesterday's results and today's schedule.
+  // IMInspectionID is EnerGov's inspection id, unique (2,074 of 2,074).
+  // Housing-code and nuisance inspections (types "HS - ...", case numbers
+  // HC-, PN-, CD-) are code enforcement at people's homes, not construction:
+  // they are filtered out in the query and never stored (rule 5). The
+  // ContactFirstName/LastName/CompanyName and PrimaryInspector columns are
+  // never requested. The item has no licence text.
+  'raleigh-inspections-nc': {
+    label: 'Raleigh, NC (inspections)',
+    kind: 'inspections',
+    type: 'arcgis',
+    layerUrl: 'https://services.arcgis.com/v400IkDOw1ad7Yad/arcgis/rest/services/Inspection_Schedule_Public/FeatureServer/1',
+    outFields: ['OBJECTID', 'IMInspectionID', 'Scheduled', 'InspectionStatus', 'InspectionType', 'IsCompleted', 'LinkNumber', 'Address'],
+    where: "InspectionType NOT LIKE 'HS -%' AND LinkNumber NOT LIKE 'HC%' AND LinkNumber NOT LIKE 'PN-%' AND LinkNumber NOT LIKE 'CD%'",
+    orderByFields: 'OBJECTID',
+    syncWindows: [{ field: 'Scheduled', days: 30 }],
+    maxPerRun: 10000,
+    backfillMaxPerRun: 10000,
+    registry: {
+      jurisdiction: 'raleigh-nc', syncMode: 'snapshot', expectedInterval: '1 day',
+      terms: { url: 'https://www.arcgis.com/home/item.html?id=fdffab26766e43af8df194b86ed6da97', reviewedOn: '2026-11-15', automatedAccess: 'unknown', redistribution: 'unknown' },
+      fixture: 'test/fixtures/sources/raleigh-inspections-nc.json',
+    },
+    dateField: 'Scheduled',
+    defaultState: 'NC',
+    fieldMap: { permitNumber: 'IMInspectionID', filedDate: 'Scheduled' },
+    inspections: {
+      keyParts: ['IMInspectionID'],
+      fields: {
+        permitNumber: 'LinkNumber', inspectionType: 'InspectionType', result: 'InspectionStatus',
+        scheduledOn: 'Scheduled', completed: 'IsCompleted', address: 'Address',
+      },
+      // 240 of 300 sampled LinkNumbers (80%) are a permitnum in the two
+      // Raleigh permit layers we sync; every building and trade prefix we
+      // carry matched (BLDR 71/71, ELR 39/39, MECHR 29/29, BLDNR 24/24). The
+      // misses are record types those layers do not publish (HVAC, COMBO,
+      // INFRA, SC, ZONE, UF, PU, DEMO). Precision: the address agreed on
+      // 149 of 150 matched numbers; links also need the house number.
+      link: { to: 'raleigh-nc', detail: 'Inspections.LinkNumber = permitnum, same house number',
+        measured: { checkedOn: '2026-11-15', sampled: 300, found: 240, addressChecked: 150, addressAgreed: 149 } },
+      results: {
+        passed: 'approved', 'partial pass': 'partial', 'conditional approval': 'partial',
+        're-inspection required': 'rejected',
+        canceled: 'cancelled', scheduled: 'scheduled', 'scheduled/rolled': 'scheduled', requested: 'scheduled',
+        'duplicate request: existing case in progress': 'other',
+      },
+    },
+  },
+
   // --- Not yet implemented -------------------------------------------------
   //
   // Clark County WA publishes a real ArcGIS feature layer — structurally the
@@ -987,8 +1113,10 @@ const SOURCES = {
 // the lead screens never list it (db/pilot_queries.js filters by source).
 // Planning cases joined 2026-11-14 (kind 'planning', migration 025): they
 // write planning_cases, never permits, so no lead screen lists them.
+// Inspections joined 2026-11-15 (kind 'inspections', migration 033): they
+// write inspections, never permits, and nothing displays them yet.
 const PILOT_AREAS = ['austin-tx', 'austin-plan-review-tx', 'miami-dade-fl', 'miami-city-fl', 'raleigh-nc',
   'austin-site-plans-tx', 'austin-subdivisions-tx', 'raleigh-plan-areas-nc', 'raleigh-devplans-nc', 'miami-derm-sewer-fl',
-  'miami-city-trees-fl', 'miami-dade-zoning-hearings-fl'];
+  'miami-city-trees-fl', 'miami-dade-zoning-hearings-fl', 'miami-dade-inspections-fl', 'raleigh-inspections-nc'];
 
 module.exports = { SOURCES, PILOT_AREAS };

@@ -1023,6 +1023,102 @@ developments, special use permits); Wake County, NC (subdivisions);
 Pflugerville, TX (subdivisions, specific use permits); Williamson County, TX
 (subdivisions); Fort Lauderdale, FL (building permits).
 
+## Inspections and lifecycle scan (2026-11-15)
+
+`recon/lifecycle_scan.js` (feasibility.yml input `lifecycle`) listed our
+three ArcGIS orgs' services by name, searched the Socrata catalogs of the
+four markets and data.texas.gov, searched ArcGIS Online for state
+demolition and asbestos notices, and read robots.txt and the landing page of
+the permit portals and Secretary of State sites. Findings and the probes
+that were not built: `docs/research/2026-11-15-lifecycle-scan.md`.
+
+### Miami-Dade, FL: Inspections Data (`miami-dade-inspections-fl`, connected 2026-11-15)
+
+- **Layer:** `services.arcgis.com/8Pc9XBTAsYuxx9Ny/.../inspectionsData/FeatureServer/0`
+  (owner MDPublisher, edited daily). 8,366 rows on 2026-11-15 with request
+  dates 2026-11-06 .. 2026-11-16: a rolling window of about a week, plus
+  the next day's schedule. The layer is reloaded (ObjectId runs 1..n).
+- **Fields read:** `permit_number`, `sequence_number`, `input_order`,
+  `inspector_id` (a staff number), `date`, `request_date`, `permit_type`,
+  `inspection_description`, `disp_description`, `job_site_address`. The
+  layer also carries the inspector's, supervisor's and director's names,
+  emails and phones; they are never requested.
+- **Key:** no inspection id. 41% of rows repeat another row on every
+  non-name column; the 4,984 distinct inspections are unique on permit +
+  sequence + request date + input order + inspector id. Whether that key
+  holds from day to day is unverified until the second daily read (raw rows
+  are kept, so the table can be rebuilt on another key).
+- **Results** (all 8,366 rows): APPROVED 2,372; NOT INSPECTED 1,547 (also
+  the value of the next day's not-yet-done rows); PARTIAL APPROVE COMPLX
+  STRUCT 1,456; INSPECTION CANCELLATION 480; APPROVED PARTIAL 359; CARRY
+  OVER 329; CORRECTIONS REQUIRED 328; REJECTED (all variants) 418; NOT READY
+  FOR INSPECTION 196; 20 other wordings. Types: FINAL 2,311, ROUGH 1,686, and
+  38 more. Permit types: BLDG 3,068, ELEC 1,802, ROOF 1,454, PLUM 1,344,
+  MECH 524.
+- **Link to permits (measured):** 278 of 300 sampled permit numbers (92.7%)
+  are a `PermitNumber` in `miamidade_permit_data`. Of 150 matched numbers,
+  the permit's house number and street agreed on 142; 8 named a permit at
+  another address. So a link needs the same number and the same house number.
+- **Terms:** item licence text says "as is", not for site-specific decisions;
+  the county user agreement grants no licence. Redistribution unknown.
+  Fixture `test/fixtures/sources/miami-dade-inspections-fl.json`.
+
+### Raleigh, NC: Inspection Schedule (`raleigh-inspections-nc`, connected 2026-11-15)
+
+- **Layer:** `services.arcgis.com/v400IkDOw1ad7Yad/.../Inspection_Schedule_Public/FeatureServer/1`
+  (owner a City employee; "sourced from EnerGov first thing in the morning
+  and updated every 5 minutes"). 2,074 rows on 2026-11-15, scheduled
+  2026-11-12 .. 2026-11-14: the last two working days. Layer 0 is the route's
+  locations; `Daily_Inspector_Schedule` is a 2021 copy (stale).
+- **Fields read:** `IMInspectionID` (EnerGov inspection id, 2,074 of 2,074
+  unique), `Scheduled`, `InspectionStatus`, `InspectionType`, `IsCompleted`,
+  `LinkNumber` (the permit or case number), `Address`. The contact's first,
+  last and company names and the inspector's name are never requested.
+- **Filtered out at the source:** housing-code and nuisance inspections
+  (types `HS - ...`, case numbers `HC`, `PN-`, `CD`): code enforcement at
+  people's homes, not construction (rule 5).
+- **Results:** Passed 1,105; Partial Pass 238; Scheduled 218; Canceled 202;
+  Scheduled/Rolled 143; Re-inspection Required 133; Conditional Approval 5;
+  others are housing-code wordings (filtered).
+- **Link to permits (measured):** 240 of 300 sampled `LinkNumber`s (80%) are
+  a `permitnum` in the two Raleigh permit layers; every building and trade
+  prefix we carry matched (BLDR 71/71, ELR 39/39, MECHR 29/29, BLDNR 24/24).
+  The misses are record types those layers do not publish (HVAC, COMBO,
+  INFRA, SC, ZONE, UF, PU, DEMO). Address agreed on 149 of 150 matches.
+- **Terms:** the item has no licence text. Redistribution unknown. Fixture
+  `test/fixtures/sources/raleigh-inspections-nc.json`.
+
+### Checked and not connected (2026-11-15)
+
+- **Austin inspections:** no inspection dataset on data.austintexas.gov or
+  datahub.austintexas.gov (the hits are restaurant, pool and code
+  inspections). The AMANDA public portal (`abc.austintexas.gov`) shows a
+  CAPTCHA marker: not automated (rule 4).
+- **City of Miami inspections:** none in the City's ArcGIS org (only
+  sidewalk and hurricane right-of-way trackers).
+- **Plan-review cycles:** no source in the four markets publishes review
+  comments or cycles openly. Austin plan-review status changes are already
+  kept by `permit_status_history` (migrations 004 and 017), planning cases
+  by `planning_case_status_history` (025).
+- **Austin right of way:** `hyc6-zz9w` is weekly totals only (3 numbers per
+  row); `fgmw-ai3k` is right-of-way polygons; `qyfh-gwei` Roadway Work Zones
+  was already listed (2026-11-14, excavation permits with `folderrsn`).
+- **Raleigh right of way:** `Sidewalk_Occupancy_Permits` (layer
+  `right_of_way_occupancy_permits_master`, 4,236 rows, 39 applied in 30
+  days, company named) is the same right-of-way occupancy series found on
+  2026-11-14, which comes a median 105 days after the building permit: not
+  early. `Private_Utility_Cuts_Responsible_Company_Public` has 5 rows, last
+  edited 2022.
+- **Miami-Dade `ROW_gdb`:** right-of-way boundary polygons, not permits.
+- **Demolition and asbestos notices:** no open dataset in Texas, Florida or
+  North Carolina on ArcGIS Online or the state Socrata catalog. Texas: DSHS
+  (not TCEQ) receives the notices, 10 working days ahead, for every
+  demolition; filing is through a login portal and records come only by a
+  Public Information Act request (DSHS pages read 2026-11-15). North
+  Carolina: the DHHS asbestos pages' robots.txt disallows automated reads.
+  Florida (FDEP; Miami-Dade's delegated program): unverified, the page did
+  not load.
+
 ## Corrections and new finds (2026-11-14)
 
 From the early-signal research (`docs/DATA_STRATEGY.md`; worker reports in

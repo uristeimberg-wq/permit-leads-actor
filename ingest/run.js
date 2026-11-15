@@ -16,6 +16,7 @@ const db = require('../db/index.js');
 const { toRawRecords, classifyError } = require('./raw.js');
 const { detectDrift } = require('./drift.js');
 const { upsertPlanningCases } = require('./planning.js');
+const { upsertInspections } = require('./inspections.js');
 
 // Adapters that hand back unmapped rows for raw_records (migration 002).
 const RAW_CAPTURE_TYPES = new Set(['socrata', 'arcgis']);
@@ -75,6 +76,9 @@ async function ingestArea(area, { days, daysExplicit = false, max: requestedMax,
   // A planning source (kind 'planning', src/planning.js) writes planning_cases
   // from its raw rows, never permits.
   const planning = source.kind === 'planning';
+  // An inspections source (kind 'inspections', src/inspections.js) writes
+  // inspections from its raw rows, never permits.
+  const inspections = source.kind === 'inspections';
   let rawRecords = [];
   log.info(`[${area}] ingest start (${windowText}, max ${max})`);
 
@@ -138,6 +142,11 @@ async function ingestArea(area, { days, daysExplicit = false, max: requestedMax,
       ({ inserted } = r);
       written = r.cases;
       log.info(`[${area}] planning cases: ${r.cases} seen, ${r.inserted} new, ${r.changed} changed, ${r.parties} parties, ${r.skipped} without a case number`);
+    } else if (inspections) {
+      const r = await upsertInspections(area, sourceId, rawRecords);
+      ({ inserted } = r);
+      written = r.inspections;
+      log.info(`[${area}] inspections: ${r.inspections} seen, ${r.inserted} new, ${r.changed} changed, ${r.skipped} without a key or permit number`);
     } else {
       const withScores = permits.map((p) => ({ ...p, tradeScores: tradeScoresFor(p) }));
       ({ written, inserted } = await db.upsertPermits(withScores, area));

@@ -201,4 +201,6 @@ async function main() {
   if (args.pad) for (let i = 0; i < 400; i += 1) log(`PAD ${'.'.repeat(200)}`);
 }
 
-main().catch((e) => { console.error(e); process.exitCode = 1; });
+if (require.main === module) main().catch((e) => { console.error(e); process.exitCode = 1; });
+
+module.exports = { get, measure, measureArcgis, measureSocrata, layersOf };

@@ -89,7 +89,7 @@ async function measureReread() {
                 WHERE s.slug = p.source_area AND r.kind = 'refresh' AND r.started_at > now() - interval '36 hours'
                 ORDER BY r.started_at DESC LIMIT 1) AS last_refresh_error
          FROM permits p WHERE p.source_area = ANY($1) GROUP BY 1 ORDER BY 1`,
-      [Object.keys(SOURCES).filter((k) => SOURCES[k].refreshPerRun !== 0 && SOURCES[k].kind !== 'planning')]);
+      [Object.keys(SOURCES).filter((k) => SOURCES[k].refreshPerRun !== 0 && !['planning', 'inspections'].includes(SOURCES[k].kind))]);
     return rows;
   } catch (err) {
     if (err.code === '42703' || err.code === '42P01') return null; // column or table not there yet

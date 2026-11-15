@@ -52,6 +52,12 @@ check('buildQueryUrl requests JSON attributes without geometry, and pages', () =
   assert.match(url, /resultRecordCount=500/);
 });
 
+check('buildQueryUrl requests only the listed columns when a source names them', () => {
+  const url = buildQueryUrl({ ...SOURCE, outFields: ['permit_number', 'disp_description'] }, { daysBack: 1, offset: 0, pageSize: 10 });
+  assert.match(url, /outFields=permit_number%2Cdisp_description/);
+  assert.ok(!/outFields=\*/.test(url));
+});
+
 check('buildQueryUrl tolerates a trailing slash on the layer URL', () => {
   const url = buildQueryUrl({ ...SOURCE, layerUrl: `${SOURCE.layerUrl}/` }, { daysBack: 1, offset: 0, pageSize: 10 });
   assert.ok(!url.includes('//query'), 'should not double the slash before /query');
