@@ -4,12 +4,16 @@ name: status-labels
 # labels against web/public/stages.js, plus one reported record checked against
 # the live source (recon/status_labels.js).
 on:
+  # Weekly, Mondays (owner OK 2026-11-15: accuracy checks run on a schedule).
+  schedule:
+    - cron: '45 6 * * 1'
   workflow_dispatch:
   pull_request:
     paths:
       - recon/status_labels.js
       - .github/workflows/status-labels.yml
       - web/public/stages.js
+      - recon/value_audit.js
 
 jobs:
   audit:
@@ -31,3 +35,8 @@ jobs:
           if [ -z "$DATABASE_URL" ]; then echo "::warning::DATABASE_URL is not available (fork PR?); skipped"; exit 0; fi
           set -o pipefail
           node recon/status_labels.js | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Declared values
+        run: |
+          if [ -z "$DATABASE_URL" ]; then exit 0; fi
+          set -o pipefail
+          node recon/value_audit.js | tee -a "$GITHUB_STEP_SUMMARY"

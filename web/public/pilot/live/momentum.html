@@ -84,7 +84,7 @@
         <td class="n mono">${b.recent}</td>
         <td class="n mono">${b.prior == null ? '<span class="sub">—</span>' : b.prior}</td>
         ${apps ? `<td class="n mono">${b.applications.filed ? `<span class="prov" title="${L.esc(`Applications where this business is the filer we classed as the builder (ADR-19). ${b.applications.inReview} not issued yet.`)}">${b.applications.filed}</span><div class="sub">${b.applications.inReview} in review</div>` : '<span class="sub">0</span>'}</td>` : ''}
-        <td>${subsCell(b)}</td>
+        <td>${d.jobLinksHidden ? '<span class="sub">not shown</span>' : subsCell(b)}</td>
         <td class="hide-sm mono">${L.esc(L.date(b.lastJobOn))}</td></tr>`).join('')}</tbody></table></div>`
       : `<div class="card state">${tab === 'down' ? 'No builder is slowing by our definition in this window.' : tab === 'up' ? 'No builder is rising by our definition in this window.' : 'No builder pulled 3 or more building permits in these windows.'}</div>`;
     $('foot').innerHTML = L.attribution(d.meta)

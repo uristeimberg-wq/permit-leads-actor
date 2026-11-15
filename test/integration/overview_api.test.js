@@ -4,6 +4,10 @@
 // Needs Postgres (DATABASE_URL; default :5433).
 
 const assert = require('node:assert');
+
+// These suites check the job-link metrics themselves, which the screens hide by
+// default (ADR-33); SHOW_UNMEASURED=1 makes the API return them.
+process.env.SHOW_UNMEASURED = '1';
 const { Client } = require('pg');
 
 const ADMIN_URL = process.env.DATABASE_URL || 'postgres://permits:permits@localhost:5433/permits';
