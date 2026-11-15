@@ -19,6 +19,7 @@ const insight = require('./insight_queries.js');
 const F = require('../src/forecast.js');
 
 const { SOURCES: CONFIG, PILOT_AREAS } = require('../src/sources.js');
+const { locationSql } = require('../src/display_policy.js');
 
 const TRADES = ['electrical', 'mechanical', 'plumbing'];
 // Every pilot market the screens can show: the synced permit feeds, not the
@@ -296,7 +297,7 @@ async function sourceMeta(source) {
 
 // Permit columns a client may see (no owner/applicant: src/privacy.js).
 const PERMIT_COLS = `p.id, p.source_area, p.permit_number, p.address, p.city, p.state, p.zip, p.permit_type,
-  p.work_description, p.valuation, p.status_raw, p.status_stage, p.permit_url, p.filed_date, p.trade_scores,
+  p.work_description, p.valuation, p.status_raw, p.status_stage, p.lifecycle_stage, p.filing_kind, p.permit_url, p.filed_date, p.trade_scores,
   p.first_seen_at, p.last_seen_at`;
 
 async function provenanceFor(rawRecordId) {
@@ -426,7 +427,7 @@ async function locationFor(permitId) {
       LEFT JOIN geocode_cache g ON g.address_key = l.address_key
       LEFT JOIN permit_parcels pp ON pp.permit_id = l.permit_id AND pp.parcel_id = l.parcel_id
       JOIN sources s ON s.slug = CASE l.method WHEN 'source' THEN p.source_area WHEN 'parcel' THEN pp.provider ELSE 'us-census-geocoder' END
-     WHERE l.permit_id = $1`, [permitId]);
+     WHERE l.permit_id = $1 AND ${locationSql('l')}`, [permitId]);
   if (!r) return null;
   return {
     lat: r.lat, lng: r.lng, method: r.method, quality: r.quality,
@@ -649,7 +650,7 @@ async function listEarly(f, { days = 30, limit = 100, segment = null, since = nu
   const segmentCols = Object.keys(SEGMENTS).map((k, i) => `count(*) FILTER (WHERE p.permit_type ~* $${6 + i})::int AS ${k}`).join(', ');
   const [{ rows }, { rows: counts }, { rows: [segmentCounts] }] = await Promise.all([
     query(`
-      SELECT ${PERMIT_COLS}, p.lifecycle_stage, p.first_seen_stage, p.submitted_on, p.stage_since, p.filing_kind,
+      SELECT ${PERMIT_COLS}, p.first_seen_stage, p.submitted_on, p.stage_since,
              pp.contractor_id, pp.is_building, pp.trade,
              (SELECT k.to_permit_id FROM permit_links k WHERE k.from_permit_id = p.id ORDER BY k.to_permit_id LIMIT 1) AS permit_id,
              (SELECT coalesce(json_agg(json_build_object('key', o.org_key, 'name', o.display_name, 'partyKind', o.party_kind,

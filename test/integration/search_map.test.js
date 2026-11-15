@@ -73,9 +73,15 @@ async function main() {
     await check('job sites in a viewport, with how each was located, filters applied', async () => {
       const { status, body } = await get('/api/map/points?stage=any&bbox=30.2,-97.8,30.3,-97.7');
       assert.strictEqual(status, 200);
-      assert.strictEqual(body.inView, 2);
-      assert.deepStrictEqual(body.points.map((p) => p.method).sort(), ['census', 'source']);
-      assert.strictEqual(body.points.find((p) => p.method === 'census').quality, 'non_exact');
+      // A Census point is unmeasured (ADR-32): left out unless SHOW_UNMEASURED=1.
+      assert.strictEqual(body.inView, 1);
+      assert.deepStrictEqual(body.points.map((p) => p.method), ['source']);
+      process.env.SHOW_UNMEASURED = '1';
+      const all = (await get('/api/map/points?stage=any&bbox=30.2,-97.8,30.3,-97.7')).body;
+      delete process.env.SHOW_UNMEASURED;
+      assert.strictEqual(all.inView, 2);
+      assert.deepStrictEqual(all.points.map((p) => p.method).sort(), ['census', 'source']);
+      assert.strictEqual(all.points.find((p) => p.method === 'census').quality, 'non_exact');
       const none = await get('/api/map/points?stage=any&zip=27603&bbox=30.2,-97.8,30.3,-97.7');
       assert.strictEqual(none.body.inView, 0);
     });

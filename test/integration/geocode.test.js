@@ -93,10 +93,14 @@ async function main() {
       assert.deepStrictEqual([sent.length, s.asked, s.changed, s.removed], [2, 0, 0, 0]);
     });
 
-    await check('the job API shows the point with its method and the Census notice', async () => {
+    await check('the job API hides a Census point by default, and with SHOW_UNMEASURED shows it with its method and notice', async () => {
       const { getJob, parseFilters } = require('../../db/pilot_queries.js');
       const [{ id }] = await q("SELECT id FROM permits WHERE permit_number = '2026-2 BP'");
+      // Census points are unmeasured (ADR-32): not shown unless SHOW_UNMEASURED=1.
+      assert.strictEqual((await getJob(id, parseFilters({ trade: 'electrical', source: 'austin-tx' }))).location, null);
+      process.env.SHOW_UNMEASURED = '1';
       const job = await getJob(id, parseFilters({ trade: 'electrical', source: 'austin-tx' }));
+      delete process.env.SHOW_UNMEASURED;
       assert.deepStrictEqual([job.location.method, job.location.quality, job.location.provenance.source],
         ['census', 'exact', 'us-census-geocoder']);
       assert.match(job.location.provenance.attribution, /not endorsed or certified by the Census Bureau/);
