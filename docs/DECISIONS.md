@@ -859,6 +859,6 @@ what would make us revisit it. Never delete an entry; supersede it.
 - **Consequences:** after the change 0 records contradict (same script). The
   hidden values come back one at a time, each after a fidelity check against
   its live source like the 2026-11-14 permit check. Job-key counts (trade
-  permits on a job, a GC's subs) stay: they are equality joins on official
-  permit numbers that the fidelity check measured at 100%; whether every job
-  key denotes one job has not been hand-checked.
+  permits on a job, a GC's subs) stay for now: they are equality joins on
+  the cities' own permit and master numbers, but whether every job key
+  denotes one job has not been hand-checked. That check is the next one owed.
