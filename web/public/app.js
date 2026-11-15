@@ -38,13 +38,13 @@ const TYPING_DELAY = 300;
 
 const TEXT_FILTERS = ['contractor', 'minValuation', 'q'];
 // No trade filter: it read our keyword fit scores, an inference (ADR-26).
-const PICK_FILTERS = ['where', 'jurisdiction', 'permitType', 'from', 'to'];
+const PICK_FILTERS = ['permitType', 'from', 'to'];
 
-/* `where` is one control standing in for two API params. Its value is an area
-   key — `z:78704` or `c:MIAMI|FL`, the same vocabulary the map's pins use — and
-   currentFilters() expands it to zip= or city=. The URL keeps the plain params,
-   so links made by the old UI still work. */
-const asWhere = (filters) =>
+/* Location is one multi-select (location.js) whose value is `areaSelection`: a
+   list of keys in the map's vocabulary — `a:TX` (a broad area, expanded by the
+   server), `c:MIAMI|FL`, `z:78704` — sent as `areas=`. Links made by the old
+   UI (`zip=`, `city=`, `jurisdiction=`) are still read: see applyUrl(). */
+const asAreaKey = (filters) =>
   (filters.zip ? `z:${filters.zip}` : (filters.city ? `c:${filters.city.toUpperCase()}|${(filters.state || '').toUpperCase()}` : ''));
 
 let page = 1;
@@ -60,8 +60,11 @@ let mapPins = [];             // last /api/map response, re-clustered on every z
 let allAreas = [];            // every area we hold, unfiltered — backs geolocation
 let areaSelection = null;     // array of area keys, or null
 let userMovedMap = false;     // once true, stop auto-fitting the viewport
-let pendingWhere = '';        // area key from the URL, applied once options load
+let pendingLegacyKey = '';    // an old `zip=`/`city=` link, resolved once places load
 let unmatchedLocation = null; // a URL location the picker cannot represent
+let jurisdictionFilter = '';  // an old `jurisdiction=` link; no control, shown as a chip
+let areaIndex = null;         // every place we hold (LocationPicker.buildIndex)
+let locPicker = null;         // the sidebar's location picker
 let baseMapNote = '';         // the standing map note, restored after a transient one
 let pointLayer = null;        // located job sites, drawn instead of area pins when zoomed in
 let pointsReq = 0;            // guards against a slow viewport overwriting a newer one
@@ -111,22 +114,15 @@ function currentFilters() {
     if (v) f[id] = v;
   }
 
-  // Expand the single picker back into the params the API takes.
-  const where = f.where;
-  delete f.where;
-  if (!where && unmatchedLocation) {
-    // Pass it through unchanged so the API can answer "we don't cover this",
-    // which is the honest response and the one the empty state is written for.
+  if (areaSelection && areaSelection.length) {
+    f.areas = areaSelection.join(',');
+  } else if (unmatchedLocation) {
+    // Pass an old link's place through unchanged so the API can answer "we
+    // don't cover this", the honest response the empty state is written for.
     Object.assign(f, unmatchedLocation);
-  } else if (where && where.startsWith('z:')) {
-    f.zip = where.slice(2);
-  } else if (where && where.startsWith('c:')) {
-    const [city, state] = where.slice(2).split('|');
-    f.city = city;
-    if (state) f.state = state;
   }
+  if (jurisdictionFilter) f.jurisdiction = jurisdictionFilter;
   if ($('hasContact').checked) f.hasContact = 'true';
-  if (areaSelection && areaSelection.length) f.areas = areaSelection.join(',');
 
   const stages = checkedStages();
   // Three cases, so the URL stays as short as the query is plain:
@@ -161,21 +157,23 @@ function applyUrl() {
   const p = new URLSearchParams(location.search);
 
   for (const id of [...TEXT_FILTERS, ...PICK_FILTERS]) {
-    if (id !== 'where' && p.has(id)) $(id).value = p.get(id);
+    if (p.has(id)) $(id).value = p.get(id);
   }
-  // Applied once the options exist; see loadOptions(). The raw params are kept
-  // alongside, because a URL can name a place we hold nothing for — and
-  // answering that with the whole table would be worse than answering nothing.
-  pendingWhere = asWhere({ zip: p.get('zip'), city: p.get('city'), state: p.get('state') });
+  areaSelection = p.get('areas') ? p.get('areas').split(',').filter(Boolean) : null;
+  jurisdictionFilter = p.get('jurisdiction') || '';
+  // An old `zip=`/`city=` link is turned into a picker key once the places are
+  // loaded (loadOptions). The raw params are kept meanwhile, because a URL can
+  // name a place we hold nothing for, and answering that with the whole table
+  // would be worse than answering nothing.
+  pendingLegacyKey = areaSelection ? '' : asAreaKey({ zip: p.get('zip'), city: p.get('city'), state: p.get('state') });
   unmatchedLocation = null;
-  if (p.has('zip') || p.has('city')) {
+  if (pendingLegacyKey) {
     unmatchedLocation = {};
     for (const key of ['zip', 'city', 'state']) {
       if (p.get(key)) unmatchedLocation[key] = p.get(key);
     }
   }
   $('hasContact').checked = p.get('hasContact') === 'true';
-  areaSelection = p.get('areas') ? p.get('areas').split(',').filter(Boolean) : null;
   if (p.has('sort')) $('sort').value = p.get('sort');
   page = Math.max(1, Number.parseInt(p.get('page'), 10) || 1);
 
@@ -192,6 +190,7 @@ function buildStageCheckboxes() {
   $('stageGroup').innerHTML = STAGES.map(([key, label]) => `
     <label class="check" for="stage-${key}">
       <input type="checkbox" id="stage-${key}" value="${key}">
+      <span class="stage-dot ${key}" aria-hidden="true"></span>
       <span class="check-label">${esc(label)}</span>
       <span class="check-count" id="stage-count-${key}"></span>
     </label>`).join('');
@@ -216,128 +215,65 @@ async function loadOptions() {
     fetch('/api/filters').then((r) => r.json()),
   ]);
 
-  const fill = (el, rows, valueKey, label) => {
-    const frag = document.createDocumentFragment();
-    for (const row of rows) {
-      const o = document.createElement('option');
-      o.value = row[valueKey];
-      o.textContent = label(row);
-      frag.appendChild(o);
-    }
-    el.appendChild(frag);
-  };
+  const frag = document.createDocumentFragment();
+  for (const row of filters.permitTypes) {
+    const o = document.createElement('option');
+    o.value = row.permit_type;
+    o.textContent = `${row.permit_type} (${row.permits})`;
+    frag.appendChild(o);
+  }
+  $('permitType').appendChild(frag);
 
-  fill($('jurisdiction'), areas.jurisdictions, 'jurisdiction', (r) => `${r.jurisdiction} (${r.permits})`);
-  fill($('permitType'), filters.permitTypes, 'permit_type', (r) => `${r.permit_type} (${r.permits})`);
-
-  buildWhereOptions(areas);
-
-  // Quick-pick the ZIPs we actually hold data for — the busiest first, so the
-  // chips are useful rather than merely numeric order.
-  const top = [...areas.zips].sort((a, b) => b.permits - a.permits).slice(0, 8);
-  $('zipChips').innerHTML = top
-    .map((z) => `<button type="button" class="chip" data-where="z:${esc(z.zip)}"
-                   aria-pressed="false">${esc(z.zip)} · ${z.permits}</button>`)
-    .join('');
-
-  $('zipChips').addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-where]');
-    if (!btn) return;
-    // Clicking the active chip clears it, so the chips work as a toggle.
-    setWhere($('where').value === btn.dataset.where ? '' : btn.dataset.where);
-    run({ resetPage: true });
-  });
+  areaIndex = LocationPicker.buildIndex(areas);
+  locPicker.setIndex(areaIndex);
+  resolveLegacyKey();
+  locPicker.setValue(areaSelection || []);
+  areasReady(areaIndex);
 }
 
 /**
- * Every place we hold permits for, and nothing else. ZIPs are grouped by state
- * and labelled with their city; a city gets its own entry only when it has
- * permits carrying no ZIP — Miami-Dade publishes none, so "Miami" is the only
- * way to reach its ~2,900 records.
+ * An old `zip=`/`city=` link becomes a picker key when we hold that place.
+ * `?city=MIAMI` with no state builds `c:MIAMI|`, so match on the city alone
+ * rather than dropping it. A place we don't hold stays in unmatchedLocation,
+ * so the API can say it isn't covered.
  */
-function buildWhereOptions(areas) {
-  const STATE_NAMES = { TX: 'Texas', FL: 'Florida', OR: 'Oregon' };
-  const groups = new Map();
-  const push = (state, entry) => {
-    if (!groups.has(state)) groups.set(state, []);
-    groups.get(state).push(entry);
-  };
-
-  // Every city gets a roll-up entry, and every trusted ZIP its own. Selecting a
-  // city returns its ZIP-bearing permits too, so the two overlap by design —
-  // which is why the group headings carry no total. Summing the options would
-  // count Austin's permits twice.
-  for (const c of areas.cities) {
-    push(c.state || '—', {
-      key: `c:${c.city.toUpperCase()}|${(c.state || '').toUpperCase()}`,
-      label: `${titleCase(c.city)} — all`,
-      permits: c.permits,
-    });
+function resolveLegacyKey() {
+  const key = pendingLegacyKey;
+  pendingLegacyKey = '';
+  if (!key) return;
+  let match = areaIndex.byKey.has(key) ? key : null;
+  if (!match && key.startsWith('c:') && key.endsWith('|')) {
+    const it = areaIndex.items.find((x) => x.key.startsWith(key));
+    match = it ? it.key : null;
   }
-  for (const z of areas.zips) {
-    push(z.state || '—', {
-      key: `z:${z.zip}`,
-      label: `${z.zip}${z.city ? ` · ${titleCase(z.city)}` : ''}`,
-      permits: z.permits,
-    });
-  }
-
-  // Busiest state first, and busiest area within it, so the list opens on the
-  // places most likely to be wanted rather than on alphabetical accident.
-  const ordered = [...groups.entries()]
-    .map(([state, entries]) => [state, entries.sort((a, b) => b.permits - a.permits)])
-    .sort((a, b) => b[1][0].permits - a[1][0].permits);
-
-  const frag = document.createDocumentFragment();
-  for (const [state, entries] of ordered) {
-    const group = document.createElement('optgroup');
-    group.label = STATE_NAMES[state] || state;
-    for (const entry of entries) {
-      const opt = document.createElement('option');
-      opt.value = entry.key;
-      opt.textContent = `${entry.label} · ${entry.permits.toLocaleString('en-US')}`;
-      group.appendChild(opt);
-    }
-    frag.appendChild(group);
-  }
-  $('where').appendChild(frag);
-
-  // A key from the URL can only be applied now that the options exist. If it
-  // matched, the picker is the source of truth and the raw fallback is dropped.
-  if (pendingWhere && setWhere(pendingWhere)) unmatchedLocation = null;
-  pendingWhere = '';
+  if (match) { areaSelection = [match]; unmatchedLocation = null; }
 }
+
+/** Replaces the location selection (picker, map pins and popup all land here). */
+function setAreas(keys, { rerun = true } = {}) {
+  areaSelection = keys && keys.length ? [...new Set(keys)] : null;
+  unmatchedLocation = null;
+  userMovedMap = false;
+  if (locPicker) locPicker.setValue(areaSelection || []);
+  if (rerun) run({ resetPage: true });
+}
+
+/** Adds or removes one place, keeping the rest. */
+function toggleArea(key) {
+  const now = areaSelection || [];
+  setAreas(now.includes(key) ? now.filter((k) => k !== key) : [...now, key]);
+}
+
+// The welcome popup (lens.js) needs the places and a way to set the location.
+let areasReady;
+window.Leads = {
+  areas: new Promise((resolve) => { areasReady = resolve; }),
+  getAreas: () => [...(areaSelection || [])],
+  setAreas: (keys) => setAreas(keys),
+};
 
 const titleCase = (v) => String(v || '').toLowerCase()
   .replace(/\b[a-z]/g, (c) => c.toUpperCase());
-
-/** Selects an area key, ignoring one we hold no permits for. */
-function setWhere(key) {
-  const select = $('where');
-  if (!key) { select.value = ''; return true; }
-
-  const has = (v) => Boolean(select.querySelector(`option[value="${CSS.escape(v)}"]`));
-  if (has(key)) { select.value = key; return true; }
-
-  // A link written before the picker existed can carry `?city=MIAMI` with no
-  // state, which builds the key `c:MIAMI|`. Match on the city alone rather than
-  // silently resetting to "Anywhere".
-  if (key.startsWith('c:') && key.endsWith('|')) {
-    const city = key.slice(2, -1);
-    const match = [...select.options]
-      .find((o) => o.value.startsWith(`c:${city}|`));
-    if (match) { select.value = match.value; return true; }
-  }
-
-  select.value = '';
-  return false;
-}
-
-function paintZipChips(activeWhere) {
-  for (const chip of $('zipChips').querySelectorAll('[data-where]')) {
-    chip.setAttribute('aria-pressed', String(chip.dataset.where === activeWhere));
-  }
-}
 
 /* --------------------------------------------------------------- freshness */
 
@@ -429,18 +365,17 @@ function paintActiveFilters(filters) {
   const stages = checkedStages();
   const chips = [];
 
-  // zip/city/state come from one control, so they get one chip — otherwise
-  // picking Miami would produce a "City MIAMI" and a "State FL" chip.
-  const where = $('where');
-  if (where.value) {
-    chips.push(['zip', 'Where', where.options[where.selectedIndex].textContent.split(' · ')[0]]);
+  // Every chosen place is one chip, named after the first: "Austin area +2".
+  if (areaSelection && areaSelection.length) {
+    const first = LocationPicker.labelFor(areaSelection[0], areaIndex);
+    chips.push(['areas', 'Location', areaSelection.length > 1 ? `${first} +${areaSelection.length - 1}` : first]);
   } else if (unmatchedLocation) {
-    chips.push(['zip', 'Where',
+    chips.push(['zip', 'Location',
       unmatchedLocation.zip || [unmatchedLocation.city, unmatchedLocation.state].filter(Boolean).join(', ')]);
   }
 
   for (const [key, value] of Object.entries(filters)) {
-    if (key === 'sort') continue;
+    if (key === 'sort' || key === 'areas') continue;
     if (key === 'zip' || key === 'city' || key === 'state') continue;
     if (key === 'stage') {
       // The default view needs no chip; anything else is worth stating.
@@ -453,7 +388,6 @@ function paintActiveFilters(filters) {
     }
     const shown = key === 'hasContact' ? 'has a phone number'
       : key === 'minValuation' ? (money(value) || value)
-      : key === 'areas' ? plural(areaSelection.length, 'place', 'places')
       : value;
     chips.push([key, CHIP_LABELS[key] || key, shown]);
   }
@@ -467,20 +401,17 @@ function paintActiveFilters(filters) {
 }
 
 function clearFilter(key) {
-  // zip/city/state are all shown by the one picker, so any of them clears it.
-  if (key === 'zip' || key === 'city' || key === 'state') {
-    unmatchedLocation = null;
-    setWhere('');
-    run({ resetPage: true });
+  // The location chip (picked places, or an old link's zip/city) clears it all.
+  if (key === 'areas' || key === 'zip' || key === 'city' || key === 'state') {
+    setAreas(null);
     return;
   }
   if (key === 'stage') {
     for (const [k] of STAGES) $('stage-' + k).checked = DEFAULT_STAGES.includes(k);
   } else if (key === 'hasContact') {
     $('hasContact').checked = false;
-  } else if (key === 'areas') {
-    areaSelection = null;
-    userMovedMap = false;
+  } else if (key === 'jurisdiction') {
+    jurisdictionFilter = '';
   } else {
     $(key).value = '';
   }
@@ -490,11 +421,16 @@ function clearFilter(key) {
 /* ----------------------------------------------------------------- results */
 
 function stageBadge(p) {
-  // The portal's own wording, coloured by lifecycle stage — the user reads
-  // "Ready to Issue", not our bucket for it.
-  const label = p.status_raw || p.status || p.status_stage;
-  if (!label) return '';
-  return `<span class="stage ${esc(p.status_stage || 'unknown')}">${esc(label)}</span>`;
+  // Our stage in its own colour, so it always agrees with the Stage filter: a
+  // plan-review "Approved" is still waiting for its permit, and showing the
+  // portal's word alone read as approved. The portal's wording follows in
+  // small type, because it is the record's own status.
+  const stage = STAGES.some(([k]) => k === p.status_stage) ? p.status_stage : 'unknown';
+  const label = STAGES.find(([k]) => k === stage)[1];
+  const raw = p.status_raw || p.status || '';
+  const showRaw = raw && raw.toLowerCase() !== label.toLowerCase();
+  return `<span class="stage ${stage}">${esc(label)}</span>${showRaw
+    ? `<span class="stage-raw" title="Status as written on the city's portal">${esc(raw)}</span>` : ''}`;
 }
 
 function renderCard(p) {
@@ -588,7 +524,7 @@ async function run({ resetPage = false } = {}) {
   const filters = currentFilters();
   syncUrl(filters);
   paintActiveFilters(filters);
-  paintZipChips($('where').value);
+  window.dispatchEvent(new Event('leads:areas'));   // the lens button shows the location
   updateFilterCount(filters);
   // The map is refreshed independently of the list: it must not delay results,
   // and a map failure must not blank the feed.
@@ -1055,25 +991,19 @@ function addCluster(group, zoom) {
   for (const m of group.members) pinMarkers.set(m.key, marker);
 }
 
-/** Clicking a pin drills into that one place. */
+/** Clicking a pin adds that place to the location (or removes it, if chosen). */
 function selectArea(pin) {
-  areaSelection = null;
-  // Pins and the picker speak the same key vocabulary, so this is a direct set.
-  // Clicking the place already selected clears it, matching the chips.
-  setWhere($('where').value === pin.key ? '' : pin.key);
+  // Pins and the picker speak the same key vocabulary, so this is a direct toggle.
+  toggleArea(pin.key);
   userMovedMap = true;
-  run({ resetPage: true });
 }
 
-/** The active place gets the accent treatment, matching the sidebar chips. */
+/** The chosen places get the accent treatment, matching the picker's chips. */
 function paintPinState() {
-  const where = $('where').value;
   for (const [key, marker] of pinMarkers) {
     const el = marker.getElement() && marker.getElement().querySelector('.pin');
     if (!el) continue;
-    const active = (where && key === where) ||
-                   (areaSelection ? areaSelection.includes(key) : false);
-    el.classList.toggle('is-active', Boolean(active));
+    el.classList.toggle('is-active', Boolean(areaSelection && areaSelection.includes(key)));
   }
 }
 
@@ -1097,10 +1027,9 @@ function searchVisibleArea() {
   const keys = mapPins.filter((p) => bounds.contains([p.lat, p.lng])).map((p) => p.key);
   // Panning somewhere we hold nothing is a real answer, so send the empty set
   // rather than quietly leaving the previous results on screen.
-  areaSelection = keys;
-  setWhere('');
   $('searchArea').hidden = true;
-  run({ resetPage: true });
+  setAreas(keys);
+  userMovedMap = true;
 }
 
 /* ------------------------------------------------------------ geolocation */
@@ -1163,7 +1092,9 @@ function useMyLocation() {
       if (map) { map.setView([me.lat, me.lng], best.km < NEAR_KM ? 11 : 9); userMovedMap = true; }
 
       if (best.km <= NEAR_KM) {
-        selectArea(best.area);
+        // Add, never toggle: asking "near me" twice must not remove the place.
+        if (!(areaSelection || []).includes(best.area.key)) toggleArea(best.area.key);
+        userMovedMap = true;
         status.textContent = `Nearest area we cover: ${best.area.label} (${miles} mi away).`;
       } else {
         // Being outside coverage is the honest answer, and a more useful one
@@ -1585,7 +1516,9 @@ $('activeFilters').addEventListener('click', (e) => {
 $('clearAll').addEventListener('click', () => {
   areaSelection = null;
   unmatchedLocation = null;
+  jurisdictionFilter = '';
   userMovedMap = false;
+  locPicker.setValue([]);
   for (const id of [...TEXT_FILTERS, ...PICK_FILTERS]) $(id).value = '';
   $('hasContact').checked = false;
   $('sort').value = 'newest';
@@ -1601,9 +1534,12 @@ $('pager').addEventListener('click', (e) => {
   $('feed').scrollTo({ top: 0, behavior: 'smooth' });
 });
 
-// Picking a place by hand supersedes a map-drawn area; keeping both would AND
-// them together and quietly return nothing.
-$('where').addEventListener('change', () => { areaSelection = null; unmatchedLocation = null; });
+// The sidebar's location picker: one search, several places (location.js).
+locPicker = LocationPicker.create($('locPicker'), {
+  label: 'Where',
+  placeholder: 'Search an area, city or ZIP',
+  onChange: (keys) => setAreas(keys),
+});
 
 $('searchArea').addEventListener('click', searchVisibleArea);
 $('useLocation').addEventListener('click', useMyLocation);

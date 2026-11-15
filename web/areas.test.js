@@ -1,6 +1,6 @@
 // Offline: placing ZIPs and cities on the search map (web/areas.js).
 const assert = require('node:assert');
-const { placeArea, zipIsTrusted } = require('./areas.js');
+const { placeArea, zipIsTrusted, regionsFrom, expandAreaKeys, areaFilters } = require('./areas.js');
 
 const coords = {
   zips: { 78704: { lat: 30.24, lng: -97.77 }, 10028: { lat: 40.776, lng: -73.953 } },
@@ -41,5 +41,29 @@ assert.strictEqual(p.kind, 'city', 'the old rule still holds with the file alone
 
 // Nothing to go on: unplaced, and the API counts it rather than dropping it.
 assert.strictEqual(placeArea({ zip: '99999', city: 'NOWHERE', state: 'ZZ' }, located, coords), null);
+
+// Broad areas: one per state, small stray states left out, busiest first.
+const held = {
+  cities: [
+    { city: 'AUSTIN', state: 'TX', permits: 900 }, { city: 'MANOR', state: 'TX', permits: 40 },
+    { city: 'MIAMI', state: 'FL', permits: 500 }, { city: 'RALEIGH', state: 'CT', permits: 1 },
+  ],
+  zips: [{ zip: '78704', state: 'TX', permits: 300 }, { zip: '33101', state: 'FL', permits: 10 }],
+};
+const regions = regionsFrom(held);
+assert.deepStrictEqual(regions.map((r) => r.key), ['a:TX', 'a:FL'], 'busiest first, CT dropped');
+assert.strictEqual(regions[0].label, 'Austin area, TX');
+assert.strictEqual(regions[0].permits, 940);
+
+// a: keys expand to that state's cities and ZIPs; other keys pass through.
+assert.deepStrictEqual(expandAreaKeys('a:TX,z:33101', held).split(',').sort(),
+  ['c:AUSTIN|TX', 'c:MANOR|TX', 'z:33101', 'z:78704']);
+assert.strictEqual(expandAreaKeys('z:78704,c:MIAMI|FL', held), 'z:78704,c:MIAMI|FL', 'no a: key: unchanged');
+assert.strictEqual(expandAreaKeys('a:ZZ', held), 'none:', 'an area we hold nothing for filters to nothing');
+
+// One area alone filters by state (exact, reaches city-less rows); mixed, it expands.
+assert.deepStrictEqual(areaFilters('a:fl', held), { areas: undefined, state: 'FL' });
+assert.deepStrictEqual(Object.keys(areaFilters('a:FL,z:78704', held)), ['areas']);
+assert.strictEqual(areaFilters('z:78704', held).areas, 'z:78704');
 
 console.log('areas.test.js: all passed');

@@ -133,21 +133,10 @@
       <section class="group">
         <h3>Location</h3>
         <div class="group-stack">
-          <!-- One picker, populated from /api/areas, so it can only ever offer
-               places we actually hold permits for. A free-text ZIP box invited
-               searches for areas we don't cover. -->
-          <div class="field">
-            <label for="where">Where</label>
-            <select class="select" id="where" name="where">
-              <option value="">Anywhere we cover</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="jurisdiction">Jurisdiction</label>
-            <select class="select" id="jurisdiction" name="jurisdiction">
-              <option value="">Any jurisdiction</option>
-            </select>
-          </div>
+          <!-- One search box, several places (location.js). It only offers
+               places we hold permits for, from /api/areas: broad areas first,
+               then cities, then ZIPs. Map pins add to the same selection. -->
+          <div id="locPicker"></div>
           <button type="button" class="btn btn-ghost" id="useLocation" style="align-self:flex-start">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                  stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -157,7 +146,6 @@
             <span id="useLocationLabel">Use my location</span>
           </button>
           <p class="hint" id="geoStatus" role="status"></p>
-          <div class="chips" id="zipChips"></div>
         </div>
       </section>
 
@@ -325,6 +313,8 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="links.js"></script>
+<script src="location.js"></script>
 <script src="app.js"></script>
+<script src="lens.js"></script>
 </body>
 </html>

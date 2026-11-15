@@ -68,4 +68,62 @@ function zipIsTrusted(z, located, coords = AREA_COORDS) {
   return Boolean(placed && placed.kind === 'zip');
 }
 
-module.exports = { placeArea, zipIsTrusted, farApart, cityKeyOf };
+// ── Broad areas (the "general location" in the Leads picker) ────────────────
+//
+// One per state we hold, because each state we sync is one market: Texas is
+// Austin and its ETJ, Florida is Miami-Dade and the City of Miami, North
+// Carolina is Raleigh. A state with only a handful of rows (a typo'd "CT" on
+// a Raleigh record) is not offered as an area; those rows stay reachable by
+// city. Keys are `a:<STATE>`, alongside the picker's `z:` and `c:` keys.
+const REGION_LABELS = { TX: 'Austin area, TX', FL: 'Miami area, FL', NC: 'Raleigh area, NC', OR: 'Oregon (older data)' };
+const MIN_REGION_PERMITS = 50;
+
+/** The broad areas to offer, busiest first, from listAreas() rows. */
+function regionsFrom(areas) {
+  const byState = new Map();
+  for (const c of areas.cities || []) {
+    const st = String(c.state || '').toUpperCase();
+    if (!st) continue;
+    byState.set(st, (byState.get(st) || 0) + c.permits);
+  }
+  return [...byState.entries()]
+    .filter(([, permits]) => permits >= MIN_REGION_PERMITS)
+    .map(([state, permits]) => ({ key: `a:${state}`, state, label: REGION_LABELS[state] || state, permits }))
+    .sort((a, b) => b.permits - a.permits);
+}
+
+/**
+ * Rewrites `a:<STATE>` keys in an `areas` filter into the `c:` and `z:` keys
+ * db/queries.js understands (every city and ZIP we hold in that state), so a
+ * shared link stays short and the query layer is unchanged. Other keys pass
+ * through untouched, and duplicates are dropped.
+ */
+function expandAreaKeys(areasParam, areas) {
+  const keys = String(areasParam || '').split(',').map((k) => k.trim()).filter(Boolean);
+  if (!keys.some((k) => k.startsWith('a:'))) return keys.join(',');
+  const out = new Set();
+  for (const key of keys) {
+    if (!key.startsWith('a:')) { out.add(key); continue; }
+    const st = key.slice(2).toUpperCase();
+    for (const c of areas.cities || []) if (String(c.state || '').toUpperCase() === st) out.add(`c:${String(c.city).toUpperCase()}|${st}`);
+    for (const z of areas.zips || []) if (String(z.state || '').toUpperCase() === st) out.add(`z:${z.zip}`);
+  }
+  // An area we hold nothing for must still filter to nothing, not to everything.
+  return out.size ? [...out].join(',') : 'none:';
+}
+
+/**
+ * The query filters for an `areas` value. One broad area on its own becomes
+ * `state=`, which is exact: some sources publish no city or ZIP at all (City
+ * of Miami, Austin's plan-review feed), so only the state reaches them. Mixed
+ * with other places, an area expands to its cities and ZIPs (expandAreaKeys),
+ * because db/queries.js cannot OR a state with them; those city-less rows are
+ * then left out. Returns the fields to merge over the request's filters.
+ */
+function areaFilters(areasParam, areas) {
+  const keys = String(areasParam || '').split(',').map((k) => k.trim()).filter(Boolean);
+  if (keys.length === 1 && keys[0].startsWith('a:')) return { areas: undefined, state: keys[0].slice(2).toUpperCase() };
+  return { areas: expandAreaKeys(keys.join(','), areas) };
+}
+
+module.exports = { placeArea, zipIsTrusted, farApart, cityKeyOf, regionsFrom, expandAreaKeys, areaFilters, REGION_LABELS };

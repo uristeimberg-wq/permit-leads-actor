@@ -75,6 +75,28 @@ function pickFilters(query) {
   return filters;
 }
 
+// The list of places we hold, for expanding broad-area keys (web/areas.js).
+// It changes only with a sync, so ten minutes of memory is plenty.
+const AREAS_TTL_MS = 10 * 60 * 1000;
+let areasMemo = null;
+async function heldAreas() {
+  if (!areasMemo || Date.now() - areasMemo.at > AREAS_TTL_MS) {
+    areasMemo = { at: Date.now(), value: queries.listAreas() };
+    areasMemo.value.catch(() => { areasMemo = null; });
+  }
+  return areasMemo.value;
+}
+
+/** pickFilters, with `a:<STATE>` area keys rewritten (web/areas.js areaFilters). */
+async function pickFiltersExpanded(query) {
+  const filters = pickFilters(query);
+  if (filters.areas && /(^|,)\s*a:/.test(filters.areas)) {
+    Object.assign(filters, areaFilters(filters.areas, await heldAreas()));
+    if (filters.areas === undefined) delete filters.areas;
+  }
+  return filters;
+}
+
 const asyncRoute = (handler) => (req, res) => {
   Promise.resolve(handler(req, res)).catch((err) => {
     console.error(err);
@@ -84,7 +106,7 @@ const asyncRoute = (handler) => (req, res) => {
 };
 
 app.get('/api/permits', asyncRoute(async (req, res) => {
-  const filters = pickFilters(req.query);
+  const filters = await pickFiltersExpanded(req.query);
   const result = await queries.searchPermits(filters);
 
   // An uncovered ZIP and a ZIP with no matches look identical in the results
@@ -109,7 +131,7 @@ app.get('/api/permits/:id', asyncRoute(async (req, res) => {
 // Map and picker placement (web/areas.js): an area sits at the median of its
 // permits' located job sites, falling back to the committed prototype
 // centroids. No geocoding happens at request time.
-const { placeArea, zipIsTrusted } = require('./areas.js');
+const { placeArea, zipIsTrusted, regionsFrom, areaFilters } = require('./areas.js');
 // Past this, a cold centroid cache answers from the area file for one request.
 const CENTROID_WAIT_MS = 2000;
 
@@ -120,7 +142,7 @@ const CENTROID_WAIT_MS = 2000;
  * so. Street-level job sites come from /api/map/points instead.
  */
 app.get('/api/map', asyncRoute(async (req, res) => {
-  const [rows, located] = await Promise.all([queries.mapClusters(pickFilters(req.query)), queries.areaCentroids({ maxWaitMs: CENTROID_WAIT_MS })]);
+  const [rows, located] = await Promise.all([queries.mapClusters(await pickFiltersExpanded(req.query)), queries.areaCentroids({ maxWaitMs: CENTROID_WAIT_MS })]);
 
   const pins = new Map();
   let unplaced = 0;
@@ -156,7 +178,7 @@ app.get('/api/map/points', asyncRoute(async (req, res) => {
     && south < north && west < east && north - south <= 1 && east - west <= 1;
   // A box wider than about a city would scan most of the table: refuse it.
   if (!valid) return res.status(400).json({ error: 'bbox must be south,west,north,east and at most 1 degree across' });
-  return res.json(await queries.mapPoints(pickFilters(req.query), { south, west, north, east }));
+  return res.json(await queries.mapPoints(await pickFiltersExpanded(req.query), { south, west, north, east }));
 }));
 
 /**
@@ -174,6 +196,8 @@ app.get('/api/areas', asyncRoute(async (_req, res) => {
 
   res.json({
     ...areas,
+    // Broad areas for the Leads location picker (web/areas.js regionsFrom).
+    regions: regionsFrom(areas),
     zips: trusted,
     // Stated rather than silently dropped, so the difference is auditable.
     zipsHidden: areas.zips.length - trusted.length,
