@@ -164,10 +164,20 @@ async function main() {
   });
 
   await section('Phase 3: Florida names split across entities (measured, nothing merged)', async () => {
+    // ingest/resolve.js keeps an entity a later rule merged away, with
+    // permit_count 0, so a raw count of split names includes those leftovers.
+    const [all] = await q(`
+      SELECT count(*)::int AS groups,
+             count(*) FILTER (WHERE live > 1)::int AS live_groups,
+             coalesce(sum(n - live), 0)::int AS empty_entities
+        FROM (SELECT normalized_name, count(*) AS n, count(*) FILTER (WHERE permit_count > 0) AS live FROM contractors
+               WHERE split_part(identity_key, ':', 2) = 'FL' AND party_kind = 'business'
+               GROUP BY 1 HAVING count(*) > 1) g`);
+    out(`All Florida business rows: ${all.groups} names on 2+ entities, of which ${all.empty_entities} entities carry no permit (merged away or gone). Counting only entities with permits: ${all.live_groups} split names.`); out();
     // A group = business entities in Florida sharing one normalised name.
     const [g] = await q(`
       WITH fl AS (SELECT id, normalized_name, identity_key LIKE 'lic:%' AS lic FROM contractors
-                   WHERE split_part(identity_key, ':', 2) = 'FL' AND party_kind = 'business'),
+                   WHERE split_part(identity_key, ':', 2) = 'FL' AND party_kind = 'business' AND permit_count > 0),
            grp AS (SELECT normalized_name, array_agg(id) AS ids, count(*) AS n, count(*) FILTER (WHERE lic) AS lics
                      FROM fl GROUP BY 1 HAVING count(*) > 1),
            phone AS (SELECT g.normalized_name FROM grp g JOIN contact_points cp ON cp.contractor_id = ANY(g.ids) AND cp.kind = 'phone'
@@ -183,7 +193,7 @@ async function main() {
              (SELECT count(*) FROM sb WHERE ents = 1)::int AS sunbiz_one,
              (SELECT count(*) FROM sb WHERE ents >= 2)::int AS sunbiz_many`);
     table(['measure', 'groups'], [
-      ['names on 2+ Florida business entities', `${g.groups} (${g.entities} entities)`],
+      ['names on 2+ Florida business entities with permits', `${g.groups} (${g.entities} entities)`],
       ['  all keys are name keys', g.name_keys_only],
       ['  exactly one licence key', g.one_licence],
       ['  two or more licence keys', g.two_plus_licences],
@@ -194,7 +204,7 @@ async function main() {
     ]);
     // What the Sunbiz lookups (the input to resolver rule 3) said for these names.
     const look = await q(`
-      WITH grp AS (SELECT normalized_name FROM contractors WHERE split_part(identity_key, ':', 2) = 'FL' AND party_kind = 'business'
+      WITH grp AS (SELECT normalized_name FROM contractors WHERE split_part(identity_key, ':', 2) = 'FL' AND party_kind = 'business' AND permit_count > 0
                     GROUP BY 1 HAVING count(*) > 1)
       SELECT coalesce(l.outcome || CASE WHEN l.outcome = 'matched' THEN ' (' || CASE WHEN l.candidates = 1 THEN '1 candidate' ELSE '2+ candidates' END || ')' ELSE '' END, 'never looked up') AS outcome,
              count(*)::int AS n
@@ -204,7 +214,7 @@ async function main() {
     // Rule 3 reads the lookups at resolve time; the sync resolves before it
     // looks names up, so a lookup newer than the last resolve applies next run.
     const [t] = await q(`
-      WITH grp AS (SELECT normalized_name FROM contractors WHERE split_part(identity_key, ':', 2) = 'FL' AND party_kind = 'business'
+      WITH grp AS (SELECT normalized_name FROM contractors WHERE split_part(identity_key, ':', 2) = 'FL' AND party_kind = 'business' AND permit_count > 0
                     GROUP BY 1 HAVING count(*) > 1),
            last AS (SELECT max(started_at) AS at FROM resolver_runs WHERE status = 'succeeded')
       SELECT (SELECT at FROM last) AS resolved_at,
