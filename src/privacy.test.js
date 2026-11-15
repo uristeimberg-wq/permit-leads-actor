@@ -39,6 +39,15 @@ check('a business keeps name and phone; an owner-builder keeps the label but not
   assert.deepStrictEqual([owner.contractor_name, owner.contractor_phone], ['OWNER', null]);
 });
 
+check('an owner-builder written with a business word ("OWNER BUILDER") never shows its phone', () => {
+  for (const name of ['OWNER BUILDER', 'Owner/Builder', 'HOMEOWNER BUILDER']) {
+    const row = redactContractor({ contractor_name: name, contractor_phone: '5125550104' });
+    assert.deepStrictEqual([row.contractor_name, row.contractor_phone], [name, null], name);
+    const out = redactPermit({ permitNumber: 'C', contractorName: name, contractorPhone: '5125550104' });
+    assert.deepStrictEqual([out.contractorName, out.contractorPhone], [name, null], name);
+  }
+});
+
 check('a phone with no contractor name is not shown', () => {
   assert.strictEqual(redactContractor({ contractor_name: null, contractor_phone: '5125550102' }).contractor_phone, null);
 });

@@ -19,7 +19,9 @@
 
 const { SOURCES } = require('./sources.js');
 
-const RESOLVER_VERSION = 'contractors-v5';
+// contractors-v6: an owner-builder marker ("OWNER BUILDER", "Owner/Builder")
+// is the homeowner, not a business, even though "builder" is a business word.
+const RESOLVER_VERSION = 'contractors-v6';
 
 const NON_CONTRACTORS = new Set(['owner', 'owner builder', 'self', 'homeowner', 'na', 'n a', 'none', 'tbd', 'unknown', 'owner owner']);
 
@@ -62,6 +64,11 @@ function normalizeName(raw) {
   return words.join(' ');
 }
 
+/** True when the name carries a legal-entity form word (LLC, Inc, Corp...). */
+function hasLegalForm(raw) {
+  return /\b(llc|l l c|inc|incorporated|corp|corporation|ltd|limited|lp|llp|pllc|plc)\b/.test(cleanText(raw));
+}
+
 function isOwnerBuilder(raw) {
   const c = cleanText(raw);
   return !c || NON_CONTRACTORS.has(c) || /^owner\b/.test(c) || /\bhomeowner\b/.test(c);
@@ -84,7 +91,13 @@ const CONNECTOR_WORDS = /\s(by|of)\s/i;
 function partyKind(raw) {
   const name = String(raw ?? '').trim();
   if (!name) return 'unknown';
-  if (BUSINESS_WORDS.test(name) || MORE_BUSINESS_WORDS.test(name) || CONNECTOR_WORDS.test(name) || /\d/.test(name)) return 'business';
+  if (BUSINESS_WORDS.test(name) || MORE_BUSINESS_WORDS.test(name) || CONNECTOR_WORDS.test(name) || /\d/.test(name)) {
+    // An owner-builder marker is the homeowner (CLAUDE.md rule 5, ADR-10), even
+    // with a business word in it: "OWNER BUILDER", "Homeowner Builder". Without
+    // this, "builder" made it a business and exposed the owner's phone. A name
+    // with a legal form ("Owner Built Homes LLC") is still a firm.
+    return isOwnerBuilder(name) && !hasLegalForm(name) ? 'individual' : 'business';
+  }
   const words = cleanText(name).split(' ').filter(Boolean);
   if (words.length >= 2 && words.length <= 4 && words.every((w) => /^[a-z]+$/.test(w))) return 'individual';
   return 'unknown';

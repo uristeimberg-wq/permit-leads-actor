@@ -39,6 +39,10 @@ check('party kind: businesses shown, person-like names hidden, unclear held for 
   assert.strictEqual(C.partyKind('John Q Smith'), 'individual');
   assert.strictEqual(C.partyKind('Austin Smith'), 'individual');
   assert.strictEqual(C.partyKind('ZZQX'), 'unknown');
+  // An owner-builder marker with a business word is still the homeowner.
+  for (const n of ['OWNER BUILDER', 'Owner/Builder', 'owner-builder', 'HOMEOWNER BUILDER']) assert.strictEqual(C.partyKind(n), 'individual', n);
+  assert.strictEqual(C.partyKind('Owner Built Homes LLC'), 'business');
+  assert.strictEqual(C.partyKind('Owners Choice Roofing'), 'business');
   // contractors-v3 (ADR-22): trade-named businesses show; first-and-last names stay hidden.
   for (const n of ['Bluebonnet Foundation Repair', 'Olshan Foundation Repair', 'Renewal by Andersen', 'Aqua Permits',
     'Martha Nolan Interiors', 'Lone Star Permitting', 'Hill Country Outdoors']) assert.strictEqual(C.partyKind(n), 'business', n);
