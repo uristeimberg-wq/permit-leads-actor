@@ -55,9 +55,20 @@
   const changed = () => { paintAccount(); window.dispatchEvent(new Event('saved:change')); };
 
   async function api(method, url, body) {
-    const r = await fetch(url, {
-      method, headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined,
-    });
+    let r;
+    try {
+      r = await fetch(url, {
+        method, headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined,
+      });
+    } catch {
+      throw new Error("Couldn't reach the server. Check your connection, or that the Contractos server is running.");
+    }
+    // A web page instead of JSON means another app is answering on this address.
+    if (!(r.headers.get('content-type') || '').includes('application/json')) {
+      const err = new Error(`The server answered with a web page instead of data (HTTP ${r.status}). Another app may be running on this address.`);
+      err.status = r.status;
+      throw err;
+    }
     const data = await r.json().catch(() => ({}));
     if (r.status === 401 && data.signIn) { me = { email: null }; saved.clear(); paintAccount(); paintHearts(); }
     if (!r.ok) { const err = new Error(data.error || `Request failed (${r.status})`); err.status = r.status; throw err; }

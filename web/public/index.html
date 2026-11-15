@@ -15,6 +15,9 @@
 </head>
 <body>
 
+<!-- Announces short confirmations (a copied phone number) to screen readers. -->
+<div class="visually-hidden" id="liveNote" aria-live="polite"></div>
+
 <div class="app" id="app" data-view="split" data-filters="open">
 
   <!-- ------------------------------------------------------------ topbar -->
@@ -40,6 +43,7 @@
 
         <nav class="mainnav" aria-label="Main">
           <a href="/" id="navLeads" aria-current="page">Leads</a>
+          <a href="/contractors" id="navContractors">Contractors</a>
           <a href="/saved" id="navSaved">Saved<span class="nav-count" id="savedCount" hidden></span></a>
         </nav>
 
@@ -229,6 +233,11 @@
     <div class="feed-inner">
       <div class="feed-bar">
         <div class="result-count" id="count" aria-live="polite">Loading…</div>
+        <!-- One card per project (default) or one per permit; `group=0` in the URL. -->
+        <label class="group-toggle" for="groupToggle">
+          <input type="checkbox" id="groupToggle" checked>
+          <span>Group by project</span>
+        </label>
         <div class="sort">
           <label for="sort">Sort</label>
           <select class="select" id="sort" name="sort">
@@ -239,6 +248,8 @@
         </div>
       </div>
 
+      <!-- The lens in force: "Drywall · 78702 · 37 matches · Show everything" (app.js). -->
+      <div class="lens-bar" id="lensBar" hidden></div>
       <div class="active-filters" id="activeFilters"></div>
       <div id="results"></div>
       <nav class="pager" id="pager" aria-label="Pagination"></nav>
@@ -287,6 +298,7 @@
     <div>
       <div class="addr" id="dAddr"></div>
       <div class="type" id="dType"></div>
+      <div class="d-meta" id="dMeta"></div>
       <div id="dStage"></div>
       <!-- Save to my list (saved.js); filled when a permit opens. -->
       <div class="d-save" id="dSave"></div>

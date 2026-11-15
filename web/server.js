@@ -81,10 +81,11 @@ const FILTER_PARAMS = [
   'zip', 'city', 'state', 'jurisdiction', 'sourceArea', 'from', 'to',
   'stage', 'statusRaw', 'status', 'permitType', 'minValuation',
   'trade', 'minScore', 'q', 'page', 'pageSize', 'sort',
-  'hasContact', 'contractor', 'areas', 'ownerBuilder',
+  'hasContact', 'contractor', 'areas', 'ownerBuilder', 'contractorIds',
 ];
 
 const showOwnerBuilder = () => process.env.SHOW_OWNER_BUILDER === '1';
+const { showUnmeasured } = require('../src/display_policy.js');
 
 function pickFilters(query) {
   const filters = {};
@@ -131,6 +132,80 @@ app.get('/api/permits', asyncRoute(async (req, res) => {
 
 // Everything we hold about one permit, so the UI never has to send a user off
 // to the county portal to read the record.
+// ── Projects: permits grouped into jobs (web/projects.js) ──────────────────
+// The rows for one filter set are kept a minute, so paging through projects
+// does not regroup from scratch. API_CACHE=off (the integration tests) skips it.
+const projects = require('./projects.js');
+const lens = require('./lens_config.js');
+
+// What the welcome popup offers, and whether trade matching is on here.
+app.get('/api/lens', (_req, res) => res.json({ ...lens.publicConfig(), enabled: trust.showInferences() && showUnmeasured() }));
+const ROWS_TTL_MS = 60 * 1000;
+const rowsMemo = new Map();
+async function projectRowsFor(filters) {
+  const { page: _p, pageSize: _s, sort: _o, ...where } = filters;
+  if (process.env.API_CACHE === 'off') return queries.projectRows(where);
+  const key = JSON.stringify(where);
+  const hit = rowsMemo.get(key);
+  if (hit && Date.now() - hit.at < ROWS_TTL_MS) return hit.value;
+  const value = await queries.projectRows(where);
+  rowsMemo.set(key, { at: Date.now(), value });
+  if (rowsMemo.size > 30) rowsMemo.delete(rowsMemo.keys().next().value);
+  return value;
+}
+const clampInt = (v, lo, hi, d) => { const n = Number.parseInt(v, 10); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
+
+app.get('/api/projects', asyncRoute(async (req, res) => {
+  const filters = pickFiltersExpanded(req.query);
+  const page = clampInt(req.query.page, 1, 10000, 1);
+  const pageSize = clampInt(req.query.pageSize, 1, 100, 25);
+  const data = await projectRowsFor(filters);
+  const inferences = trust.showInferences();
+  // The lens (web/lens_config.js) filters and ranks by trade signals: an
+  // inference, so it applies only with SHOW_INFERENCES=1.
+  const parsed = req.query.lens ? lens.selector(req.query.lens) : null;
+  // Its "no electrical permit filed yet" signal reads the project's permits, so
+  // it also needs the job links that ADR-33 hides: off unless SHOW_UNMEASURED=1.
+  const select = inferences && showUnmeasured() ? parsed : null;
+  const out = projects.listProjects(data.rows, {
+    page, pageSize, sort: req.query.sort, inferences, select, grouped: req.query.group !== '0',
+  });
+  res.json({
+    ...out, page, pageSize, inferences,
+    lens: req.query.lens
+      ? (select ? { applied: true, label: select.label, param: select.param }
+        : { applied: false, reason: !parsed ? 'unknown' : 'off', label: parsed ? parsed.label : null })
+      : null,
+    permitsTotal: data.total, capped: data.capped, cap: queries.PROJECT_ROW_CAP, facets: data.facets,
+  });
+}));
+
+// ── The Contractors tab (web/contractors.js) ──────────────────────────────────
+// /api/companies, not /api/contractors/..., which already means a name lookup.
+const contractors = require('./contractors.js');
+const pilotQueries = require('../db/pilot_queries.js');
+app.get('/api/companies', asyncRoute(async (req, res) => {
+  const filters = pickFiltersExpanded(req.query);
+  const { page: _p, pageSize: _s, sort: _o, ...where } = filters;
+  const page = clampInt(req.query.page, 1, 10000, 1);
+  const pageSize = clampInt(req.query.pageSize, 1, 100, 25);
+  const rows = await queries.contractorsInFilters(where);
+  const inferences = trust.showInferences();
+  const out = await contractors.listContractors(
+    { rows, phonesById: (ids) => pilotQueries.contractorsById(ids), recordsFor: (ids) => queries.contractorRecords(ids) },
+    { sort: req.query.csort, page, pageSize, inferences },
+  );
+  res.json({ ...out, inferences });
+}));
+
+/** The whole project a permit belongs to, every permit in date order (unfiltered). */
+app.get('/api/projects/by-permit/:id', asyncRoute(async (req, res) => {
+  if (!/^\d{1,18}$/.test(req.params.id)) return res.status(400).json({ error: 'Bad permit id' });
+  const project = await projects.expandProject(req.params.id, (id) => queries.projectCandidates(id), { inferences: trust.showInferences() });
+  if (!project) return res.status(404).json({ error: 'Permit not found' });
+  return res.json({ ...project, inferences: trust.showInferences() });
+}));
+
 app.get('/api/permits/:id', asyncRoute(async (req, res) => {
   const permit = await queries.getPermit(req.params.id);
   if (!permit) return res.status(404).json({ error: 'Permit not found' });
@@ -262,7 +337,7 @@ app.use('/api/pilot', pilotApi);
 // /search.html stay as aliases so old links keep working. The pilot screens
 // (/pilot/live/*) are no longer linked from it but still load by URL.
 // /saved is the same page in its Saved view (app.js reads the path).
-app.get(['/', '/search', '/search.html', '/saved'], (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get(['/', '/search', '/search.html', '/saved', '/contractors'], (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 app.use(express.static(path.join(__dirname, 'public')));
 

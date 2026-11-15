@@ -1,156 +1,181 @@
-// The welcome popup and the "Your lens" button (redesign step 2).
+// The welcome popup and the "Your lens" button.
 //
-// First visit: "What do you do?" (one or more roles, and trades/services) and
-// "Where do you work?" (the same location picker as the sidebar). The location
-// is applied to the Leads filters straight away. Roles and trades are saved and
-// shown in the header, but do not filter yet: matching permits to a trade needs
-// a query agreed with the data side, so the popup says so rather than pretend.
+// "What do you do?" (one or more roles, each with its options: a trade, a
+// supplier line) and "Where do you work?". The choices come from the server
+// (/api/lens, web/lens_config.js), which also does the matching. The lens is
+// kept in the URL (lens=sub.drywall,gc) and in localStorage, so a link carries
+// it and a returning visitor keeps it. No account is needed.
 //
-// Saved per browser in localStorage (no accounts; the invite gate is unchanged).
-// Storage can throw in a private window; the popup then just asks again.
+// Trade matching is an inference, so it filters only where the server has
+// SHOW_INFERENCES=1; elsewhere the popup says so and the lens sets the location.
+// localStorage can throw (private windows): every access is guarded.
 (function () {
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const KEY = 'contractos.lens.v1';
-
-  const ROLES = [
-    ['sub', 'Subcontractor / trade', 'Electrical, plumbing, roofing and other trades'],
-    ['gc', 'General contractor / builder', 'You run the job and hire the subs'],
-    ['supplier', 'Supplier or equipment rental', 'Materials, dumpsters, equipment'],
-    ['other', 'Something else', ''],
-    ['all', 'Just show me everything', 'No lens: every permit we hold'],
-  ];
-  const SHORT = { sub: 'Trades', gc: 'GC', supplier: 'Supplier', other: 'Other', all: 'Everything' };
-  const TRADES = [
-    'Electrical', 'Plumbing', 'HVAC / Mechanical', 'Roofing', 'Flooring', 'Painting', 'Concrete',
-    'Framing', 'Drywall', 'Excavation', 'Solar', 'Landscaping', 'Waste removal / dumpsters',
-    'Building materials', 'General contracting', 'Other',
-  ];
+  const EXTRA = [['other', 'Something else', ''], ['all', 'Just show me everything', 'No lens: every permit we hold']];
 
   const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || null; } catch { return null; } };
-  const write = (lens) => { try { localStorage.setItem(KEY, JSON.stringify(lens)); } catch { /* ignore */ } };
+  const write = (v) => { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch { /* ignore */ } };
 
   let lens = read();
-  let index = null;          // places, once /api/areas has loaded
-  let picker = null;         // the popup's location picker
+  let config = { roles: [], enabled: false };
+  let index = null;
+  let picker = null;
+
+  /** "sub.drywall,gc" from the saved choices. */
+  function paramOf(v) {
+    if (!v || v.skipped) return '';
+    const parts = [];
+    for (const role of v.roles || []) {
+      if (role === 'other' || role === 'all') continue;
+      const opts = (v.options && v.options[role]) || [];
+      if (opts.length) for (const o of opts) parts.push(`${role}.${o}`);
+      else parts.push(role);
+    }
+    return parts.join(',');
+  }
+  // A lens saved before options existed ({ trades: ['Electrical', ...] }).
+  function upgrade(v) {
+    if (!v || v.options || !Array.isArray(v.trades)) return v;
+    const sub = config.roles.find((r) => r.key === 'sub');
+    const keys = sub ? v.trades.map((t) => (sub.options.find((o) => o.label.toLowerCase() === String(t).toLowerCase().split(' /')[0]) || {}).key).filter(Boolean) : [];
+    const out = { ...v, options: { sub: keys } };
+    delete out.trades;
+    out.param = paramOf(out);
+    return out;
+  }
 
   const slot = document.getElementById('lensSlot');
   const dlg = document.createElement('dialog');
   dlg.className = 'welcome';
   dlg.id = 'welcome';
   dlg.setAttribute('aria-labelledby', 'welcomeTitle');
-  dlg.innerHTML = `
-    <form class="welcome-body" method="dialog" novalidate>
-      <div class="welcome-head">
-        <h2 id="welcomeTitle">Welcome to Contractos</h2>
-        <p>Tell us what you do and where, and we'll set up your leads.</p>
-      </div>
-
-      <fieldset class="welcome-q">
-        <legend>What do you do? <small>Pick all that apply</small></legend>
-        <div class="welcome-roles">
-          ${ROLES.map(([k, label, sub]) => `
-            <label class="check welcome-role">
-              <input type="checkbox" name="role" value="${k}">
-              <span class="check-label">${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ''}</span>
-            </label>`).join('')}
-        </div>
-        <input class="input welcome-other" name="otherText" type="text" maxlength="80"
-               placeholder="What do you do? (optional)" aria-label="Describe what you do" hidden>
-      </fieldset>
-
-      <fieldset class="welcome-q" id="welcomeTrades" hidden>
-        <legend>Which trades or services? <small>Pick all that apply</small></legend>
-        <div class="chips welcome-trades">
-          ${TRADES.map((t) => `<button type="button" class="chip" data-trade="${esc(t)}" aria-pressed="false">${esc(t)}</button>`).join('')}
-        </div>
-      </fieldset>
-
-      <fieldset class="welcome-q">
-        <legend>Where do you work? <small>Pick one or more places</small></legend>
-        <div id="welcomeLoc"></div>
-      </fieldset>
-
-      <p class="welcome-note">Today your lens sets the location. Matching permits to your
-        trade is coming next; until then you see every permit in your area.</p>
-
-      <div class="welcome-foot">
-        <button type="button" class="btn btn-ghost" id="welcomeSkip">Skip for now</button>
-        <button type="submit" class="btn btn-primary" id="welcomeGo">Show my leads</button>
-      </div>
-    </form>`;
   document.body.appendChild(dlg);
 
-  const form = dlg.querySelector('form');
-  const roleBoxes = () => [...form.querySelectorAll('input[name="role"]')];
-  const tradeBtns = () => [...form.querySelectorAll('[data-trade]')];
-  const otherText = form.querySelector('.welcome-other');
+  function build() {
+    dlg.innerHTML = `
+      <form class="welcome-body" method="dialog" novalidate>
+        <div class="welcome-head">
+          <h2 id="welcomeTitle">Welcome to Contractos</h2>
+          <p>Tell us what you do and where, and we'll show the leads that fit. Optional, no signup.</p>
+        </div>
+        <fieldset class="welcome-q">
+          <legend>What do you do? <small>Pick all that apply</small></legend>
+          <div class="welcome-roles">
+            ${config.roles.map((r) => `
+              <div class="welcome-role-wrap">
+                <label class="check welcome-role">
+                  <input type="checkbox" name="role" value="${esc(r.key)}">
+                  <span class="check-label">${esc(r.label)}<small>${esc(r.sub)}</small></span>
+                </label>
+                ${r.options.length ? `<div class="chips welcome-opts" data-for="${esc(r.key)}" hidden>
+                  ${r.options.map((o) => `<button type="button" class="chip" data-role="${esc(r.key)}" data-opt="${esc(o.key)}" aria-pressed="false">${esc(o.label)}</button>`).join('')}
+                </div>` : ''}
+              </div>`).join('')}
+            ${EXTRA.map(([k, label, sub]) => `
+              <div class="welcome-role-wrap"><label class="check welcome-role">
+                <input type="checkbox" name="role" value="${k}">
+                <span class="check-label">${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ''}</span>
+              </label></div>`).join('')}
+          </div>
+          <input class="input welcome-other" name="otherText" type="text" maxlength="80"
+                 placeholder="What do you do? (optional)" aria-label="Describe what you do" hidden>
+        </fieldset>
+        <fieldset class="welcome-q">
+          <legend>Where do you work? <small>Pick one or more places</small></legend>
+          <div id="welcomeLoc"></div>
+        </fieldset>
+        <p class="welcome-note">${config.enabled
+          ? 'Your lens filters and ranks the leads, and each card says why it matched. Switch it off anytime with “Show everything”.'
+          : 'Trade matching is not switched on for this site yet, so your lens sets the location; your trades are saved for when it is.'}</p>
+        <div class="welcome-foot">
+          <button type="button" class="btn btn-ghost" id="welcomeSkip">Skip for now</button>
+          <button type="submit" class="btn btn-primary" id="welcomeGo">Show my leads</button>
+        </div>
+      </form>`;
+    const form = dlg.querySelector('form');
+    form.addEventListener('change', (e) => {
+      if (e.target.name !== 'role') return;
+      if (e.target.value === 'all' && e.target.checked) for (const b of boxes()) { if (b.value !== 'all') b.checked = false; }
+      if (e.target.value !== 'all' && e.target.checked) form.querySelector('input[value="all"]').checked = false;
+      paintConditional();
+    });
+    form.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-opt]');
+      if (b) b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'));
+    });
+    form.addEventListener('submit', (e) => { e.preventDefault(); apply(save()); });
+    dlg.querySelector('#welcomeSkip').addEventListener('click', () => { save({ skipped: true }); dlg.close(); paintButton(); });
+    picker = window.LocationPicker.create(dlg.querySelector('#welcomeLoc'), { label: '', placeholder: 'Search an area, city or ZIP — e.g. Austin' });
+    if (index) picker.setIndex(index);
+  }
+  dlg.addEventListener('cancel', () => { if (!lens) save({ skipped: true }); paintButton(); });
 
-  /** "Show me everything" excludes the rest, and the rest exclude it. */
-  form.addEventListener('change', (e) => {
-    if (e.target.name !== 'role') return;
-    if (e.target.value === 'all' && e.target.checked) for (const b of roleBoxes()) { if (b.value !== 'all') b.checked = false; }
-    if (e.target.value !== 'all' && e.target.checked) form.querySelector('input[value="all"]').checked = false;
-    paintConditional();
-  });
-  form.querySelector('.welcome-trades').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-trade]');
-    if (b) b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'));
-  });
+  const boxes = () => [...dlg.querySelectorAll('input[name="role"]')];
+  const optBtns = () => [...dlg.querySelectorAll('[data-opt]')];
 
   function paintConditional() {
-    const roles = roleBoxes().filter((b) => b.checked).map((b) => b.value);
-    document.getElementById('welcomeTrades').hidden = !(roles.includes('sub') || roles.includes('supplier'));
-    otherText.hidden = !roles.includes('other');
+    const roles = boxes().filter((b) => b.checked).map((b) => b.value);
+    for (const box of dlg.querySelectorAll('.welcome-opts')) box.hidden = !roles.includes(box.dataset.for);
+    const other = dlg.querySelector('.welcome-other');
+    if (other) other.hidden = !roles.includes('other');
   }
 
   function fill() {
     const cur = lens || {};
-    for (const b of roleBoxes()) b.checked = (cur.roles || []).includes(b.value);
-    for (const b of tradeBtns()) b.setAttribute('aria-pressed', String((cur.trades || []).includes(b.dataset.trade)));
-    otherText.value = cur.other || '';
+    for (const b of boxes()) b.checked = (cur.roles || []).includes(b.value);
+    for (const b of optBtns()) b.setAttribute('aria-pressed', String(((cur.options || {})[b.dataset.role] || []).includes(b.dataset.opt)));
+    const other = dlg.querySelector('.welcome-other');
+    if (other) other.value = cur.other || '';
     paintConditional();
-    // The location shown is what the screen is filtered to now.
     if (picker) picker.setValue(window.Leads ? window.Leads.getAreas() : (cur.areas || []));
   }
 
   function open() {
+    if (!dlg.firstChild) build();
     fill();
     if (!dlg.open) dlg.showModal();
-    const first = roleBoxes().find((b) => b.checked) || roleBoxes()[0];
-    first.focus();
+    (boxes().find((b) => b.checked) || boxes()[0]).focus();
   }
 
   function save({ skipped = false } = {}) {
-    const roles = roleBoxes().filter((b) => b.checked).map((b) => b.value);
-    const trades = tradeBtns().filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.dataset.trade);
-    const areas = picker ? picker.getValue() : [];
-    lens = skipped && !lens
-      ? { v: 1, skipped: true, roles: [], trades: [], other: '', areas: [], savedAt: new Date().toISOString() }
-      : { v: 1, skipped: false, roles: roles.length ? roles : ['all'],
-          trades: (roles.includes('sub') || roles.includes('supplier')) ? trades : [],
-          other: roles.includes('other') ? otherText.value.trim().slice(0, 80) : '',
-          areas, savedAt: new Date().toISOString() };
+    if (skipped) {
+      if (!lens) { lens = { v: 2, skipped: true, roles: [], options: {}, areas: [], param: '' }; write(lens); }
+      return lens;
+    }
+    const roles = boxes().filter((b) => b.checked).map((b) => b.value);
+    const options = {};
+    for (const b of optBtns()) {
+      if (b.getAttribute('aria-pressed') === 'true' && roles.includes(b.dataset.role)) (options[b.dataset.role] = options[b.dataset.role] || []).push(b.dataset.opt);
+    }
+    const other = dlg.querySelector('.welcome-other');
+    lens = { v: 2, skipped: false, roles: roles.length ? roles : ['all'], options,
+      other: roles.includes('other') && other ? other.value.trim().slice(0, 80) : '',
+      areas: picker ? picker.getValue() : [], savedAt: new Date().toISOString() };
+    lens.param = paramOf(lens);
     write(lens);
-    return areas;
+    return lens;
   }
 
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const areas = save();
+  function apply(v) {
     dlg.close();
-    if (window.Leads) window.Leads.setAreas(areas);
+    if (window.Leads) window.Leads.apply({ areas: v.areas, lens: v.param });
     paintButton();
-  });
-  document.getElementById('welcomeSkip').addEventListener('click', () => { save({ skipped: true }); dlg.close(); paintButton(); });
-  // Esc is "skip for now": never ask again unprompted, the button reopens it.
-  dlg.addEventListener('cancel', () => { if (!lens) save({ skipped: true }); paintButton(); });
+  }
 
   /** The header button: what the lens is, in a few words. */
   function summary() {
     if (!lens || lens.skipped) return null;
-    const what = lens.trades && lens.trades.length
-      ? `${lens.trades[0]}${lens.trades.length > 1 ? ` +${lens.trades.length - 1}` : ''}`
-      : (lens.roles || []).map((r) => SHORT[r]).filter(Boolean).slice(0, 2).join(', ') || 'Everything';
+    const labels = [];
+    for (const r of lens.roles || []) {
+      const role = config.roles.find((x) => x.key === r);
+      const opts = ((lens.options || {})[r] || []).map((k) => (role && role.options.find((o) => o.key === k) || {}).label).filter(Boolean);
+      if (opts.length) labels.push(...opts);
+      else if (role) labels.push(role.label.split(' / ')[0]);
+      else if (r === 'all') labels.push('Everything');
+      else if (r === 'other') labels.push('Other');
+    }
+    const what = labels.length ? `${labels[0]}${labels.length > 1 ? ` +${labels.length - 1}` : ''}` : 'Everything';
     const areas = window.Leads ? window.Leads.getAreas() : (lens.areas || []);
     const where = areas.length && window.LocationPicker
       ? `${window.LocationPicker.labelFor(areas[0], index).replace(/, [A-Z]{2}$/, '')}${areas.length > 1 ? ` +${areas.length - 1}` : ''}`
@@ -170,26 +195,24 @@
     slot.querySelector('#lensBtn').addEventListener('click', open);
   }
 
+  window.LensUI = { open, label: () => (summary() || {}).what || '', param: () => paramOf(lens) };
+
   paintButton();
-
-  // The picker needs the places; app.js loads them once for both.
-  picker = window.LocationPicker.create(document.getElementById('welcomeLoc'), {
-    label: '', placeholder: 'Search an area, city or ZIP — e.g. Austin',
-  });
-  const ready = window.Leads ? window.Leads.areas : Promise.resolve(null);
-  ready.then((idx) => {
+  // ?welcome=1 asks again, ?welcome=0 never asks (checks); lens=1|0 is the old spelling.
+  const qs = new URLSearchParams(location.search);
+  const ask = qs.get('welcome') ?? (['0', '1'].includes(qs.get('lens')) ? qs.get('lens') : null);
+  const cfgReady = fetch('/api/lens').then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  const areasReady = window.Leads ? window.Leads.areas : Promise.resolve(null);
+  Promise.all([cfgReady, areasReady]).then(([cfg, idx]) => {
+    if (cfg) config = cfg;
     index = idx;
-    if (idx) picker.setIndex(idx);
+    lens = upgrade(lens);
+    if (lens) write(lens);
+    if (picker && idx) picker.setIndex(idx);
     paintButton();
-    if (dlg.open) fill();
+    // Ask on the first visit, on the Leads page only.
+    const onLeads = location.pathname === '/' || location.pathname.startsWith('/search');
+    if (ask === '1' || (!lens && ask !== '0' && onLeads)) open();
   });
-
-  // Ask on the first visit. ?lens=1 asks again; ?lens=0 never asks (for checks).
-  const ask = new URLSearchParams(location.search).get('lens');
-  // Not on the Saved page: someone there already knows what they're after.
-  if (ask === '1' || (!lens && ask !== '0' && location.pathname !== '/saved')) open();
-
-  // The location chip, map pins and Clear all change the location: keep the
-  // header button in step.
   window.addEventListener('leads:areas', paintButton);
 })();

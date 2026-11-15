@@ -43,6 +43,10 @@ let typePicker = null;
 
 // The Saved view (/saved): the user's saved permits instead of the search.
 const SAVED_MODE = location.pathname === '/saved';
+// The Contractors tab (/contractors): companies on the filtered permits.
+const CONTRACTORS_MODE = location.pathname === '/contractors';
+let contractorIdsFilter = '';   // contractorIds=1,2: one company's permits (from the Contractors tab)
+let contractorLabel = '';       // its name, for the chip
 
 /* Location is one multi-select (location.js) whose value is `areaSelection`: a
    list of keys in the map's vocabulary — `a:TX` (a broad area, expanded by the
@@ -53,6 +57,16 @@ const asAreaKey = (filters) =>
 
 let page = 1;
 let lastFocused = null;   // card to restore focus to when the drawer closes
+let projectReturn = null;  // project to go back to from a permit opened in its timeline
+// Group permits into projects (web/projects.js); `group=0` in the URL shows raw permits.
+let grouping = true;
+let lastInferences = false;  // whether the server shows inferred links and stages
+// The lens (web/lens_config.js): `lens=sub.drywall,gc` in the URL, else the one
+// saved by the welcome popup. `lens=off` keeps it but shows everything.
+let lensParam = '';
+let lensOff = false;
+const savedLensParam = () => { try { return (JSON.parse(localStorage.getItem('contractos.lens.v1')) || {}).param || ''; } catch { return ''; } };
+const lensActive = () => Boolean(lensParam) && !lensOff;
 let reqId = 0;            // guards against a slow response overwriting a fast one
 
 /* Map state. `areaSelection` is the one filter with no form control behind it:
@@ -73,6 +87,7 @@ let baseMapNote = '';         // the standing map note, restored after a transie
 let pointLayer = null;        // located job sites, drawn instead of area pins when zoomed in
 let pointsReq = 0;            // guards against a slow viewport overwriting a newer one
 let lastFilters = {};         // the filters the map was last drawn for
+let lastRunKey = '';          // the filter set the list was last run for
 let areaNote = '';            // the area-pin note (unplaced permits), kept while zoomed in
 
 /* ------------------------------------------------------------ formatting */
@@ -83,12 +98,75 @@ const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({
 
 // Valuations are round and read better without cents ($278,000); fees are exact
 // and $141.90 must not display as $142.
+/**
+ * JSON from our API, or an Error a person can read. A failed response that is
+ * a web page rather than JSON is what you get when another app answers on this
+ * address (a dev server left on the port), so the message says so instead of
+ * "Unexpected token '<'". The Error carries `status` and the JSON body as `data`.
+ */
+async function getJSON(url, opts) {
+  let r;
+  try {
+    r = await fetch(url, opts);
+  } catch {
+    throw new Error("Couldn't reach the server. Check your connection, or that the Contractos server is running.");
+  }
+  const isJson = (r.headers.get('content-type') || '').includes('application/json');
+  if (!isJson) {
+    const err = new Error(`The server answered with a web page instead of data (HTTP ${r.status}). `
+      + 'Another app may be running on this address; open Contractos on its own port.');
+    err.status = r.status;
+    throw err;
+  }
+  let data;
+  try { data = await r.json(); } catch { throw new Error('The server sent data that could not be read.'); }
+  if (!r.ok) {
+    const err = new Error(data.error || `Request failed (HTTP ${r.status})`);
+    err.status = r.status;
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+
 const money = (v) => {
   const n = Number(v);
-  if (!(n > 0)) return null;
+  // $1 is a placeholder some portals file instead of a value (2,444 Austin
+  // permits), so it reads as missing, like a null.
+  if (!(n > 1)) return null;
   const cents = Number.isInteger(n) ? 0 : 2;
   return '$' + n.toLocaleString('en-US', { minimumFractionDigits: cents, maximumFractionDigits: cents });
 };
+
+/**
+ * A declared value, short ("$420K", "$1.3M", "$8.5K", "$950") for cards and
+ * headers, as HTML; '' when missing or a $1 placeholder, so nothing shows.
+ * $1 billion or more is shown as filed but flagged: those are filing errors
+ * (five permits on one Austin lot at $8.1B each), not job values.
+ */
+const ODD_VALUE = 1e9;
+function shortMoney(n) {
+  const units = [[1e9, 'B'], [1e6, 'M'], [1e3, 'K'], [1, '']];
+  for (let i = 0; i < units.length; i += 1) {
+    const [d, u] = units[i];
+    if (n < d && i < units.length - 1) continue;
+    const x = n / d;
+    const r = x < 10 && d > 1 ? Math.round(x * 10) / 10 : Math.round(x);
+    // $999,999 rounds to 1000K: say $1M instead.
+    if (r >= 1000 && i > 0) return `$1${units[i - 1][1]}`;
+    return `$${r}${u}`;
+  }
+  return '';
+}
+function valueTag(v, cls = 'card-value') {
+  const n = Number(v);
+  if (!(n > 1)) return '';
+  const full = `$${Math.round(n).toLocaleString('en-US')}`;
+  if (n >= ODD_VALUE) {
+    return `<span class="${cls} is-odd" title="Declared as ${full} on the permit. Unusually high: likely a filing error, shown as filed.">${shortMoney(n)}<span aria-hidden="true"> ?</span><span class="visually-hidden"> (as filed, unusually high)</span></span>`;
+  }
+  return `<span class="${cls}" title="Declared value ${full}">${shortMoney(n)}</span>`;
+}
 
 // A date-only value is read as local midnight; a full timestamp as itself.
 const fmtDate = (d) => (d
@@ -97,7 +175,8 @@ const fmtDate = (d) => (d
 
 // Stored as bare digits so they compare reliably; formatted only for display.
 const phone = (v) => {
-  const d = String(v || '').replace(/\D/g, '');
+  let d = String(v || '').replace(/\D/g, '');
+  if (d.length === 11 && d[0] === '1') d = d.slice(1);   // +1 E.164 from contact records
   return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : (v || null);
 };
 
@@ -127,6 +206,8 @@ function currentFilters() {
   }
   if (jurisdictionFilter) f.jurisdiction = jurisdictionFilter;
   if (typeSelection.length) f.permitType = typeSelection.join(TYPE_SEP);
+  if (!grouping) f.group = '0';
+  if (lensParam) f.lens = lensOff ? 'off' : lensParam;
   if ($('hasContact').checked) f.hasContact = 'true';
   // The owner-builder filter is hidden (ADR-10, index.html); a hidden box never filters.
   if ($('ownerBuilder').checked && !$('ownerBuilder').closest('[hidden]')) f.ownerBuilder = 'true';
@@ -140,7 +221,9 @@ function currentFilters() {
   else if (stages.length && !isDefaultStages(stages)) f.stage = stages.join(',');
 
   const sort = $('sort').value;
-  if (sort && sort !== 'newest') f.sort = sort;
+  // The Contractors tab sorts companies (csort); the Leads list sorts permits.
+  if (CONTRACTORS_MODE) { if (sort && sort !== 'active') f.csort = sort; } else if (sort && sort !== 'newest') f.sort = sort;
+  if (contractorIdsFilter) { f.contractorIds = contractorIdsFilter; if (contractorLabel) f.contractorLabel = contractorLabel; }
   return f;
 }
 
@@ -168,6 +251,11 @@ function applyUrl() {
   }
   areaSelection = p.get('areas') ? p.get('areas').split(',').filter(Boolean) : null;
   jurisdictionFilter = p.get('jurisdiction') || '';
+  grouping = p.get('group') !== '0';
+  const lp = p.get('lens');
+  lensOff = lp === 'off';
+  lensParam = lp && !['off', '0', '1'].includes(lp) ? lp : savedLensParam();
+  $('groupToggle').checked = grouping;
   typeSelection = p.get('permitType') ? p.get('permitType').split(TYPE_SEP).map((t) => t.trim()).filter(Boolean) : [];
   $('ownerBuilder').checked = p.get('ownerBuilder') === 'true' && !$('ownerBuilder').closest('[hidden]');
   // An old `zip=`/`city=` link is turned into a picker key once the places are
@@ -183,7 +271,9 @@ function applyUrl() {
     }
   }
   $('hasContact').checked = p.get('hasContact') === 'true';
-  if (p.has('sort')) $('sort').value = p.get('sort');
+  if (CONTRACTORS_MODE) { if (p.has('csort')) $('sort').value = p.get('csort'); } else if (p.has('sort')) $('sort').value = p.get('sort');
+  contractorIdsFilter = p.get('contractorIds') || '';
+  contractorLabel = p.get('contractorLabel') || '';
   page = Math.max(1, Number.parseInt(p.get('page'), 10) || 1);
 
   const raw = p.get('stage');
@@ -220,8 +310,8 @@ function paintStageCounts(facets) {
 
 async function loadOptions() {
   const [areas, filters] = await Promise.all([
-    fetch('/api/areas').then((r) => r.json()),
-    fetch('/api/filters').then((r) => r.json()),
+    getJSON('/api/areas'),
+    getJSON('/api/filters'),
   ]);
 
   typePicker.setIndex(LocationPicker.buildListIndex(filters.permitTypes, { kind: 'type', key: 'permit_type', label: 'permit_type' }));
@@ -256,7 +346,10 @@ function resolveLegacyKey() {
 function setAreas(keys, { rerun = true } = {}) {
   // From the Saved view (the lens popup), a location means "show me leads there".
   if (SAVED_MODE) {
-    location.href = keys && keys.length ? `/?areas=${encodeURIComponent(keys.join(','))}` : '/';
+    const q = new URLSearchParams();
+    if (keys && keys.length) q.set('areas', keys.join(','));
+    if (lensParam) q.set('lens', lensParam);
+    location.href = `/${q.toString() ? `?${q}` : ''}`;
     return;
   }
   areaSelection = keys && keys.length ? [...new Set(keys)] : null;
@@ -278,6 +371,12 @@ window.Leads = {
   areas: new Promise((resolve) => { areasReady = resolve; }),
   getAreas: () => [...(areaSelection || [])],
   setAreas: (keys) => setAreas(keys),
+  // The popup: a location and a lens together, one search.
+  apply: ({ areas = [], lens = '' } = {}) => {
+    lensParam = lens || '';
+    lensOff = false;
+    setAreas(areas);
+  },
 };
 
 const titleCase = (v) => String(v || '').toLowerCase()
@@ -292,7 +391,7 @@ const titleCase = (v) => String(v || '').toLowerCase()
 async function loadFreshness() {
   let sources = [];
   try {
-    ({ sources = [] } = await fetch('/api/freshness').then((r) => r.json()));
+    ({ sources = [] } = await getJSON('/api/freshness'));
   } catch {
     sources = [];
   }
@@ -352,7 +451,7 @@ async function loadFreshness() {
 /** Every source's credit line under the results (CC BY needs it wherever City of Miami data shows). */
 async function paintCredits(sources) {
   let enrichment = [];
-  try { ({ enrichment = [] } = await fetch('/api/credits').then((r) => r.json())); } catch { enrichment = []; }
+  try { ({ enrichment = [] } = await getJSON('/api/credits')); } catch { enrichment = []; }
   const permitCredits = sources.filter((s) => s.attribution).map((s) => `${s.label || s.source_area}: ${s.attribution}`);
   const lines = [...permitCredits, ...enrichment.map((e) => e.attribution)];
   $('credits').innerHTML = `
@@ -387,7 +486,8 @@ function paintActiveFilters(filters) {
   }
 
   for (const [key, value] of Object.entries(filters)) {
-    if (key === 'sort' || key === 'areas' || key === 'permitType') continue;
+    if (['sort', 'csort', 'areas', 'permitType', 'lens', 'group', 'contractorLabel'].includes(key)) continue;
+    if (key === 'contractorIds') { chips.push(['contractorIds', 'Contractor', contractorLabel || 'one company']); continue; }
     if (key === 'zip' || key === 'city' || key === 'state') continue;
     if (key === 'stage') {
       // The default view needs no chip; anything else is worth stating.
@@ -428,6 +528,9 @@ function clearFilter(key) {
   } else if (key === 'permitType') {
     typeSelection = [];
     typePicker.setValue([]);
+  } else if (key === 'contractorIds') {
+    contractorIdsFilter = '';
+    contractorLabel = '';
   } else if (key === 'jurisdiction') {
     jurisdictionFilter = '';
   } else {
@@ -461,31 +564,32 @@ function renderCard(p) {
   const areaKey = areaKeyOf(p);
   if (areaKey) el.dataset.area = areaKey;
 
-  const val = money(p.valuation);
-  const contact = phoneLink(p.contractor_phone, ' data-tel');
+  const who = p.contractor_name
+    ? (isRealContractor(p.contractor_name)
+        ? `<button type="button" class="link-btn" data-open-contractor="${esc(p.contractor_name)}"
+              >${esc(p.contractor_name)}</button>`
+        : `<span>${esc(p.contractor_name)}</span>`)
+    : (p.contractor_withheld ? '<span title="Looks like an individual; name and contact withheld">Individual (withheld)</span>' : '');
+  // With a phone, the call is the card's main action: its own row, with the
+  // company it reaches. Without one, the card is laid out as before.
+  const pill = phonePill(p.contractor_phone);
 
   const foot = [
     stageBadge(p),
-    val ? `<span class="money">${esc(val)}</span>` : '',
     p.jurisdiction ? `<span class="pill">${esc(p.jurisdiction)}</span>` : '',
-    p.contractor_name
-      ? (isRealContractor(p.contractor_name)
-          ? `<button type="button" class="link-btn" data-open-contractor="${esc(p.contractor_name)}"
-                >${esc(p.contractor_name)}</button>`
-          : `<span>${esc(p.contractor_name)}</span>`)
-      : (p.contractor_withheld ? '<span title="Looks like an individual; name and contact withheld">Individual (withheld)</span>' : ''),
-    contact,
+    pill ? '' : who,
     p.permit_number ? `<span>#${esc(p.permit_number)}</span>` : '',
   ].filter(Boolean).join('<span class="sep" aria-hidden="true"></span>');
 
   el.innerHTML = `
     <div class="card-top">
       <h3 class="card-addr">${esc(p.address || 'Address not listed')}</h3>
-      <span class="card-date">${esc(fmtDate(p.filed_date) || 'No date')}</span>
+      <span class="card-meta">${valueTag(p.valuation)}<span class="card-date">${esc(fmtDate(p.filed_date) || 'No date')}</span></span>
       ${window.Saved ? Saved.heartHtml(p.id) : ''}
     </div>
     ${p.permit_type ? `<div class="card-type">${esc(p.permit_type)}</div>` : ''}
     ${p.work_description ? `<p class="card-desc">${esc(p.work_description)}</p>` : ''}
+    ${pill ? `<div class="card-call">${pill}${who ? `<span class="card-call-who">${who}</span>` : ''}</div>` : ''}
     <div class="card-foot">${foot}</div>`;
 
   const open = (e) => {
@@ -543,10 +647,15 @@ async function run({ resetPage = false } = {}) {
   if (resetPage) page = 1;
 
   const filters = currentFilters();
+  // A new filter set re-frames the map on its results; paging does not, and
+  // neither does "Search this area" (it marks the map as moved afterwards).
+  const filterKey = JSON.stringify(filters);
+  if (filterKey !== lastRunKey) { userMovedMap = false; lastRunKey = filterKey; }
   syncUrl(filters);
   paintActiveFilters(filters);
   window.dispatchEvent(new Event('leads:areas'));   // the lens button shows the location
   updateFilterCount(filters);
+  updateTabLinks(filters);
   // The map is refreshed independently of the list: it must not delay results,
   // and a map failure must not blank the feed.
   loadMap(filters);
@@ -568,19 +677,24 @@ async function run({ resetPage = false } = {}) {
   $('results').innerHTML = skeletons(6);
   $('count').textContent = 'Searching…';
 
+  // Projects, or any list under a lens (the lens ranks on the server).
+  if (CONTRACTORS_MODE) { runCompanies(filters, mine); return; }
+  if (grouping || lensActive()) { runProjects(filters, mine); return; }
+
   let data;
   try {
     const params = new URLSearchParams({ ...filters, page: String(page), pageSize: String(PAGE_SIZE) });
-    data = await fetch('/api/permits?' + params).then((r) => r.json());
+    data = await getJSON('/api/permits?' + params);
   } catch (err) {
     if (mine !== reqId) return;
     $('results').innerHTML = `<div class="empty">${emptyIcon()}
-      <strong>Couldn't reach the server</strong><p>${esc(err.message)}</p></div>`;
+      <strong>Couldn't load permits</strong><p>${esc(err.message)}</p></div>`;
     $('count').textContent = '';
     return;
   }
   if (mine !== reqId) return;  // a newer search already landed
 
+  paintLensBar(null);
   paintStageCounts(data.facets);
 
   if (!data.results || !data.results.length) {
@@ -612,6 +726,312 @@ async function run({ resetPage = false } = {}) {
     : '';
 }
 
+/* ============================================================ projects ===
+ *
+ * Grouped view (default): one card per project (web/projects.js), with its
+ * total declared value, latest activity, a chip per permit kind coloured by
+ * status, and the contractors' phones. The drawer shows the timeline.
+ */
+
+const KIND_LABEL = { BP: 'Building', EP: 'Electrical', MP: 'Mechanical', PP: 'Plumbing', DM: 'Demolition', OT: 'Other' };
+const BASIS_LABEL = {
+  'permit number': 'linked by permit number',
+  'ref in description': 'linked by a “Ref:” in a description',
+  'same address': 'same address (our grouping)',
+  'single permit': 'one permit',
+};
+
+/* ========================================================= contractors ===
+ *
+ * /contractors: one row per company on the permits in the current filters
+ * (web/contractors.js), with its phone, licence and activity. A row opens the
+ * company's projects on the Leads tab.
+ */
+
+const CONTRACTOR_SORTS = [['active', 'Most active permits'], ['value', 'Highest active value'], ['recent', 'Most recent permit']];
+
+/** Leads and Contractors keep the same place and filters when you switch. */
+function updateTabLinks(filters) {
+  const keep = new URLSearchParams();
+  for (const [k, v] of Object.entries(filters)) {
+    if (!['sort', 'csort', 'group', 'contractorIds', 'contractorLabel', 'lens'].includes(k)) keep.set(k, v);
+  }
+  const q = keep.toString();
+  $('navLeads').href = `/${q ? `?${q}` : ''}`;
+  const c = document.getElementById('navContractors');
+  if (c) c.href = `/contractors${q ? `?${q}` : ''}`;
+}
+
+async function runCompanies(filters, mine) {
+  let data;
+  try {
+    const params = new URLSearchParams({ ...filters, page: String(page), pageSize: String(PAGE_SIZE) });
+    data = await getJSON('/api/companies?' + params);
+  } catch (err) {
+    if (mine !== reqId) return;
+    $('results').innerHTML = `<div class="empty">${emptyIcon()}<strong>Couldn't load contractors</strong><p>${esc(err.message)}</p></div>`;
+    $('count').textContent = '';
+    return;
+  }
+  if (mine !== reqId) return;
+  paintStageCounts(null);
+  if (!data.results.length) {
+    $('results').innerHTML = `<div class="empty">${emptyIcon()}<strong>No contractors on these permits</strong>
+      <p>Widen the location or clear a filter. Individuals are never listed.</p></div>`;
+    $('count').textContent = 'No contractors';
+    $('pager').innerHTML = '';
+    setSheetCount(0);
+    return;
+  }
+  const list = document.createElement('div');
+  list.className = 'cards';
+  for (const c of data.results) list.appendChild(renderCompanyRow(c, filters));
+  $('results').replaceChildren(list);
+  setSheetCount(data.total);
+  const first = (data.page - 1) * data.pageSize + 1;
+  const last = Math.min(data.page * data.pageSize, data.total);
+  $('count').innerHTML = `${plural(data.total, 'contractor', 'contractors')}
+    <span class="sub">· businesses only · showing ${first}–${last}</span>`;
+  const pages = Math.ceil(data.total / data.pageSize);
+  $('pager').innerHTML = pages > 1
+    ? `<button type="button" class="btn btn-ghost" data-page="prev" ${data.page <= 1 ? 'disabled' : ''}>← Previous</button>
+       <span class="pos">Page ${data.page} of ${pages.toLocaleString('en-US')}</span>
+       <button type="button" class="btn btn-ghost" data-page="next" ${data.page >= pages ? 'disabled' : ''}>Next →</button>`
+    : '';
+}
+
+function renderCompanyRow(c, filters) {
+  const el = document.createElement('article');
+  el.className = 'card company-card';
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(filters)) if (!['csort', 'sort', 'contractorIds', 'contractorLabel'].includes(k)) q.set(k, v);
+  q.set('contractorIds', c.ids.join(','));
+  q.set('contractorLabel', c.name);
+  const href = `/?${q}`;
+  const lic = [
+    ...c.registry.map((r) => `<span class="lic${r.official ? '' : ' is-inferred'}" title="Matched by ${esc(r.matchedBy)}${r.fileDate ? `; licence file dated ${esc(fmtDate(String(r.fileDate).slice(0, 10)))}` : ''}">
+      ${esc(r.provider)} #${esc(r.number)}${r.type ? ` · ${esc(r.type)}` : ''}${r.status ? ` · ${esc(r.status)}` : r.expires ? ` · in force to ${esc(fmtDate(String(r.expires).slice(0, 10)))}` : ''}${r.official ? '' : ' <small>(matched by name/phone)</small>'}</span>`),
+    ...c.licences.filter((l) => !c.registry.some((r) => l.endsWith(` ${r.number}`))).map((l) => `<span class="lic" title="Licence number written on their permits">Licence on permits: ${esc(l)}</span>`),
+  ];
+  const reg = c.registrations.map((r) => `<span class="lic is-inferred" title="Matched by ${esc(r.matchedBy)}">${esc(r.provider)}: ${esc(r.status || 'on file')}${r.asOf ? ` (as of ${esc(fmtDate(String(r.asOf).slice(0, 10)))})` : ''}</span>`);
+  el.innerHTML = `
+    <div class="card-top">
+      <h3 class="card-addr"><a class="company-link" href="${esc(href)}">${esc(c.name)}</a></h3>
+      <span class="card-meta">${valueTag(c.activeValue)}<span class="card-date" title="Most recent permit filed">${esc(fmtDate(c.latest) || '')}</span></span>
+    </div>
+    ${c.aliases.length ? `<div class="card-type">Also listed as ${esc(c.aliases.slice(0, 3).join(', '))}${c.aliases.length > 3 ? ` +${c.aliases.length - 3}` : ''}</div>` : ''}
+    <div class="company-stats">
+      <span><b>${c.active.toLocaleString('en-US')}</b> active permit${c.active === 1 ? '' : 's'}</span>
+      <span><b>${c.permits.toLocaleString('en-US')}</b> in these filters</span>
+      ${c.activeValue ? `<span><b>${shortMoney(c.activeValue)}</b> active value</span>` : ''}
+      ${c.trade ? `<span>${esc(c.trade)}</span>` : ''}
+    </div>
+    ${c.phone ? `<div class="card-call">${phonePill(c.phone.value)}</div>` : ''}
+    <div class="company-lic">${lic.length ? lic.join('') : '<span class="sub">No state licence on file for this company</span>'}${reg.join('')}
+      ${!c.registrations.length ? '<span class="sub">Business registration: not checked</span>' : ''}</div>
+    <div class="card-foot"><a class="link-btn" href="${esc(href)}">See their projects →</a></div>`;
+  return el;
+}
+
+/** The lens in force, above the list, with a one-click way out (or back). */
+function paintLensBar(data) {
+  const bar = $('lensBar');
+  const label = (data && data.lens && data.lens.label) || (window.LensUI ? LensUI.label() : '');
+  const where = areaSelection && areaSelection.length
+    ? `${LocationPicker.labelFor(areaSelection[0], areaIndex).replace(/, [A-Z]{2}$/, '')}${areaSelection.length > 1 ? ` +${areaSelection.length - 1}` : ''}`
+    : 'All areas';
+  const ico = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>';
+  let html = '';
+  if (data && data.lens && data.lens.applied) {
+    html = `${ico}<span class="lens-bar-text"><b>${esc(label)}</b> · ${esc(where)} · ${plural(data.total, 'match', 'matches')}</span>
+      <button type="button" class="btn-quiet" data-lens="off">Show everything</button>
+      <button type="button" class="btn-quiet" data-lens="edit">Change</button>`;
+  } else if (lensParam && lensOff) {
+    html = `${ico}<span class="lens-bar-text">Showing everything.</span>
+      <button type="button" class="btn-quiet" data-lens="on">Apply your lens${label ? `: ${esc(label)}` : ''}</button>`;
+  } else if (data && data.lens && !data.lens.applied && data.lens.reason === 'off') {
+    html = `${ico}<span class="lens-bar-text">Your lens${label ? ` (${esc(label)})` : ''} can't filter here yet: trade matching is off on this site.</span>`;
+  }
+  bar.innerHTML = html;
+  bar.hidden = !html;
+}
+
+async function runProjects(filters, mine) {
+  let data;
+  try {
+    const params = new URLSearchParams({ ...filters, page: String(page), pageSize: String(PAGE_SIZE) });
+    if (!lensActive()) params.delete('lens');
+    data = await getJSON('/api/projects?' + params);
+  } catch (err) {
+    if (mine !== reqId) return;
+    $('results').innerHTML = `<div class="empty">${emptyIcon()}
+      <strong>Couldn't load projects</strong><p>${esc(err.message)}</p></div>`;
+    $('count').textContent = '';
+    return;
+  }
+  if (mine !== reqId) return;
+  lastInferences = Boolean(data.inferences);
+  paintStageCounts(data.facets);
+  paintLensBar(data);
+
+  if (!data.results.length) {
+    $('results').innerHTML = emptyState(data, filters);
+    $('count').textContent = 'No projects';
+    $('pager').innerHTML = '';
+    setSheetCount(0);
+    return;
+  }
+  const list = document.createElement('div');
+  list.className = 'cards';
+  for (const pr of data.results) list.appendChild(renderProjectCard(pr));
+  $('results').replaceChildren(list);
+  paintPinState();
+  setSheetCount(data.total);
+
+  const first = (data.page - 1) * data.pageSize + 1;
+  const last = Math.min(data.page * data.pageSize, data.total);
+  // Ungrouped under a lens, each row is one permit.
+  $('count').innerHTML = grouping
+    ? `${plural(data.total, 'project', 'projects')}
+       <span class="sub">· ${plural(data.permitsMatched, 'permit', 'permits')} · showing ${first}–${last}</span>`
+    : `${plural(data.total, 'permit', 'permits')}
+       <span class="sub">· of ${data.permitsMatched.toLocaleString('en-US')} · showing ${first}–${last}</span>`;
+  if (data.capped) {
+    $('results').insertAdjacentHTML('afterbegin', `<p class="callout">Grouping covers the newest
+      ${data.cap.toLocaleString('en-US')} of ${data.permitsTotal.toLocaleString('en-US')} matching permits. Narrow the location to see every project.</p>`);
+  }
+  const pages = Math.ceil(data.total / data.pageSize);
+  $('pager').innerHTML = pages > 1
+    ? `<button type="button" class="btn btn-ghost" data-page="prev" ${data.page <= 1 ? 'disabled' : ''}>← Previous</button>
+       <span class="pos">Page ${data.page} of ${pages.toLocaleString('en-US')}</span>
+       <button type="button" class="btn btn-ghost" data-page="next" ${data.page >= pages ? 'disabled' : ''}>Next →</button>`
+    : '';
+}
+
+/** "BP ×3" chips, coloured by the most advanced status of that kind. */
+const kindChips = (chips) => `<div class="kind-chips">${chips.map((c) => `
+  <span class="kind-chip" title="${esc(`${c.label}: ${c.count} permit${c.count === 1 ? '' : 's'}, ${(STAGES.find(([k]) => k === c.stage) || [, 'Unknown'])[1].toLowerCase()}`)}">
+    <span class="stage-dot ${esc(c.stage)}" aria-hidden="true"></span>${esc(c.code)}${c.count > 1 ? `<span class="kind-n">×${c.count}</span>` : ''}</span>`).join('')}</div>`;
+
+/** A project's value with how it was summed, or ''. */
+function projectValueTag(v, cls = 'card-value') {
+  if (!v || v.total == null) return '';
+  const tag = valueTag(v.total, cls);
+  const notes = [];
+  if (v.counted > 1) notes.push(`sum of ${v.counted} declared values`);
+  if (v.repeated) notes.push(`${plural(v.repeated, 'repeated value', 'repeated values')} counted once`);
+  if (v.odd) notes.push(`${plural(v.odd, 'value', 'values')} of $1B+ left out as filing errors`);
+  return notes.length ? tag.replace(/title="([^"]*)"/, (_, t) => `title="${t}: ${esc(notes.join('; '))}"`) : tag;
+}
+
+function renderProjectCard(pr) {
+  const el = document.createElement('article');
+  el.className = 'card project-card';
+  el.tabIndex = 0;
+  el.setAttribute('role', 'button');
+  el.dataset.id = pr.primaryId;
+  const areaKey = areaKeyOf(pr);
+  if (areaKey) el.dataset.area = areaKey;
+
+  const phones = pr.phones.slice(0, 2).map((x) => `<span class="proj-phone">${phonePill(x.phone)}${x.name
+    ? `<span class="card-call-who">${isRealContractor(x.name)
+      ? `<button type="button" class="link-btn" data-open-contractor="${esc(x.name)}">${esc(x.name)}</button>` : esc(x.name)}</span>` : ''}</span>`).join('');
+  const morePhones = pr.phones.length > 2 ? `<span class="sub">+${pr.phones.length - 2} more in the timeline</span>` : '';
+  const sub = [
+    plural(pr.permitCount, 'permit', 'permits'),
+    pr.buildings.length ? pr.buildings.slice(0, 3).join(' · ') + (pr.buildings.length > 3 ? ` +${pr.buildings.length - 3}` : '') : '',
+  ].filter(Boolean).join(' · ');
+
+  el.innerHTML = `
+    <div class="card-top">
+      <h3 class="card-addr">${esc(pr.address || 'Address not listed')}</h3>
+      <span class="card-meta">${projectValueTag(pr.value)}<span class="card-date" title="Latest permit filed">${esc(fmtDate(pr.latest) || 'No date')}</span></span>
+      ${window.Saved ? Saved.heartHtml(pr.primaryId) : ''}
+    </div>
+    <div class="card-type">${esc(sub)}${pr.stage ? ` <span class="proj-stage" title="Our reading of the permits on file, not a site inspection">${esc(pr.stage)}</span>` : ''}</div>
+    ${pr.lens ? `<p class="lens-why"><b>Why it fits:</b> ${esc(pr.lens.why.join(' · '))}</p>` : ''}
+    ${pr.description ? `<p class="card-desc">${esc(pr.description)}</p>` : ''}
+    ${kindChips(pr.chips)}
+    ${phones ? `<div class="card-call proj-phones">${phones}${morePhones}</div>` : ''}
+    <div class="card-foot">
+      <span class="sub">${esc(pr.basis.map((b) => BASIS_LABEL[b] || b).join(' · '))}</span>
+      ${pr.jurisdiction ? `<span class="sep" aria-hidden="true"></span><span class="pill">${esc(pr.jurisdiction)}</span>` : ''}
+    </div>`;
+
+  const open = (e) => {
+    if (e.target.closest('[data-tel], [data-open-contractor], [data-heart]')) return;
+    openProject(pr.id, el);
+  };
+  el.addEventListener('click', open);
+  el.addEventListener('keydown', (e) => {
+    if (e.target !== el) return;
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openProject(pr.id, el); }
+  });
+  if (areaKey) {
+    el.addEventListener('mouseenter', () => highlightPin(areaKey, true));
+    el.addEventListener('mouseleave', () => highlightPin(areaKey, false));
+  }
+  return el;
+}
+
+/** The project drawer: header facts, then every permit in date order. */
+async function openProject(id, cardEl, { keepFocus = false } = {}) {
+  const dlg = $('detail');
+  if (!keepFocus) lastFocused = cardEl || null;
+  projectReturn = null;
+  for (const c of document.querySelectorAll('.card[aria-current]')) c.removeAttribute('aria-current');
+  if (cardEl) cardEl.setAttribute('aria-current', 'true');
+
+  $('dAddr').textContent = 'Loading…';
+  for (const k of ['dType']) $(k).textContent = '';
+  for (const k of ['dMeta', 'dStage', 'dSave', 'dFoot']) $(k).innerHTML = '';
+  $('dBody').innerHTML = skeletons(3);
+  if (!dlg.open) dlg.showModal();
+
+  let pr;
+  try {
+    pr = await getJSON(`/api/projects/by-permit/${encodeURIComponent(id)}`);
+  } catch (err) {
+    $('dAddr').textContent = 'Could not load project';
+    $('dBody').innerHTML = `<p class="callout">${esc(err.message)}</p>`;
+    return;
+  }
+
+  $('dAddr').textContent = pr.address || 'Address not listed';
+  $('dType').textContent = [plural(pr.permitCount, 'permit', 'permits'), pr.buildings.join(' · ')].filter(Boolean).join(' · ');
+  const val = projectValueTag(pr.value, 'd-value');
+  $('dMeta').innerHTML = [pr.latest ? `<span>Latest ${esc(fmtDate(pr.latest))}</span>` : '', val ? `<span>${val} declared in total</span>` : '']
+    .filter(Boolean).join('<span class="sep" aria-hidden="true"></span>');
+  $('dStage').innerHTML = pr.stage ? `<span class="proj-stage" title="Our reading of the permits on file, not a site inspection">${esc(pr.stage)}</span>` : '';
+  $('dSave').innerHTML = window.Saved ? Saved.heartHtml(pr.primaryId, { label: true }) : '';
+
+  $('dBody').innerHTML = `
+    ${kindChips(pr.chips)}
+    <div class="sect">Timeline</div>
+    <ol class="timeline">${pr.permits.map((p) => `
+      <li class="tl-item">
+        <div class="tl-when">${esc(fmtDate(p.filed_date) || 'No date')}</div>
+        <div class="tl-main">
+          <div class="tl-head"><span class="kind-chip"><span class="stage-dot ${esc(p.status_stage || 'unknown')}" aria-hidden="true"></span>${esc(p.kind)}</span>
+            <span class="tl-type">${esc(p.permit_type || KIND_LABEL[p.kind] || 'Permit')}</span>
+            ${valueTag(p.valuation)}</div>
+          <div class="tl-status">${stageBadge(p)}${p.permit_number ? `<span class="sub">#${esc(p.permit_number)}</span>` : ''}</div>
+          ${p.work_description ? `<p class="tl-desc">${esc(p.work_description)}</p>` : ''}
+          ${p.contractor_name || p.contractor_phone || p.contractor_withheld ? `<div class="tl-who">
+            ${p.contractor_phone ? phonePill(p.contractor_phone) : ''}
+            <span>${p.contractor_name ? (isRealContractor(p.contractor_name)
+              ? `<button type="button" class="link-btn" data-open-contractor="${esc(p.contractor_name)}">${esc(p.contractor_name)}</button>`
+              : esc(p.contractor_name)) : (p.contractor_withheld ? 'Individual (withheld)' : '')}</span></div>` : ''}
+          <button type="button" class="link-btn tl-open" data-open-permit="${esc(p.id)}">Permit details →</button>
+        </div>
+      </li>`).join('')}</ol>
+    <p class="check-count">Grouped by ${esc(pr.basis.map((b) => BASIS_LABEL[b] || b).join(', '))}.${pr.inferences ? '' : ' Same-address grouping and stages are off on this site.'}</p>`;
+
+  for (const b of $('dBody').querySelectorAll('[data-open-permit]')) {
+    b.addEventListener('click', () => openDetail(b.dataset.openPermit, null, { fromProject: pr.id }));
+  }
+}
+
 /** The sheet's action doubles as the result count, so a phone shows the effect
  *  of a filter without closing the sheet to look. */
 function setSheetCount(total) {
@@ -622,7 +1042,8 @@ function setSheetCount(total) {
 }
 
 function updateFilterCount(filters) {
-  const n = Object.keys(filters).filter((k) => k !== 'sort' && k !== 'stage').length;
+  // The lens and the grouping switch are not filters: the lens has its own bar.
+  const n = Object.keys(filters).filter((k) => !['sort', 'csort', 'stage', 'lens', 'group', 'contractorLabel'].includes(k)).length;
   $('filtersToggleLabel').textContent = n ? `Filters (${n})` : 'Filters';
 }
 
@@ -653,22 +1074,22 @@ async function openContractor(name, { from = null } = {}) {
 
   let c;
   try {
-    const res = await fetch('/api/contractors/' + encodeURIComponent(name));
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      $('cMeta').textContent = '';
-      $('cBody').innerHTML = `<div class="empty">${emptyIcon()}
-        <strong>${body.reason === 'owner-builder'
-          ? 'That is an owner-builder, not a company'
-          : 'No permits under that exact name'}</strong>
-        <p>${body.reason === 'owner-builder'
-          ? 'Portals write “OWNER” in the contractor column when the property owner pulled the permit themselves, so there is no firm to show a history for.'
-          : 'The name may be spelled differently on other permits.'}</p></div>`;
+    c = await getJSON('/api/contractors/' + encodeURIComponent(name));
+  } catch (err) {
+    // A JSON 404 is a real answer ("no such company"); anything else is an error.
+    if (err.status !== 404 || !err.data) {
+      $('cBody').innerHTML = `<p class="callout">${esc(err.message)}</p>`;
       return;
     }
-    c = await res.json();
-  } catch (err) {
-    $('cBody').innerHTML = `<p class="callout">${esc(err.message)}</p>`;
+    const body = err.data;
+    $('cMeta').textContent = '';
+    $('cBody').innerHTML = `<div class="empty">${emptyIcon()}
+      <strong>${body.reason === 'owner-builder'
+        ? 'That is an owner-builder, not a company'
+        : 'No permits under that exact name'}</strong>
+      <p>${body.reason === 'owner-builder'
+        ? 'Portals write “OWNER” in the contractor column when the property owner pulled the permit themselves, so there is no firm to show a history for.'
+        : 'The name may be spelled differently on other permits.'}</p></div>`;
     return;
   }
 
@@ -704,7 +1125,7 @@ async function openContractor(name, { from = null } = {}) {
       ${daysQuiet !== null ? row('Last permit', relativeDays(daysQuiet)) : ''}
       ${row('Declared value', money(c.total_valuation) || '—')}
       ${row('', valuationNote)}
-      ${c.phone ? `<dt>Phone</dt><dd>${phoneLink(c.phone)}</dd>` : ''}
+      ${c.phone ? `<dt>Phone</dt><dd>${phonePill(c.phone)}</dd>` : ''}
       ${row('Licence', c.licence)}
       ${row('Based in', c.city)}
     </dl>
@@ -762,8 +1183,7 @@ async function openContractor(name, { from = null } = {}) {
 const loadContractorSuggestions = debounce(async (term) => {
   if (!term || term.length < 2) { $('contractorList').innerHTML = ''; $('contractorHint').textContent = ''; return; }
   try {
-    const { contractors } = await fetch('/api/contractors?limit=12&q=' + encodeURIComponent(term))
-      .then((r) => r.json());
+    const { contractors } = await getJSON('/api/contractors?limit=12&q=' + encodeURIComponent(term));
     $('contractorList').innerHTML = contractors
       .map((c) => `<option value="${esc(c.name)}">${esc(c.name)} · ${c.permits}</option>`).join('');
     $('contractorHint').innerHTML = contractors.length
@@ -821,10 +1241,11 @@ function initMap() {
 async function loadMap(filters) {
   if (!map) return;
   lastFilters = filters;
+  pointsFramed = false;
 
   let data;
   try {
-    data = await fetch('/api/map?' + new URLSearchParams(filters)).then((r) => r.json());
+    data = await getJSON('/api/map?' + new URLSearchParams(filters));
   } catch {
     return;   // the map is an aid; a failure here must not break the results
   }
@@ -842,7 +1263,38 @@ async function loadMap(filters) {
 
   fitPins();
   map._loadedOnce = true;
+  // A small selection (a ZIP, a few neighbourhoods) is framed on its job sites
+  // rather than on one area pin, so the map opens at street level.
+  if (!(await framePoints(filters))) loadPoints();
+}
+
+/**
+ * Fits the map to the current results' located job sites when the area pins
+ * span less than about a city (the points API takes at most 1 degree). The
+ * bounds ignore the outer 5% on each axis, so one mis-geocoded address cannot
+ * zoom the map back out to the whole state. Returns true when it framed.
+ */
+const FRAME_MAX_DEG = 0.9;
+async function framePoints(filters) {
+  if (!map || userMovedMap || !mapPins.length) return false;
+  const lats = mapPins.map((p) => p.lat);
+  const lngs = mapPins.map((p) => p.lng);
+  const pad = 0.06;
+  const box = [Math.min(...lats) - pad, Math.min(...lngs) - pad, Math.max(...lats) + pad, Math.max(...lngs) + pad];
+  if (box[2] - box[0] > FRAME_MAX_DEG || box[3] - box[1] > FRAME_MAX_DEG) return false;
+  let data;
+  try {
+    data = await getJSON(`/api/map/points?${new URLSearchParams({ ...filters, bbox: box.map((v) => v.toFixed(5)).join(',') })}`);
+  } catch { return false; }
+  if (filters !== lastFilters || userMovedMap || !data.points || data.points.length < 2) return false;
+  const q = (arr, f) => { const s = [...arr].sort((a, b) => a - b); return s[Math.min(s.length - 1, Math.max(0, Math.round(f * (s.length - 1))))]; };
+  const pl = data.points.map((p) => p.lat);
+  const pg = data.points.map((p) => p.lng);
+  pointsFramed = true;
+  map.fitBounds([[q(pl, 0.05), q(pg, 0.05)], [q(pl, 0.95), q(pg, 0.95)]], { padding: [40, 40], maxZoom: 16, animate: false });
+  renderPins();
   loadPoints();
+  return true;
 }
 
 /* ------------------------------------------------------------ job sites ===
@@ -868,7 +1320,11 @@ function loadPointsSoon() {
   pointsTimer = setTimeout(loadPoints, 250);
 }
 
-const showingPoints = () => map && map.getZoom() >= POINT_ZOOM;
+// A small selection framed on its job sites (framePoints) shows them at that
+// zoom too, down to city level; otherwise job sites start at POINT_ZOOM.
+const FRAMED_MIN_ZOOM = 11;
+let pointsFramed = false;
+const showingPoints = () => map && (map.getZoom() >= POINT_ZOOM || (pointsFramed && map.getZoom() >= FRAMED_MIN_ZOOM));
 
 async function loadPoints() {
   if (!map || !pointLayer) return;
@@ -884,9 +1340,7 @@ async function loadPoints() {
   const bbox = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].map((v) => v.toFixed(5)).join(',');
   let data;
   try {
-    const r = await fetch(`/api/map/points?${new URLSearchParams({ ...lastFilters, bbox })}`);
-    if (!r.ok) throw new Error(String(r.status));
-    data = await r.json();
+    data = await getJSON(`/api/map/points?${new URLSearchParams({ ...lastFilters, bbox })}`);
   } catch {
     return;   // the area pins stay; the map is an aid, not the results
   }
@@ -927,7 +1381,9 @@ function fitPins() {
  * pile. Bucketing by a fixed pixel grid means the map is legible at every zoom
  * and splits apart as you go in — and because the grid is in projected
  * coordinates, only zoom changes the grouping, never panning. */
-const CLUSTER_PX = 68;
+// The merge cell shrinks as you zoom in, so groups split apart at city zoom
+// instead of holding together until the street level.
+const clusterPx = (zoom) => (zoom >= 12 ? 36 : zoom >= 9 ? 52 : 68);
 
 function renderPins() {
   if (!map) return;
@@ -939,7 +1395,8 @@ function renderPins() {
 
   for (const pin of mapPins) {
     const pt = map.project([pin.lat, pin.lng], zoom);
-    const cell = `${Math.floor(pt.x / CLUSTER_PX)}:${Math.floor(pt.y / CLUSTER_PX)}`;
+    const px = clusterPx(zoom);
+    const cell = `${Math.floor(pt.x / px)}:${Math.floor(pt.y / px)}`;
     const group = cells.get(cell) ||
       { members: [], permits: 0, pending: 0, x: 0, y: 0 };
     group.members.push(pin);
@@ -1068,7 +1525,7 @@ function distanceKm(a, b) {
  *  current filters happen to exclude. */
 async function loadAllAreas() {
   try {
-    const data = await fetch('/api/map?stage=any').then((r) => r.json());
+    const data = await getJSON('/api/map?stage=any');
     allAreas = data.pins || [];
   } catch { allAreas = []; }
 }
@@ -1137,16 +1594,50 @@ function useMyLocation() {
   );
 }
 
-// A phone as a tel: link when it normalizes to a dialable number (links.js),
-// else as plain text. Owner and applicant phones are never rendered
-// (CLAUDE.md hard rule 5); only the contractor's business contact is.
-const phoneLink = (v, attrs = '') => {
+/**
+ * The contractor's phone as the card's main action: a pill with a handset
+ * icon. On a phone it is a tel: link that dials; on a desktop a click copies
+ * the number (see the copy handler below), since most desktops cannot dial.
+ * Only the business contact ever gets here (rule 5, src/privacy.js).
+ */
+const PHONE_ICON = `<svg class="phone-ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+  stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h3.5l1.8 4.6-2.3 1.4a11 11 0 0 0 6 6l1.4-2.3L20 15.5V19a2 2 0 0 1-2.2 2A17 17 0 0 1 3 6.2 2 2 0 0 1 5 4Z"/></svg>`;
+function phonePill(v) {
   if (!v) return '';
+  const shown = phone(v);
   const href = telHref(v);
-  return href
-    ? `<a href="${esc(href)}"${attrs}>${esc(phone(v))}</a>`
-    : `<span>${esc(phone(v))}</span>`;
-};
+  if (!href) return `<span class="phone-pill is-plain">${PHONE_ICON}<span class="phone-num">${esc(shown)}</span></span>`;
+  return `<a class="phone-pill" href="${esc(href)}" data-tel data-phone="${esc(shown)}"
+    title="Call ${esc(shown)} (on a computer, click to copy)">${PHONE_ICON}<span class="phone-num">${esc(shown)}</span></a>`;
+}
+
+// Desktop: a phone pill copies its number instead of opening a dialer that
+// usually isn't there. Touch screens keep the tel: link and dial.
+const dialsNatively = matchMedia('(hover: none), (pointer: coarse)');
+function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text).then(() => true, () => false);
+  const ta = Object.assign(document.createElement('textarea'), { value: text });
+  ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch { ok = false; }
+  ta.remove();
+  return Promise.resolve(ok);
+}
+document.addEventListener('click', async (e) => {
+  const pill = e.target.closest('a.phone-pill');
+  if (!pill || dialsNatively.matches) return;
+  e.preventDefault();
+  const number = pill.dataset.phone;
+  const ok = await copyText(number);
+  const label = pill.querySelector('.phone-num');
+  pill.dataset.state = ok ? 'copied' : 'failed';
+  label.textContent = ok ? 'Copied ✓' : number;
+  $('liveNote').textContent = ok ? `Copied ${number}` : `Couldn't copy. The number is ${number}.`;
+  clearTimeout(pill._t);
+  pill._t = setTimeout(() => { delete pill.dataset.state; label.textContent = number; }, 1600);
+});
+
 
 /* ------------------------------------------------------------------ drawer */
 
@@ -1158,15 +1649,17 @@ const row = (label, value, cls = '') =>
  * Everything we hold about one permit, shown in-app. The source link at the
  * bottom is provenance only — nothing here requires leaving to read it.
  */
-async function openDetail(id, cardEl) {
+async function openDetail(id, cardEl, { fromProject = null } = {}) {
   const dlg = $('detail');
-  lastFocused = cardEl || null;
+  if (!fromProject) lastFocused = cardEl || null;
+  projectReturn = fromProject;
 
   for (const c of document.querySelectorAll('.card[aria-current]')) c.removeAttribute('aria-current');
   if (cardEl) cardEl.setAttribute('aria-current', 'true');
 
   $('dAddr').textContent = 'Loading…';
   $('dType').textContent = '';
+  $('dMeta').innerHTML = '';
   $('dStage').innerHTML = '';
   $('dSave').innerHTML = '';
   $('dBody').innerHTML = skeletons(3);
@@ -1175,7 +1668,7 @@ async function openDetail(id, cardEl) {
 
   let p;
   try {
-    p = await fetch('/api/permits/' + encodeURIComponent(id)).then((r) => r.json());
+    p = await getJSON('/api/permits/' + encodeURIComponent(id));
   } catch (err) {
     $('dAddr').textContent = 'Could not load permit';
     $('dBody').innerHTML = `<p class="callout">${esc(err.message)}</p>`;
@@ -1184,6 +1677,10 @@ async function openDetail(id, cardEl) {
 
   $('dAddr').textContent = p.address || 'Address not listed';
   $('dType').textContent = p.permit_type || '';
+  // The filing date and the declared value, side by side (nothing when missing).
+  const dVal = valueTag(p.valuation, 'd-value');
+  $('dMeta').innerHTML = [p.filed_date ? `<span>Filed ${esc(fmtDate(p.filed_date))}</span>` : '', dVal ? `<span>${dVal} declared</span>` : '']
+    .filter(Boolean).join('<span class="sep" aria-hidden="true"></span>');
   $('dStage').innerHTML = stageBadge(p);
   $('dSave').innerHTML = window.Saved ? Saved.heartHtml(p.id, { label: true }) : '';
 
@@ -1202,7 +1699,7 @@ async function openDetail(id, cardEl) {
       ${row(p.filing_kind === 'building_application' ? 'Applied' : 'Issued', fmtDate(p.filed_date))}
       ${row('Permit no.', p.permit_number)}
       ${row('Type', p.permit_type)}
-      ${row('Valuation', money(p.valuation), 'money')}
+      ${row('Valuation', money(p.valuation) && (Number(p.valuation) >= ODD_VALUE ? `${money(p.valuation)} (as filed; unusually high, likely a filing error)` : money(p.valuation)), 'money')}
       ${row('Description', p.work_description)}
     </dl>
 
@@ -1223,7 +1720,7 @@ async function openDetail(id, cardEl) {
             ? `<button type="button" class="link-btn" data-open-contractor="${esc(p.contractor_name)}"
                   >${esc(p.contractor_name)}</button>`
             : esc(p.contractor_name)}</dd>` : ''}
-        ${p.contractor_phone ? `<dt>Phone</dt><dd>${phoneLink(p.contractor_phone)}</dd>` : ''}
+        ${p.contractor_phone ? `<dt>Phone</dt><dd>${phonePill(p.contractor_phone)}</dd>` : ''}
         ${row('Trade', p.contractor_trade)}
         ${row('Licence', p.contractor_licence)}
         ${row('City', p.contractor_city)}
@@ -1288,6 +1785,12 @@ async function openDetail(id, cardEl) {
     ? `<span>Source record, for verification:</span>
        <a href="${esc(sourceUrl)}" target="_blank" rel="noopener">open the county portal →</a>`
     : '<span>No source link recorded for this permit.</span>'}`;
+  // Opened from a project's timeline: offer the way back to it.
+  if (projectReturn) {
+    $('dFoot').insertAdjacentHTML('afterbegin', '<button type="button" class="btn btn-ghost" id="dBackProject">← Back to project</button>');
+    const back = projectReturn;
+    $('dBackProject').addEventListener('click', () => openProject(back, null, { keepFocus: true }));
+  }
 
   if (mapAction) {
     $('dShowMap').addEventListener('click', () => {
@@ -1317,9 +1820,7 @@ async function loadJobExtras(id) {
   const box = $('dMore');
   let j;
   try {
-    const r = await fetch(`/api/pilot/jobs/${encodeURIComponent(id)}`);
-    if (!r.ok) throw new Error(`Request failed (${r.status})`);
-    j = await r.json();
+    j = await getJSON(`/api/pilot/jobs/${encodeURIComponent(id)}`);
   } catch (err) {
     if (extrasFor === id && box.isConnected) box.innerHTML = `<div class="sect">Lifecycle, property and licences</div><p class="check-count">Could not load: ${esc(err.message)}</p>`;
     return;
@@ -1499,6 +2000,14 @@ for (const id of TEXT_FILTERS) $(id).addEventListener('input', runSoon);
 for (const id of PICK_FILTERS) $(id).addEventListener('change', runNow);
 $('hasContact').addEventListener('change', runNow);
 $('ownerBuilder').addEventListener('change', runNow);
+$('groupToggle').addEventListener('change', (e) => { grouping = e.target.checked; runNow(); });
+$('lensBar').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-lens]');
+  if (!b) return;
+  if (b.dataset.lens === 'edit') { if (window.LensUI) LensUI.open(); return; }
+  lensOff = b.dataset.lens === 'off';
+  runNow();
+});
 $('sort').addEventListener('change', runNow);
 $('stageGroup').addEventListener('change', runNow);
 
@@ -1537,6 +2046,8 @@ $('clearAll').addEventListener('click', () => {
   areaSelection = null;
   unmatchedLocation = null;
   jurisdictionFilter = '';
+  contractorIdsFilter = '';
+  contractorLabel = '';
   userMovedMap = false;
   locPicker.setValue([]);
   for (const id of [...TEXT_FILTERS, ...PICK_FILTERS]) $(id).value = '';
@@ -1715,6 +2226,8 @@ $('activeFilters').addEventListener('click', (e) => {
 /* --------------------------------------------------------------- bootstrap */
 
 buildStageCheckboxes();
+// The Contractors tab sorts companies; its options must exist before the URL is read.
+if (CONTRACTORS_MODE) $('sort').innerHTML = CONTRACTOR_SORTS.map(([k, label]) => `<option value="${k}">${esc(label)}</option>`).join('');
 applyUrl();
 
 if (SAVED_MODE) {
@@ -1733,6 +2246,18 @@ if (SAVED_MODE) {
     savedItems = savedItems.filter((it) => Saved.isSaved(it.permit.id));
     if (savedItems.length !== before) paintSaved();
   });
+} else if (CONTRACTORS_MODE) {
+  $('app').dataset.mode = 'contractors';
+  $('navLeads').removeAttribute('aria-current');
+  $('navContractors').setAttribute('aria-current', 'page');
+  document.title = 'Contractors · Contractos';
+  const savedLayout = readStore();
+  setView('list', { remember: false });
+  setFilters(savedLayout.filters !== 'closed', { remember: false });
+  syncSidebar();
+  loadFreshness();
+  loadAllAreas();
+  loadOptions().finally(run);
 } else {
   const savedLayout = readStore();
   setView(savedLayout.view || 'split', { remember: false });
