@@ -709,7 +709,8 @@ what would make us revisit it. Never delete an entry; supersede it.
 ## ADR-27: Audience-neutral screens, invite-only access with an optional industry
 
 - **Status:** accepted, 2026-11-14 (owner: "do not assume our target
-  customers"; "avoid forcing users into a specific workflow"). Builds on
+  customers"; "avoid forcing users into a specific workflow"). Point 2
+  (invite-only access) superseded by ADR-29 on 2026-11-15. Builds on
   ADR-26; supersedes the subcontractor framing of ADR-1's screens and the
   shared-password gate of ADR-13 (the password stays as the owner's key).
 - **Decision:**
@@ -755,3 +756,109 @@ what would make us revisit it. Never delete an entry; supersede it.
 - **Consequences:** about 100 extra requests a day per large source. Austin's
   store cycles in about two weeks. Screens do not yet say "removed from the
   source"; the mark is recorded and counted first.
+
+## ADR-29: Open access, no login
+
+- **Status:** accepted, 2026-11-15 (owner's choice: "No login at all").
+  Supersedes ADR-27 point 2 (invite codes) and the email sign-in gate that
+  replaced it in #95/#97 the same day.
+- **Decision:** the hosted app asks for no sign-in. Anyone with the link sees
+  what the screens show, including business contractors' names and phones.
+  Redaction is unchanged (rule 5, ADR-10, ADR-26). An email is asked only when
+  someone saves a permit, and nothing checks it. The digest previews
+  (`/digest/preview`, `/digest/sample`) stay behind the owner key
+  (`DEMO_PASSWORD`), because they render subscribers' real signed links.
+  Pages are sent with `X-Robots-Tag: noindex, nofollow`. `REQUIRE_LOGIN=1`
+  restores the full gate.
+- **Risk accepted:** the data is public before the redistribution questions
+  for Miami-Dade, the TX Comptroller and Sunbiz are answered (docs/COMPLIANCE.md).
+
+## ADR-30: Watermarked windows, validated pages, append-only history
+
+- **Date:** 2026-11-15. Data-engine brief, phase 1
+  (`docs/research/2026-11-15-engine-gap-analysis.md`).
+- **Context:** sync windows were fixed look-backs, so an outage longer than a
+  window left a gap nobody would see. Response pages were checked by hand,
+  per-row type faults were invisible, retries reached only the log, and the
+  history tables could be edited like any other table.
+- **Decision (migration 035):**
+  - `source_watermarks` keeps the start of the last successful, untruncated
+    run per source and window field. A run widens each window to reach back
+    past it plus a day, up to 120 days; beyond that a `watermark_gap` error
+    event asks for a backfill. Truncated and failed runs do not advance it.
+    Not a modified-since cursor: Austin's `:updated_at` moves on every row
+    daily.
+  - Page envelopes are checked with Zod (`src/adapters/validate.js`); a bad
+    one fails the run as `schema`. Keys and date columns of every row are
+    checked; bad rows are still stored raw, and one `validation` event per
+    run counts them (error when over half the rows are bad).
+  - Retries use exponential backoff with jitter and honour `Retry-After` as
+    seconds or a date; a run that retried writes one `rate_limited` event.
+    `connector_health_logs` is a view over `source_events` and failed
+    `sync_runs`, not a second table.
+  - `raw_records.source_url` re-fetches each record; `source_updated_at` is
+    filled only from a declared modification column (`updatedAtField`;
+    Raleigh only).
+  - `lifecycle_stage` gets a CHECK (NOT VALID until the live rows are
+    counted), `lifecycle_phase()` maps it to the brief's eight values, and
+    `record_status_changelog` reads the three history tables as old/new
+    values. History rows are append-only by trigger, except that they go
+    with their record and the derived `lifecycle_stage` may be restaged.
+- **Consequences:** source_url fills on older raw rows only as runs see their
+  keys again. The first runs after a long outage are bigger and may hit
+  `maxPerRun`, which is recorded and keeps the watermark in place.
+
+## ADR-31: One signal model as views, links carry their provenance class
+
+- **Date:** 2026-11-15. Data-engine brief, phases 2 and 3.
+- **Context:** permits, applications, planning cases and inspections live in
+  their own tables and link tables. The brief asked for a unified
+  `construction_signals` / `projects` model and a provenance tag on every
+  entity relationship.
+- **Decision (migration 036):** `construction_signals`, `signal_links`,
+  `entity_links` and `contractor_portfolio` are views, so nothing is copied
+  and nothing can drift. Each link carries `provenance`, the brief's word for
+  the ADR-26 trust classes: `cross_source_verified` for official keys
+  (permit or master number, licence number, the source's parcel id),
+  `parsed_inferred` for name, phone, parcel-window and address joins and
+  rules on text, `missing` for nothing linked. No `projects` table: one parcel
+  carries many projects over the years, so a parcel grouping would invent
+  projects; filings connect only through explicit links. Portfolios count
+  licence-linked and name-linked permits apart. The 035 lifecycle CHECKs are
+  validated (0 rows outside the vocabulary, measured live).
+- **Consequences:** no screen reads these views yet; anything shown from
+  them still passes `web/trust.js`. The Florida "split firm" count drops from
+  1,421 names to 294 once entities with no permits left (merged away by
+  rule 3 and kept by `ingest/resolve.js`) are excluded; the 294 have 2+ or
+  no Sunbiz candidates and stay apart until a rule is measured.
+
+## ADR-32: Status labels from one table; unmeasured second-source values hidden
+
+- **Context (owner, 2026-11-15):** an Austin plan-review case showed the badge
+  "Waiting for approval" beside its source status "Approved and Released" and
+  a lifecycle row "Approved, not issued". The badge labelled the filter group
+  `pending`, which means "no permit issued yet" and also holds plans the city
+  has approved. Measured live (recon/status_labels.js): 10,065 of 139,220
+  records (7.2%) showed a badge that contradicted their source status: 8,902
+  of 10,598 Austin plan-review cases ("Approved", "Approved and Released"),
+  1,157 Raleigh "Ready for Issuance", 6 Austin "Pending Permit". The owner also
+  ruled that the product may not show data from sources that are not verified
+  or not supervised.
+- **Decision:** `web/public/stages.js` is the only label table. Group labels
+  say what the group holds ("Not issued yet", "Issued", "Cancelled or
+  expired", "Status not mapped"); the badge shows the finer lifecycle stage
+  when the source's wording maps to one. `stages.test.js` checks that every
+  source's status_stage and lifecycle tables agree. The date column is
+  labelled Applied for plan-review cases and Issued for permits. "First seen
+  by us" is not shown: it is when our pipeline loaded the row (for most cases
+  the first sync of the source), not a fact about the filing. Values from a
+  second source whose accuracy against that source was never measured are
+  hidden unless `SHOW_UNMEASURED=1`: appraiser property facts, state licence
+  details, and Census-interpolated map points (`src/display_policy.js`,
+  `web/trust.js`).
+- **Consequences:** after the change 0 records contradict (same script). The
+  hidden values come back one at a time, each after a fidelity check against
+  its live source like the 2026-11-14 permit check. Job-key counts (trade
+  permits on a job, a GC's subs) stay for now: they are equality joins on
+  the cities' own permit and master numbers, but whether every job key
+  denotes one job has not been hand-checked. That check is the next one owed.

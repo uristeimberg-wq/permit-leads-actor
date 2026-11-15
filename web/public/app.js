@@ -21,13 +21,8 @@
 
 const $ = (id) => document.getElementById(id);
 
-const STAGES = [
-  ['pending',   'Waiting for approval'],
-  ['approved',  'Approved'],
-  ['finished',  'Finished'],
-  ['cancelled', 'Cancelled'],
-  ['unknown',   'Unknown'],
-];
+// The Stage filter's groups and their labels: one vocabulary (stages.js).
+const STAGES = window.Stages.GROUPS;
 // Matches DEFAULT_STAGES in src/status.js: work that might still happen.
 const DEFAULT_STAGES = ['pending', 'approved'];
 
@@ -547,12 +542,12 @@ function clearFilter(key) {
 /* ----------------------------------------------------------------- results */
 
 function stageBadge(p) {
-  // Our stage in its own colour, so it always agrees with the Stage filter: a
-  // plan-review "Approved" is still waiting for its permit, and showing the
-  // portal's word alone read as approved. The portal's wording follows in
-  // small type, because it is the record's own status.
-  const stage = STAGES.some(([k]) => k === p.status_stage) ? p.status_stage : 'unknown';
-  const label = STAGES.find(([k]) => k === stage)[1];
+  // The colour is the Stage filter's group; the text is the finer stage the
+  // source's wording maps to (stages.js), so a plan-review "Approved and
+  // Released" reads "Approved, not issued", never "waiting for approval". The
+  // portal's wording follows in small type, because it is the record's own
+  // status.
+  const { group: stage, label } = window.Stages.badge(p);
   const raw = p.status_raw || p.status || '';
   const showRaw = raw && raw.toLowerCase() !== label.toLowerCase();
   return `<span class="stage ${stage}">${esc(label)}</span>${showRaw
@@ -1429,7 +1424,7 @@ function pinHtml(count, pending, title, extra = '') {
 function addPin(pin) {
   const title = `${pin.label}${pin.sublabel ? ` · ${pin.sublabel}` : ''} — ` +
     `${plural(pin.permits, 'permit', 'permits')}` +
-    (pin.pending ? `, ${pin.pending} waiting for approval` : '');
+    (pin.pending ? `, ${pin.pending} not issued yet` : '');
 
   const marker = L.marker([pin.lat, pin.lng], {
     icon: L.divIcon({ className: 'pin-wrap', html: pinHtml(pin.permits, pin.pending, title), iconSize: [0, 0] }),
@@ -1446,7 +1441,7 @@ function addCluster(group, zoom) {
   const centre = map.unproject([group.x / group.permits, group.y / group.permits], zoom);
   const title = `${plural(group.permits, 'permit', 'permits')} across ` +
     `${plural(group.members.length, 'area', 'areas')}` +
-    (group.pending ? `, ${group.pending} waiting for approval` : '') +
+    (group.pending ? `, ${group.pending} not issued yet` : '') +
     ' — click to zoom in';
 
   const marker = L.marker(centre, {
@@ -1700,8 +1695,8 @@ async function openDetail(id, cardEl, { fromProject = null } = {}) {
     <div class="sect">Permit</div>
     <dl class="kv">
       ${row('Status', p.status_raw)}
-      ${row('Stage', p.status_stage)}
-      ${row('Filed', fmtDate(p.filed_date))}
+      ${row('Stage', window.Stages.badge(p).label)}
+      ${row(p.filing_kind === 'building_application' ? 'Applied' : 'Issued', fmtDate(p.filed_date))}
       ${row('Permit no.', p.permit_number)}
       ${row('Type', p.permit_type)}
       ${row('Valuation', money(p.valuation) && (Number(p.valuation) >= ODD_VALUE ? `${money(p.valuation)} (as filed; unusually high, likely a filing error)` : money(p.valuation)), 'money')}
@@ -1764,7 +1759,7 @@ async function openDetail(id, cardEl, { fromProject = null } = {}) {
           <td>${esc(i.date || '—')}</td>
           <td class="res">${esc(i.result || i.status || '—')}</td></tr>`).join('')}</tbody></table>` : ''}
 
-    <div id="dMore" aria-live="polite"><div class="sect">Lifecycle, property and licences</div><p class="check-count">Loading…</p></div>
+    <div id="dMore" aria-live="polite"><div class="sect">Lifecycle</div><p class="check-count">Loading…</p></div>
 
     <div class="sect">Record</div>
     <dl class="kv">
@@ -1815,11 +1810,7 @@ async function openDetail(id, cardEl, { fromProject = null } = {}) {
  * matched company profile and its state licences. Fetched only when a panel
  * opens, so the search itself loads nothing extra. Missing reads as missing.
  */
-const LIFECYCLE = {
-  pre_application: 'Pre-application', submitted: 'Submitted', in_review: 'In review', corrections: 'Corrections',
-  approved: 'Approved, not issued', issued: 'Issued', inspections: 'Inspections', completed: 'Completed',
-  expired: 'Expired', withdrawn: 'Withdrawn', cancelled: 'Cancelled', denied: 'Denied', unknown: 'Stage not mapped',
-};
+const LIFECYCLE = window.Stages.LIFECYCLE_LABEL;
 const LICENCE_BOARD = { 'fl-dbpr': 'Florida DBPR', 'tx-tdlr': 'Texas TDLR' };
 const num = (v, unit = '') => (v == null ? '' : `${Number(v).toLocaleString('en-US', { maximumFractionDigits: 1 })}${unit}`);
 let extrasFor = null;
@@ -1843,8 +1834,7 @@ async function loadJobExtras(id) {
     <dl class="kv">
       ${row('Stage', LIFECYCLE[lc.stage] || lc.stage)}
       ${row('Applied', lc.submittedOn ? `${fmtDate(lc.submittedOn)} (the source’s date)` : '')}
-      ${row('Stage since', lc.stageSince ? fmtDate(lc.stageSince) : '')}
-      ${row('First seen by us', lc.firstSeenAt ? `${fmtDate(lc.firstSeenAt)}${lc.firstSeenStage ? `, while ${(LIFECYCLE[lc.firstSeenStage] || lc.firstSeenStage).toLowerCase()}` : ''}` : '')}
+      ${row('Status date', lc.stageSince ? `${fmtDate(lc.stageSince)} (the source’s date for its current status)` : '')}
       ${apps.map((a) => `<dt>Application</dt><dd>${esc(a.permitNumber)} · ${esc(LIFECYCLE[a.stage] || a.stage)} · submitted ${esc(a.submittedOn ? fmtDate(a.submittedOn) : 'date not published')}<br><span class="check-count">Linked by ${esc(a.link.detail)}</span></dd>`).join('')}
     </dl>` : '';
 
@@ -1860,7 +1850,7 @@ async function loadJobExtras(id) {
       ${row('Assessed value', pr.assessedValueBand ? pr.assessedValueBand.label : '')}
     </dl>
     <p class="check-count">Source: ${esc(v.attribution || v.source || 'appraiser')}${pr.valueNote ? ` · ${esc(pr.valueNote)}` : ''}. Owner, sale and exemption fields are not collected.</p>`
-    : '<div class="sect">Property</div><p class="check-count">No appraiser record joined to this permit.</p>';
+    : (j.unmeasuredHidden ? '' : '<div class="sect">Property</div><p class="check-count">No appraiser record joined to this permit.</p>');
 
   const loc = j.location;
   const located = loc ? `<p class="check-count">Job site located by ${esc(METHOD_LABEL[loc.method] || loc.method)}${loc.quality === 'non_exact' ? ' (approximate)' : ''}.</p>` : '';
@@ -1875,9 +1865,10 @@ async function loadJobExtras(id) {
       ${j.gcHiring ? row('Building jobs', j.gcHiring.buildingJobs) : ''}
       ${licences}
     </dl>
-    ${licences ? '' : '<p class="check-count">No state licence record matched yet.</p>'}` : '';
+    ${licences || j.unmeasuredHidden ? '' : '<p class="check-count">No state licence record matched yet.</p>'}` : '';
 
-  box.innerHTML = `${lifecycle}${property}${located}${company}
+  const hidden = j.unmeasuredHidden ? `<p class="check-count">${esc(j.unmeasuredHidden)}</p>` : '';
+  box.innerHTML = `${lifecycle}${property}${located}${company}${hidden}
     <p class="check-count"><a href="/pilot/live/job.html?id=${encodeURIComponent(id)}">Open the full job page →</a> trade permits on this job and who the GC hires.</p>`;
 }
 

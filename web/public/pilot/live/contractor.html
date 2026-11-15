@@ -53,7 +53,7 @@
         <h2 class="h-gap">Names on permits</h2>
         <p class="body-sm">${d.aliases.map((a) => `${L.esc(a.name)} <span class="sub mono">×${a.seen}</span>`).join(' · ')}</p>
         ${d.licences.length ? `<h2 class="h-gap">Licences on permits</h2><p class="mono body-sm">${d.licences.map((l) => `${L.esc(l.state)} ${L.esc(l.number)}`).join(', ')}</p>
-          <p class="note">Read from the permit record.${d.registry && d.registry.length ? '' : ' Not matched to a state licence file yet.'}</p>` : ''}
+          <p class="note">Read from the permit record.${d.registry && d.registry.length ? '' : (d.unmeasuredHidden ? ` ${L.esc(d.unmeasuredHidden)}` : ' Not matched to a state licence file yet.')}</p>` : ''}
         <h2 class="h-gap">State licence records</h2>
         ${L.registryList(d.registry)}
         ${c.businessState === 'TX' && !d.inferencesHidden ? `<h2 class="h-gap">State business registration</h2>${L.registrationList(d.registrations)}` : ''}

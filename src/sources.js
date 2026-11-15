@@ -542,6 +542,9 @@ const SOURCES = {
       { field: 'issueddate', days: 30 },
       { field: 'recordupdatedate', days: 14 },
     ],
+    // The record-modification time both layers keep (above): stored as
+    // raw_records.source_updated_at (migration 035). Our only source with one.
+    updatedAtField: 'recordupdatedate',
     // The limit is per layer; the trade layer's windows overlap to well under
     // 8,000 rows. A layer at the limit trips the run's truncation alarm.
     maxPerRun: 10000,

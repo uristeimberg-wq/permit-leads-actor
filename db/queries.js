@@ -9,6 +9,7 @@ const { DEFAULT_STAGES, isValidStage } = require('../src/status.js');
 const { redactContractor, isShownContractor, dropSuppressedPhone } = require('../src/privacy.js');
 const { maskDescription } = require('../src/description_names.js');
 const { SOURCES: SOURCE_CONFIG } = require('../src/sources.js');
+const { locationSql } = require('../src/display_policy.js');
 
 // Names inside a description are masked for display (rule 5).
 const maskRow = (r) => (r && r.work_description != null ? { ...r, work_description: maskDescription(r.work_description) } : r);
@@ -30,7 +31,7 @@ const SORTS = {
 const RESULT_COLUMNS = `
   id, source_area, permit_number, jurisdiction, address, street, city, state, zip,
   permit_type, work_description, valuation,
-  status, status_raw, status_stage,
+  status, status_raw, status_stage, lifecycle_stage, filing_kind, stage_since,
   permit_url, filed_date, trade_scores, first_seen_at, last_seen_at,
   parcel_number, parcel_block, parcel_lot, parcel_subdivision,
   construction_type, other_construction_type,
@@ -41,9 +42,9 @@ const RESULT_COLUMNS = `
 // The job site's located point (015_permit_locations.sql), with how it was
 // found, so the map can say "this job site" only when we hold one. NULL when
 // the permit is not located; the UI then falls back to its area's centre.
-const LOCATION_COLUMN = `(
+const LOCATION_COLUMN = () => `(
   SELECT json_build_object('lat', l.lat, 'lng', l.lng, 'method', l.method, 'quality', l.quality)
-    FROM permit_locations l WHERE l.permit_id = permits.id) AS location`;
+    FROM permit_locations l WHERE l.permit_id = permits.id AND ${locationSql('l')}) AS location`;
 
 function clampInt(value, { min, max, fallback }) {
   const n = Number.parseInt(value, 10);
@@ -188,7 +189,7 @@ async function searchPermits(filters = {}) {
 
   const countSql = `SELECT count(*)::int AS total FROM permits ${where}`;
   const rowsSql = `
-    SELECT ${RESULT_COLUMNS}, ${LOCATION_COLUMN}
+    SELECT ${RESULT_COLUMNS}, ${LOCATION_COLUMN()}
       FROM permits
       ${where}
      ORDER BY ${orderBy}
@@ -313,7 +314,7 @@ async function mapPoints(filters, bbox) {
   const { sql: where, params } = buildWhere(filters);
   const n = params.length;
   const box = [bbox.south, bbox.north, bbox.west, bbox.east];
-  const from = `FROM permits JOIN permit_locations l ON l.permit_id = permits.id
+  const from = `FROM permits JOIN permit_locations l ON l.permit_id = permits.id AND ${locationSql('l')}
     ${where ? `${where} AND` : 'WHERE'} l.lat BETWEEN $${n + 1} AND $${n + 2} AND l.lng BETWEEN $${n + 3} AND $${n + 4}`;
   const [pts, total] = await Promise.all([
     query(`
@@ -474,7 +475,7 @@ async function getContractorHistory(name) {
 
 /** One permit, with everything we hold — backs the in-app detail view. */
 async function getPermit(id) {
-  const { rows } = await query(`SELECT ${RESULT_COLUMNS}, ${LOCATION_COLUMN} FROM permits WHERE id = $1`, [Number(id)]);
+  const { rows } = await query(`SELECT ${RESULT_COLUMNS}, ${LOCATION_COLUMN()} FROM permits WHERE id = $1`, [Number(id)]);
   return rows[0] ? maskRow(dropSuppressedPhone(redactContractor(rows[0]), await suppressedPhones())) : null;
 }
 
@@ -616,7 +617,7 @@ async function permitsByIds(ids) {
   const wanted = [...new Set((ids || []).map(Number).filter(Number.isSafeInteger))];
   if (!wanted.length) return [];
   const [{ rows }, suppressed] = await Promise.all([
-    query(`SELECT ${RESULT_COLUMNS}, ${LOCATION_COLUMN} FROM permits WHERE id = ANY($1::bigint[])`, [wanted]),
+    query(`SELECT ${RESULT_COLUMNS}, ${LOCATION_COLUMN()} FROM permits WHERE id = ANY($1::bigint[])`, [wanted]),
     suppressedPhones(),
   ]);
   const byId = new Map(rows.map((r) => [Number(r.id), maskRow(dropSuppressedPhone(redactContractor(r), suppressed))]));

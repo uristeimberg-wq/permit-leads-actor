@@ -7,6 +7,21 @@
 
 const crypto = require('node:crypto');
 
+/**
+ * The source's own record-modification time, as an ISO timestamp, or null.
+ * Read only from the column a source declares as one (`updatedAtField` in
+ * src/sources.js). Socrata's system :updated_at is not used: Austin reloads
+ * every row daily, so it would date a reload, not a change (CLAUDE.md rule 7).
+ */
+function sourceUpdatedAt(row, source) {
+  const field = source.updatedAtField;
+  if (!field || !row) return null;
+  const v = row[field];
+  if (v == null || v === '') return null;
+  const d = typeof v === 'number' ? new Date(v) : new Date(String(v).trim().replace(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2}(\.\d+)?)$/, '$1T$2Z'));
+  return Number.isNaN(d.getTime()) || Math.abs(d.getTime()) > 8.64e15 ? null : d.toISOString();
+}
+
 /** JSON with object keys sorted at every level, so hashing ignores key order. */
 function canonicalJson(value) {
   if (value === undefined) return 'null';
@@ -25,16 +40,18 @@ function payloadHash(payload) {
  * own permit number column (fieldMap.permitNumber). A row without one cannot be
  * deduplicated, so it is counted as failed instead of stored under a made-up key.
  *
- * @returns {{records: {sourceKey, payloadHash, payload, sourceUpdatedAt}[], failed: number}}
+ * @param {{recordUrls?: (string|null)[]}} [meta] the adapter's onRaw meta: recordUrls[i]
+ *   re-fetches rows[i] from the source (raw_records.source_url)
+ * @returns {{records: {sourceKey, payloadHash, payload, sourceUpdatedAt, sourceUrl}[], failed: number}}
  */
-function toRawRecords(rows, source) {
+function toRawRecords(rows, source, { recordUrls = [] } = {}) {
   const keyField = source.fieldMap && source.fieldMap.permitNumber;
   if (!keyField || Array.isArray(keyField)) {
     throw new Error(`Source "${source.label}" has no single permitNumber field; raw records need a stable key`);
   }
   const byKeyAndHash = new Map();
   let failed = 0;
-  for (const row of rows) {
+  for (const [i, row] of rows.entries()) {
     const key = row == null ? null : row[keyField];
     if (key == null || String(key).trim() === '') { failed += 1; continue; }
     const hash = payloadHash(row);
@@ -44,7 +61,8 @@ function toRawRecords(rows, source) {
       sourceKey,
       payloadHash: hash,
       payload: row,
-      sourceUpdatedAt: row[':updated_at'] || null,
+      sourceUpdatedAt: sourceUpdatedAt(row, source),
+      sourceUrl: recordUrls[i] || null,
     });
   }
   return { records: [...byKeyAndHash.values()], failed };
@@ -66,4 +84,4 @@ function classifyError(err) {
   return 'unknown';
 }
 
-module.exports = { canonicalJson, payloadHash, toRawRecords, classifyError };
+module.exports = { canonicalJson, payloadHash, toRawRecords, classifyError, sourceUpdatedAt };

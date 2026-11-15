@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const T = require('./trust.js');
 
 const OFF = {};
-const ON = { SHOW_INFERENCES: '1' };
+const ON = { SHOW_INFERENCES: '1', SHOW_UNMEASURED: '1' };
 
 // Flag on: answers are untouched.
 const anyBody = { tradeOutlook: { electrical: { likelihood: 0.5 } }, permit: { source_area: 'austin-tx', trade_scores: { electrical: 90 } } };
@@ -24,7 +24,7 @@ const job = T.filter('job', {
   gcRegistrations: [{ legalName: 'X LLC' }],
   related: [{ trade: 'electrical' }],
   gcHiring: { subs: [] },
-}, OFF);
+}, { SHOW_UNMEASURED: '1' });
 assert.deepStrictEqual(job.tradeOutlook, {});
 assert.ok(!('trade_scores' in job.permit));
 assert.deepStrictEqual(job.gcRegistry.map((r) => r.number), ['A']);
@@ -83,5 +83,19 @@ assert.deepStrictEqual(o.repeatHiring, {});
 
 // Street View is off.
 assert.deepStrictEqual(T.filter('imagery', { googleKey: 'k' }, OFF), {});
+
+// Unmeasured second-source values (owner, 2026-11-15) are hidden by default,
+// independently of the inference flag.
+const um = T.filter('job', { permit: { source_area: 'austin-tx' }, property: { landUse: 'x' }, gcRegistry: [{ matchedBy: 'licence', number: '1' }] }, { SHOW_INFERENCES: '1' });
+assert.strictEqual(um.property, null);
+assert.deepStrictEqual(um.gcRegistry, []);
+assert.strictEqual(um.unmeasuredHidden, T.UNMEASURED_NOTE);
+const shown = T.filter('job', { permit: { source_area: 'austin-tx' }, property: { landUse: 'x' }, gcRegistry: [{ matchedBy: 'licence', number: '1' }] }, { SHOW_UNMEASURED: '1' });
+assert.deepStrictEqual(shown.property, { landUse: 'x' });
+assert.strictEqual(shown.gcRegistry.length, 1);
+assert.deepStrictEqual(T.filter('contractor', { contractor: { name: 'A', businessState: 'TX' }, registry: [{ matchedBy: 'licence' }] }, OFF).registry, []);
+const { locationSql } = require('../src/display_policy.js');
+assert.strictEqual(locationSql('l', {}), "l.method IN ('source', 'parcel')");
+assert.strictEqual(locationSql('l', { SHOW_UNMEASURED: '1' }), 'TRUE');
 
 console.log('trust.test.js: all passed');
