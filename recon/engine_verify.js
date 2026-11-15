@@ -201,6 +201,19 @@ async function main() {
         FROM grp g LEFT JOIN registry_lookups l ON l.provider = 'fl-sunbiz' AND l.query_key = g.normalized_name
        GROUP BY 1 ORDER BY 2 DESC`);
     table(['Sunbiz lookup for the split name', 'groups'], look.map((r) => [r.outcome, r.n]));
+    // Rule 3 reads the lookups at resolve time; the sync resolves before it
+    // looks names up, so a lookup newer than the last resolve applies next run.
+    const [t] = await q(`
+      WITH grp AS (SELECT normalized_name FROM contractors WHERE split_part(identity_key, ':', 2) = 'FL' AND party_kind = 'business'
+                    GROUP BY 1 HAVING count(*) > 1),
+           last AS (SELECT max(started_at) AS at FROM resolver_runs WHERE status = 'succeeded')
+      SELECT (SELECT at FROM last) AS resolved_at,
+             count(*) FILTER (WHERE l.looked_up_at < (SELECT at FROM last))::int AS before,
+             count(*) FILTER (WHERE l.looked_up_at >= (SELECT at FROM last))::int AS after,
+             (SELECT string_agg(DISTINCT resolver_version, ', ') FROM contractors) AS versions
+        FROM grp g JOIN registry_lookups l ON l.provider = 'fl-sunbiz' AND l.query_key = g.normalized_name
+       WHERE l.outcome = 'matched' AND l.candidates = 1 AND l.registry_id IS NOT NULL`);
+    out(`One-candidate matches looked up before the last resolve (${t.resolved_at && t.resolved_at.toISOString().slice(0, 16)}): ${t.before}; after it: ${t.after}. Resolver versions on contractors: ${t.versions}.`); out();
     out('A merge rule for these groups is measured on a hand-checked sample before any count anyone sees changes.'); out();
   });
 
