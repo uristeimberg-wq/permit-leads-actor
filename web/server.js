@@ -69,7 +69,7 @@ const FILTER_PARAMS = [
   'zip', 'city', 'state', 'jurisdiction', 'sourceArea', 'from', 'to',
   'stage', 'statusRaw', 'status', 'permitType', 'minValuation',
   'trade', 'minScore', 'q', 'page', 'pageSize', 'sort',
-  'hasContact', 'contractor', 'areas', 'ownerBuilder',
+  'hasContact', 'contractor', 'areas', 'ownerBuilder', 'contractorIds',
 ];
 
 const showOwnerBuilder = () => process.env.SHOW_OWNER_BUILDER === '1';
@@ -163,6 +163,24 @@ app.get('/api/projects', asyncRoute(async (req, res) => {
       : null,
     permitsTotal: data.total, capped: data.capped, cap: queries.PROJECT_ROW_CAP, facets: data.facets,
   });
+}));
+
+// ── The Contractors tab (web/contractors.js) ──────────────────────────────────
+// /api/companies, not /api/contractors/..., which already means a name lookup.
+const contractors = require('./contractors.js');
+const pilotQueries = require('../db/pilot_queries.js');
+app.get('/api/companies', asyncRoute(async (req, res) => {
+  const filters = pickFiltersExpanded(req.query);
+  const { page: _p, pageSize: _s, sort: _o, ...where } = filters;
+  const page = clampInt(req.query.page, 1, 10000, 1);
+  const pageSize = clampInt(req.query.pageSize, 1, 100, 25);
+  const rows = await queries.contractorsInFilters(where);
+  const inferences = trust.showInferences();
+  const out = await contractors.listContractors(
+    { rows, phonesById: (ids) => pilotQueries.contractorsById(ids), recordsFor: (ids) => queries.contractorRecords(ids) },
+    { sort: req.query.csort, page, pageSize, inferences },
+  );
+  res.json({ ...out, inferences });
 }));
 
 /** The whole project a permit belongs to, every permit in date order (unfiltered). */
@@ -304,7 +322,7 @@ app.use('/api/pilot', pilotApi);
 // /search.html stay as aliases so old links keep working. The pilot screens
 // (/pilot/live/*) are no longer linked from it but still load by URL.
 // /saved is the same page in its Saved view (app.js reads the path).
-app.get(['/', '/search', '/search.html', '/saved'], (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get(['/', '/search', '/search.html', '/saved', '/contractors'], (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 app.use(express.static(path.join(__dirname, 'public')));
 

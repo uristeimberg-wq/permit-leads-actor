@@ -123,6 +123,14 @@ function buildWhere(filters, params = []) {
     clauses.push('contractor_phone IS NOT NULL');
   }
   if (filters.contractor) add('contractor_name ILIKE ?', `%${String(filters.contractor).trim()}%`);
+  // One company (the resolver's ids; a merged row in the Contractors tab can
+  // stand for several): the permits it is the contractor on.
+  if (filters.contractorIds) {
+    const ids = String(filters.contractorIds).split(',').map((v) => Number(v)).filter(Number.isSafeInteger).slice(0, 50);
+    params.push(ids);
+    clauses.push(`EXISTS (SELECT 1 FROM permit_parties pp WHERE pp.permit_id = permits.id AND pp.role = 'contractor'
+                    AND pp.contractor_id = ANY($${params.length}::bigint[]))`);
+  }
   if (filters.statusRaw) add('lower(status_raw) = lower(?)', String(filters.statusRaw).trim());
   if (filters.status) add('status = ?', String(filters.status).trim().toLowerCase());
   // One type, or several separated by `|` (some raw types contain commas, none
@@ -548,6 +556,57 @@ async function projectCandidates(permitId, { limit = 400 } = {}) {
   return rows.map((r) => maskRow(dropSuppressedPhone(redactContractor(r), suppressed)));
 }
 
+// ── Contractors in an area (the Contractors tab, web/contractors.js) ─────────
+/**
+ * One row per business contractor on the permits matching `filters`: permits,
+ * active (pending or approved) permits, the active declared value (a value
+ * repeated at one address counted once; $1 and $1B+ left out) and the latest
+ * filing. Individuals are never listed (rule 5). All rows: web/contractors.js
+ * merges duplicate names, sorts and pages.
+ */
+async function contractorsInFilters(filters = {}) {
+  const { sql: where, params } = buildWhere(filters);
+  const { rows } = await query(`
+    WITH p AS (SELECT permits.id, permits.status_stage, permits.valuation, permits.filed_date,
+                      ${ADDRESS_KEY_SQL('permits')} AS ak FROM permits ${where}),
+    cp AS (SELECT pp.contractor_id, p.* FROM p JOIN permit_parties pp ON pp.permit_id = p.id AND pp.role = 'contractor'),
+    v AS (SELECT contractor_id, sum(valuation) AS active_value FROM (
+            SELECT DISTINCT contractor_id, ak, valuation FROM cp
+             WHERE status_stage IN ('pending', 'approved') AND valuation > 1 AND valuation < 1000000000) d
+           GROUP BY contractor_id),
+    agg AS (SELECT contractor_id, count(*)::int AS permits,
+                   count(*) FILTER (WHERE status_stage IN ('pending', 'approved'))::int AS active,
+                   max(filed_date) AS latest
+              FROM cp GROUP BY contractor_id),
+    lic AS (SELECT cl.contractor_id, array_agg(DISTINCT cl.licence_state || ' ' || cl.licence_number) AS licences
+              FROM contractor_licenses cl WHERE cl.contractor_id IN (SELECT contractor_id FROM agg) GROUP BY cl.contractor_id)
+    SELECT c.id, c.display_name, c.normalized_name, c.business_state, c.primary_trade,
+           agg.permits, agg.active, v.active_value, agg.latest, lic.licences
+      FROM agg JOIN contractors c ON c.id = agg.contractor_id AND c.party_kind = 'business'
+      LEFT JOIN v ON v.contractor_id = agg.contractor_id
+      LEFT JOIN lic ON lic.contractor_id = agg.contractor_id`, params);
+  return rows;
+}
+
+/**
+ * State licence records and business registrations for contractors, with how
+ * each was matched (an official licence number, or a name / phone join: an
+ * inference the caller may hide, docs/DATA_TRUST_AUDIT.md).
+ */
+async function contractorRecords(ids) {
+  const wanted = (ids || []).map(Number).filter(Number.isSafeInteger);
+  if (!wanted.length) return { registry: [], registrations: [] };
+  const [registry, registrations] = await Promise.all([
+    query(`SELECT m.contractor_id, m.provider, m.match_rule, l.licence_number, l.licence_type, l.primary_status, l.expires_on, l.file_date
+             FROM contractor_registry_licences m JOIN registry_licences l ON l.id = m.licence_id
+            WHERE m.contractor_id = ANY($1::bigint[])`, [wanted]),
+    query(`SELECT m.contractor_id, m.provider, m.match_rule, r.legal_name, r.sos_status, r.right_to_transact, r.source_as_of
+             FROM contractor_registrations m JOIN business_registrations r ON r.id = m.registration_id
+            WHERE m.contractor_id = ANY($1::bigint[])`, [wanted]),
+  ]);
+  return { registry: registry.rows, registrations: registrations.rows };
+}
+
 /**
  * Several permits by id, for a user's saved list. The same columns and the
  * same redaction as getPermit, so a saved permit never shows more than the
@@ -603,7 +662,8 @@ async function enrichmentCredits() {
 
 module.exports = {
   RESULT_COLUMNS,
-  searchPermits, listAreas, listFilterOptions, getPermit, permitsByIds, projectRows, projectCandidates, PROJECT_ROW_CAP, isZipCovered, getFreshness, enrichmentCredits,
+  searchPermits, listAreas, listFilterOptions, getPermit, permitsByIds, projectRows, projectCandidates, PROJECT_ROW_CAP,
+  contractorsInFilters, contractorRecords, isZipCovered, getFreshness, enrichmentCredits,
   mapClusters, mapPoints, areaCentroids, searchContractors, getContractorHistory, isRealContractor,
   buildWhere, MAX_PAGE_SIZE, DEFAULT_PAGE_SIZE,
 };

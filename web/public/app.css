@@ -1302,3 +1302,30 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
 .welcome-opts { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 6px 26px; }
 .welcome-opts[hidden] { display: none; }
 @media (max-width: 620px) { .welcome-opts { margin-left: 0; } }
+
+/* ========================================================= contractors === */
+/* /contractors: the list replaces the map; filters stay. */
+.app[data-mode="contractors"] { --col-map: 0px; }
+.app[data-mode="contractors"] .mappane,
+.app[data-mode="contractors"] #viewToggle,
+.app[data-mode="contractors"] .group-toggle,
+.app[data-mode="contractors"] .lens-bar { display: none !important; }
+.app[data-mode="contractors"] .feed-inner { max-width: 900px; }
+.company-link { color: inherit; text-decoration: none; }
+.company-link:hover { text-decoration: underline; }
+.company-stats { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: var(--sp-2); font-size: var(--t-sm); color: var(--ink-2); }
+.company-stats b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.company-lic { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: var(--sp-3); font-size: var(--t-sm); color: var(--ink-2); }
+.lic { display: inline-flex; align-items: baseline; gap: 4px; padding: 2px 8px; background: var(--surface-2); border: 1px solid var(--line); }
+.lic.is-inferred { border-style: dashed; }
+.lic small { color: var(--ink-3); }
+@media (max-width: 620px) {
+  .masthead .mainnav a { padding: 0 4px; font-size: var(--t-sm); }
+}
+/* Narrow phones: four header items (lens, Leads, Contractors, Saved) must fit. */
+@media (max-width: 400px) {
+  .masthead-right { gap: 6px; }
+  .mainnav { gap: 0; }
+  .masthead .mainnav a { padding: 0 3px; letter-spacing: 0; }
+  .lens-btn { max-width: 104px; padding: 6px 8px; gap: 5px; }
+}

@@ -48,6 +48,10 @@ let typePicker = null;
 
 // The Saved view (/saved): the user's saved permits instead of the search.
 const SAVED_MODE = location.pathname === '/saved';
+// The Contractors tab (/contractors): companies on the filtered permits.
+const CONTRACTORS_MODE = location.pathname === '/contractors';
+let contractorIdsFilter = '';   // contractorIds=1,2: one company's permits (from the Contractors tab)
+let contractorLabel = '';       // its name, for the chip
 
 /* Location is one multi-select (location.js) whose value is `areaSelection`: a
    list of keys in the map's vocabulary — `a:TX` (a broad area, expanded by the
@@ -176,7 +180,8 @@ const fmtDate = (d) => (d
 
 // Stored as bare digits so they compare reliably; formatted only for display.
 const phone = (v) => {
-  const d = String(v || '').replace(/\D/g, '');
+  let d = String(v || '').replace(/\D/g, '');
+  if (d.length === 11 && d[0] === '1') d = d.slice(1);   // +1 E.164 from contact records
   return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : (v || null);
 };
 
@@ -221,7 +226,9 @@ function currentFilters() {
   else if (stages.length && !isDefaultStages(stages)) f.stage = stages.join(',');
 
   const sort = $('sort').value;
-  if (sort && sort !== 'newest') f.sort = sort;
+  // The Contractors tab sorts companies (csort); the Leads list sorts permits.
+  if (CONTRACTORS_MODE) { if (sort && sort !== 'active') f.csort = sort; } else if (sort && sort !== 'newest') f.sort = sort;
+  if (contractorIdsFilter) { f.contractorIds = contractorIdsFilter; if (contractorLabel) f.contractorLabel = contractorLabel; }
   return f;
 }
 
@@ -269,7 +276,9 @@ function applyUrl() {
     }
   }
   $('hasContact').checked = p.get('hasContact') === 'true';
-  if (p.has('sort')) $('sort').value = p.get('sort');
+  if (CONTRACTORS_MODE) { if (p.has('csort')) $('sort').value = p.get('csort'); } else if (p.has('sort')) $('sort').value = p.get('sort');
+  contractorIdsFilter = p.get('contractorIds') || '';
+  contractorLabel = p.get('contractorLabel') || '';
   page = Math.max(1, Number.parseInt(p.get('page'), 10) || 1);
 
   const raw = p.get('stage');
@@ -482,7 +491,8 @@ function paintActiveFilters(filters) {
   }
 
   for (const [key, value] of Object.entries(filters)) {
-    if (['sort', 'areas', 'permitType', 'lens', 'group'].includes(key)) continue;
+    if (['sort', 'csort', 'areas', 'permitType', 'lens', 'group', 'contractorLabel'].includes(key)) continue;
+    if (key === 'contractorIds') { chips.push(['contractorIds', 'Contractor', contractorLabel || 'one company']); continue; }
     if (key === 'zip' || key === 'city' || key === 'state') continue;
     if (key === 'stage') {
       // The default view needs no chip; anything else is worth stating.
@@ -523,6 +533,9 @@ function clearFilter(key) {
   } else if (key === 'permitType') {
     typeSelection = [];
     typePicker.setValue([]);
+  } else if (key === 'contractorIds') {
+    contractorIdsFilter = '';
+    contractorLabel = '';
   } else if (key === 'jurisdiction') {
     jurisdictionFilter = '';
   } else {
@@ -647,6 +660,7 @@ async function run({ resetPage = false } = {}) {
   paintActiveFilters(filters);
   window.dispatchEvent(new Event('leads:areas'));   // the lens button shows the location
   updateFilterCount(filters);
+  updateTabLinks(filters);
   // The map is refreshed independently of the list: it must not delay results,
   // and a map failure must not blank the feed.
   loadMap(filters);
@@ -669,6 +683,7 @@ async function run({ resetPage = false } = {}) {
   $('count').textContent = 'Searching…';
 
   // Projects, or any list under a lens (the lens ranks on the server).
+  if (CONTRACTORS_MODE) { runCompanies(filters, mine); return; }
   if (grouping || lensActive()) { runProjects(filters, mine); return; }
 
   let data;
@@ -730,6 +745,98 @@ const BASIS_LABEL = {
   'same address': 'same address (our grouping)',
   'single permit': 'one permit',
 };
+
+/* ========================================================= contractors ===
+ *
+ * /contractors: one row per company on the permits in the current filters
+ * (web/contractors.js), with its phone, licence and activity. A row opens the
+ * company's projects on the Leads tab.
+ */
+
+const CONTRACTOR_SORTS = [['active', 'Most active permits'], ['value', 'Highest active value'], ['recent', 'Most recent permit']];
+
+/** Leads and Contractors keep the same place and filters when you switch. */
+function updateTabLinks(filters) {
+  const keep = new URLSearchParams();
+  for (const [k, v] of Object.entries(filters)) {
+    if (!['sort', 'csort', 'group', 'contractorIds', 'contractorLabel', 'lens'].includes(k)) keep.set(k, v);
+  }
+  const q = keep.toString();
+  $('navLeads').href = `/${q ? `?${q}` : ''}`;
+  const c = document.getElementById('navContractors');
+  if (c) c.href = `/contractors${q ? `?${q}` : ''}`;
+}
+
+async function runCompanies(filters, mine) {
+  let data;
+  try {
+    const params = new URLSearchParams({ ...filters, page: String(page), pageSize: String(PAGE_SIZE) });
+    data = await getJSON('/api/companies?' + params);
+  } catch (err) {
+    if (mine !== reqId) return;
+    $('results').innerHTML = `<div class="empty">${emptyIcon()}<strong>Couldn't load contractors</strong><p>${esc(err.message)}</p></div>`;
+    $('count').textContent = '';
+    return;
+  }
+  if (mine !== reqId) return;
+  paintStageCounts(null);
+  if (!data.results.length) {
+    $('results').innerHTML = `<div class="empty">${emptyIcon()}<strong>No contractors on these permits</strong>
+      <p>Widen the location or clear a filter. Individuals are never listed.</p></div>`;
+    $('count').textContent = 'No contractors';
+    $('pager').innerHTML = '';
+    setSheetCount(0);
+    return;
+  }
+  const list = document.createElement('div');
+  list.className = 'cards';
+  for (const c of data.results) list.appendChild(renderCompanyRow(c, filters));
+  $('results').replaceChildren(list);
+  setSheetCount(data.total);
+  const first = (data.page - 1) * data.pageSize + 1;
+  const last = Math.min(data.page * data.pageSize, data.total);
+  $('count').innerHTML = `${plural(data.total, 'contractor', 'contractors')}
+    <span class="sub">· businesses only · showing ${first}–${last}</span>`;
+  const pages = Math.ceil(data.total / data.pageSize);
+  $('pager').innerHTML = pages > 1
+    ? `<button type="button" class="btn btn-ghost" data-page="prev" ${data.page <= 1 ? 'disabled' : ''}>← Previous</button>
+       <span class="pos">Page ${data.page} of ${pages.toLocaleString('en-US')}</span>
+       <button type="button" class="btn btn-ghost" data-page="next" ${data.page >= pages ? 'disabled' : ''}>Next →</button>`
+    : '';
+}
+
+function renderCompanyRow(c, filters) {
+  const el = document.createElement('article');
+  el.className = 'card company-card';
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(filters)) if (!['csort', 'sort', 'contractorIds', 'contractorLabel'].includes(k)) q.set(k, v);
+  q.set('contractorIds', c.ids.join(','));
+  q.set('contractorLabel', c.name);
+  const href = `/?${q}`;
+  const lic = [
+    ...c.registry.map((r) => `<span class="lic${r.official ? '' : ' is-inferred'}" title="Matched by ${esc(r.matchedBy)}${r.fileDate ? `; licence file dated ${esc(fmtDate(String(r.fileDate).slice(0, 10)))}` : ''}">
+      ${esc(r.provider)} #${esc(r.number)}${r.type ? ` · ${esc(r.type)}` : ''}${r.status ? ` · ${esc(r.status)}` : r.expires ? ` · in force to ${esc(fmtDate(String(r.expires).slice(0, 10)))}` : ''}${r.official ? '' : ' <small>(matched by name/phone)</small>'}</span>`),
+    ...c.licences.filter((l) => !c.registry.some((r) => l.endsWith(` ${r.number}`))).map((l) => `<span class="lic" title="Licence number written on their permits">Licence on permits: ${esc(l)}</span>`),
+  ];
+  const reg = c.registrations.map((r) => `<span class="lic is-inferred" title="Matched by ${esc(r.matchedBy)}">${esc(r.provider)}: ${esc(r.status || 'on file')}${r.asOf ? ` (as of ${esc(fmtDate(String(r.asOf).slice(0, 10)))})` : ''}</span>`);
+  el.innerHTML = `
+    <div class="card-top">
+      <h3 class="card-addr"><a class="company-link" href="${esc(href)}">${esc(c.name)}</a></h3>
+      <span class="card-meta">${valueTag(c.activeValue)}<span class="card-date" title="Most recent permit filed">${esc(fmtDate(c.latest) || '')}</span></span>
+    </div>
+    ${c.aliases.length ? `<div class="card-type">Also listed as ${esc(c.aliases.slice(0, 3).join(', '))}${c.aliases.length > 3 ? ` +${c.aliases.length - 3}` : ''}</div>` : ''}
+    <div class="company-stats">
+      <span><b>${c.active.toLocaleString('en-US')}</b> active permit${c.active === 1 ? '' : 's'}</span>
+      <span><b>${c.permits.toLocaleString('en-US')}</b> in these filters</span>
+      ${c.activeValue ? `<span><b>${shortMoney(c.activeValue)}</b> active value</span>` : ''}
+      ${c.trade ? `<span>${esc(c.trade)}</span>` : ''}
+    </div>
+    ${c.phone ? `<div class="card-call">${phonePill(c.phone.value)}</div>` : ''}
+    <div class="company-lic">${lic.length ? lic.join('') : '<span class="sub">No state licence on file for this company</span>'}${reg.join('')}
+      ${!c.registrations.length ? '<span class="sub">Business registration: not checked</span>' : ''}</div>
+    <div class="card-foot"><a class="link-btn" href="${esc(href)}">See their projects →</a></div>`;
+  return el;
+}
 
 /** The lens in force, above the list, with a one-click way out (or back). */
 function paintLensBar(data) {
@@ -941,7 +1048,7 @@ function setSheetCount(total) {
 
 function updateFilterCount(filters) {
   // The lens and the grouping switch are not filters: the lens has its own bar.
-  const n = Object.keys(filters).filter((k) => !['sort', 'stage', 'lens', 'group'].includes(k)).length;
+  const n = Object.keys(filters).filter((k) => !['sort', 'csort', 'stage', 'lens', 'group', 'contractorLabel'].includes(k)).length;
   $('filtersToggleLabel').textContent = n ? `Filters (${n})` : 'Filters';
 }
 
@@ -1948,6 +2055,8 @@ $('clearAll').addEventListener('click', () => {
   areaSelection = null;
   unmatchedLocation = null;
   jurisdictionFilter = '';
+  contractorIdsFilter = '';
+  contractorLabel = '';
   userMovedMap = false;
   locPicker.setValue([]);
   for (const id of [...TEXT_FILTERS, ...PICK_FILTERS]) $(id).value = '';
@@ -2126,6 +2235,8 @@ $('activeFilters').addEventListener('click', (e) => {
 /* --------------------------------------------------------------- bootstrap */
 
 buildStageCheckboxes();
+// The Contractors tab sorts companies; its options must exist before the URL is read.
+if (CONTRACTORS_MODE) $('sort').innerHTML = CONTRACTOR_SORTS.map(([k, label]) => `<option value="${k}">${esc(label)}</option>`).join('');
 applyUrl();
 
 if (SAVED_MODE) {
@@ -2144,6 +2255,18 @@ if (SAVED_MODE) {
     savedItems = savedItems.filter((it) => Saved.isSaved(it.permit.id));
     if (savedItems.length !== before) paintSaved();
   });
+} else if (CONTRACTORS_MODE) {
+  $('app').dataset.mode = 'contractors';
+  $('navLeads').removeAttribute('aria-current');
+  $('navContractors').setAttribute('aria-current', 'page');
+  document.title = 'Contractors · Contractos';
+  const savedLayout = readStore();
+  setView('list', { remember: false });
+  setFilters(savedLayout.filters !== 'closed', { remember: false });
+  syncSidebar();
+  loadFreshness();
+  loadAllAreas();
+  loadOptions().finally(run);
 } else {
   const savedLayout = readStore();
   setView(savedLayout.view || 'split', { remember: false });
