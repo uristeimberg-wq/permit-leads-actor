@@ -60,16 +60,32 @@ const userSessions = users.sessions();
 // links, unsubscribe included. REQUIRE_LOGIN=1 puts the whole app behind the
 // gate again. The email is asked only the first time someone saves a permit.
 const OPEN_ACCESS = process.env.REQUIRE_LOGIN !== '1';
-const OWNER_ONLY = /^\/digest\/(preview|sample)(\/|$)/;
-app.use(demoGate(undefined, {
+// Owner only, never an email user's session: the digest previews and the
+// product analytics dashboard with its API (/admin, /api/admin; ADR-37).
+const OWNER_ONLY = /^\/(digest\/(preview|sample)|admin|api\/admin)(\/|$)/;
+const gate = demoGate(undefined, {
   users: { store: userStore, sessions: userSessions, normalEmail: users.normalEmail },
   isPublic: OPEN_ACCESS ? (req) => !OWNER_ONLY.test(req.path) : null,
-}));
+  ownerOnly: (req) => OWNER_ONLY.test(req.path),
+});
+app.use(gate);
 // Public pages carry contractor names and phones: keep them out of search engines.
 if (OPEN_ACCESS) app.use((_req, res, next) => { res.set('X-Robots-Tag', 'noindex, nofollow'); next(); });
 
 // Digest email previews, behind the gate.
 app.use(digestRoutes.previewRouter());
+
+// Product analytics (docs/ANALYTICS.md, ADR-37): the browser tracker posts
+// batches here; the owner reads them at /admin/analytics. A visit with the
+// owner key is marked internal and left out of every metric.
+app.use(require('./telemetry.js').router({
+  store: require('./telemetry.js').pgStore(db.getPool),
+  userIdOf: (req) => userSessions.userId(req),
+  isOwner: gate.isOwner,
+}));
+app.use(require('./admin_analytics.js').router({ query: db.query, isOwner: gate.isOwner }));
+// What is collected, and the opt-out switch.
+app.get('/privacy', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'privacy.html')));
 
 // The signed-in user and their saved permits (/api/me...).
 app.use(users.router({ store: userStore, sessions: userSessions, permitsByIds: queries.permitsByIds }));

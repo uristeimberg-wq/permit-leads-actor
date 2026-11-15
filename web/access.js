@@ -142,9 +142,14 @@ footer div { padding-top: 16px; padding-bottom: 16px; border-top: 1px solid oklc
  *   still signs in as the owner ("Owner key").
  *   `isPublic(req)`: requests it returns true for pass without sign-in (open
  *   access); the rest, such as the digest previews, still need the owner key.
+ *   `ownerOnly(req)`: requests it returns true for need the owner key itself;
+ *   an email user's session gets 403. The returned router has isOwner(req).
  */
 function demoGate(password = process.env.DEMO_PASSWORD, opts = {}) {
   const router = express.Router();
+  // No owner key configured: nobody is the owner (owner-only routes that
+  // check router.isOwner refuse; the gate itself stays open, for localhost).
+  router.isOwner = () => false;
   if (!password) return router;
   const now = opts.now || Date.now;
   const users = opts.users || null;
@@ -193,9 +198,21 @@ function demoGate(password = process.env.DEMO_PASSWORD, opts = {}) {
     if (fails.size > 10000) fails.clear(); // bound memory under a spray
   };
   const html = (res, status, body) => res.status(status).set('Cache-Control', 'no-store').type('html').send(body);
+  // The owner, and only the owner: Basic auth with the key, or a sign-in
+  // cookie for invite 0. An email user's session is NOT the owner.
+  const ownerSession = (req) => {
+    const v = readCookie(req.headers.cookie, COOKIE);
+    const m = /^(\d{10,16})\.(0)\.([\w-]{20,})$/.exec(v || '');
+    return Boolean(m) && Number(m[1]) >= now() && same(Buffer.from(m[3]), Buffer.from(sign(`${m[1]}.0`)));
+  };
+  const isOwner = (req) => validBasic(req) || ownerSession(req);
+  router.isOwner = isOwner;
 
   router.get('/login', async (req, res) => {
-    if (await validSession(req)) return res.redirect(303, safeNext(req.query.next));
+    const next = safeNext(req.query.next);
+    // A signed-in email user sent here for an owner-only page needs the form.
+    const needsOwner = opts.ownerOnly && opts.ownerOnly({ path: next.split('?')[0] }) && !isOwner(req);
+    if (!needsOwner && await validSession(req)) return res.redirect(303, next);
     return html(res, 200, page({ next: safeNext(req.query.next) }));
   });
 
@@ -251,6 +268,17 @@ function demoGate(password = process.env.DEMO_PASSWORD, opts = {}) {
   });
 
   router.use(async (req, res, next) => {
+    // Owner-only paths (digest previews, /admin): the owner key, never an
+    // email session. 401 with no credential, 403 for a signed-in non-owner.
+    if (opts.ownerOnly && opts.ownerOnly(req)) {
+      if (isOwner(req)) return next();
+      const signedIn = await validSession(req);
+      const wantsPage = (req.method === 'GET' || req.method === 'HEAD') && !req.path.startsWith('/api/')
+        && /text\/html/.test(String(req.headers.accept || ''));
+      if (wantsPage && !signedIn) return res.redirect(302, `/login?next=${encodeURIComponent(req.originalUrl)}`);
+      return res.status(signedIn ? 403 : 401).set('Cache-Control', 'no-store')
+        .json({ error: signedIn ? 'Owner only' : 'Sign in required' });
+    }
     // Open access (owner decision 2026-11-15): everything but the owner-only
     // paths is public, so no sign-in is asked. isPublic decides per request.
     if (opts.isPublic && opts.isPublic(req)) return next();

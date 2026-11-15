@@ -42,9 +42,9 @@
         <div class="lens-slot" id="lensSlot" data-slot="lens" aria-hidden="true"></div>
 
         <nav class="mainnav" aria-label="Main">
-          <a href="/" id="navLeads" aria-current="page">Leads</a>
-          <a href="/contractors" id="navContractors">Contractors</a>
-          <a href="/saved" id="navSaved">Saved<span class="nav-count" id="savedCount" hidden></span></a>
+          <a href="/" id="navLeads" data-track="tab_switched" data-track-label="Leads" aria-current="page">Leads</a>
+          <a href="/contractors" id="navContractors" data-track="tab_switched" data-track-label="Contractors">Contractors</a>
+          <a href="/saved" id="navSaved" data-track="tab_switched" data-track-label="Saved">Saved<span class="nav-count" id="savedCount" hidden></span></a>
         </nav>
 
         <!-- Filled by saved.js: the signed-in email and Sign out, or Sign in. -->
@@ -229,7 +229,7 @@
   </dialog>
 
   <!-- -------------------------------------------------------------- feed -->
-  <main class="feed scroll" id="feed">
+  <main class="feed scroll" id="feed" data-track-scroll>
     <div class="feed-inner">
       <div class="feed-bar">
         <div class="result-count" id="count" aria-live="polite">Loading…</div>
@@ -258,6 +258,7 @@
         Sources: City of Austin, Texas – data.austintexas.gov, dataset 3syk-w9eu; Miami-Dade County Open Data
         (ArcGIS building permits layer). Not affiliated with or endorsed by these agencies. Data as published,
         may be incomplete. Owner and individual contacts are withheld.
+        <a href="/privacy">Privacy and usage analytics</a>.
       </p>
     </div>
   </main>
@@ -341,5 +342,8 @@
 <script src="saved.js"></script>
 <script src="app.js"></script>
 <script src="lens.js"></script>
+<!-- Product analytics (docs/ANALYTICS.md); off under Do Not Track or the /privacy opt-out. -->
+<script src="/analytics_core.js" defer></script>
+<script src="/analytics.js" defer></script>
 </body>
 </html>

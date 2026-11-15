@@ -80,8 +80,8 @@ function pgStore(query) {
       const { rows: [r] } = await query(`
         INSERT INTO app_users (email, last_seen_at) VALUES ($1, now())
         ON CONFLICT (email) DO UPDATE SET last_seen_at = now()
-        RETURNING id, email`, [email]);
-      return { id: Number(r.id), email: r.email };
+        RETURNING id, email, (xmax = 0) AS created`, [email]);
+      return { id: Number(r.id), email: r.email, created: r.created === true };
     },
     async get(id) {
       const { rows: [r] } = await query('SELECT id, email FROM app_users WHERE id = $1', [id]);
@@ -168,7 +168,8 @@ function router({ store, permitsByIds, sessions: sess = sessions() }) {
     if (!email) return res.status(400).json({ error: 'Enter a valid email address' });
     const user = await store.findOrCreate(email);
     sess.set(res, req, user.id);
-    return res.json({ email: user.email });
+    // `created`: a first sign-in (signup_completed in analytics) or a return.
+    return res.json({ email: user.email, created: Boolean(user.created) });
   }));
 
   r.post('/api/me/signout', onlyJson, wrap(async (req, res) => {

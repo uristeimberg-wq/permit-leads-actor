@@ -944,3 +944,39 @@ what would make us revisit it. Never delete an entry; supersede it.
   permits" but sort with the unvalued permits and fail a minimum-value
   filter. The count is the larger of the two groupings (same address, same
   day), so "on N permits" can undercount, never overcount.
+
+## ADR-37: First-party product analytics, owner-only dashboard
+
+- **Context (2026-11-15):** the buyer segment is still open (subcontractors,
+  GCs, suppliers, insurance agents, investors). Before launch we need to see,
+  from real use, which searches, records and actions matter, and which
+  searches find nothing. The app has no login since ADR-29; the only
+  privileged credential is the owner key (DEMO_PASSWORD). Email sign-in
+  (migration 034) is unverified.
+- **Decision:** our own tables and tracker, no third-party analytics
+  (migration 040, docs/ANALYTICS.md). `analytics_sessions` and
+  `analytics_events` (append-only except a NULL `user_id` being filled in,
+  enforced by trigger), plus `analytics_identities`. The browser tracker
+  (web/public/analytics.js) batches events (5 s or 10 events, sendBeacon on
+  hide/close) and is never awaited. `POST /api/telemetry/events` validates the
+  whole batch, redacts emails/phones/tokens again server-side, de-duplicates
+  on `event_id`, stitches a device to the signed-in user, and recomputes the
+  session's active time. Owner traffic is marked `is_internal`, automated
+  clients `is_bot`; both are kept and excluded from every metric.
+  `/admin/analytics` and `/api/admin/*` are owner-key only: 401 with no
+  credential, 403 for an email user's session, closed (403) when no owner key
+  is configured. There is no `is_admin` role: with one owner, a role table
+  would be a second credential to manage for no gain.
+- **Privacy:** no IP address and no full user-agent are stored; geography
+  comes only from a proxy header named in `GEO_COUNTRY_HEADER` (none on
+  Railway, so it is NULL; no paid geo-IP service). Referrers are host only.
+  Do Not Track and Global Privacy Control turn the tracker off, and `/privacy`
+  explains what is collected and has an opt-out.
+- **Consequences:** an email user's session no longer opens the digest
+  previews (it did before: the gate accepted any session on owner-only
+  paths). Not partitioned: the primary key is `event_id` alone so retries
+  de-duplicate; partitioning later needs dedup moved to a staging step.
+  Because sign-in is unverified, anyone typing someone's email links their
+  own device to that user; the timelines are a discovery aid, not an audit
+  trail. Retention of raw events is not yet capped (open item in
+  docs/COMPLIANCE.md).

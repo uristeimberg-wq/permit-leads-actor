@@ -49,6 +49,20 @@ are in `docs/DATA_SOURCES.md`, "Licence and terms review".
    Sales never says "verified", "unhired", "real-time", "live" or "open now"
    (`/mnt/project-files/sales/SALES_BRIEF.md`, section 5).
 
+### Usage analytics (ADR-37, docs/ANALYTICS.md)
+
+- First-party only; no IP address, full user-agent or third-party tracker.
+  `/privacy` says what is collected and has an opt-out; Do Not Track and
+  Global Privacy Control switch it off.
+- Emails and phone numbers typed into search are redacted before storage.
+- Open: a retention limit for raw events (proposal: 13 months, then delete),
+  a link to `/privacy` in the customer terms, and whether any market we sell
+  into needs a cookie/localStorage consent banner rather than a notice
+  (counsel question).
+- Deleting a person's analytics on request: `DELETE FROM analytics_events
+  WHERE user_id = $1` and the same for `analytics_sessions` and
+  `analytics_identities`.
+
 ## Handling a removal request
 
 Anyone listed (a company, or a person whose number appears on a permit) can

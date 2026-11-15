@@ -90,6 +90,10 @@ served at `/index.html` and is described in
 - **Email digests** exist but are parked in dry-run mode (ADR-20,
   [`docs/EMAIL.md`](docs/EMAIL.md)).
 
+Usage analytics: first-party, owner-only dashboard at `/admin/analytics`
+(owner key). What is recorded and how to opt out: `/privacy`,
+docs/ANALYTICS.md, ADR-37.
+
 ## Running it locally
 
 ```bash

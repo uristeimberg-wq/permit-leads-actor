@@ -45,7 +45,7 @@
     const acct = $('account');
     if (acct) {
       acct.innerHTML = me.email
-        ? `<span class="acct-email" title="Signed in as ${esc(me.email)}">${esc(me.email)}</span><a class="signout" href="/logout">Sign out</a>`
+        ? `<span class="acct-email" title="Signed in as ${esc(me.email)}">${esc(me.email)}</span><a class="signout" href="/logout" data-track="logout">Sign out</a>`
         : '<button type="button" class="signout" data-signin>Sign in</button>';
     }
     const n = $('savedCount');
@@ -94,6 +94,8 @@
     return undefined;
   }
 
+  const track = (name, props, ctx) => { try { if (window.Track) window.Track.event(name, props, ctx); } catch { /* never in the way */ } };
+
   async function toggle(permitId) {
     const id = String(permitId);
     return withUser(async () => {
@@ -101,6 +103,7 @@
       try {
         if (was) { saved.delete(id); paintHearts(id); changed(); await api('DELETE', `/api/me/saved/${encodeURIComponent(id)}`); }
         else { saved.set(id, 'saved'); paintHearts(id); changed(); await api('PUT', `/api/me/saved/${encodeURIComponent(id)}`, {}); }
+        track(was ? 'record_unsaved' : 'record_saved', {}, { target_record_id: id, target_entity_type: 'permit' });
       } catch (err) {
         // Put the heart back the way the server has it.
         if (was) saved.set(id, was); else saved.delete(id);
@@ -152,6 +155,7 @@
   const form = dlg.querySelector('form');
 
   function openSignin() {
+    if (!dlg.open) track('signup_started', { trigger: pending ? 'save' : 'button' });
     $('signinErr').hidden = true;
     if (!dlg.open) dlg.showModal();
     $('signinEmail').focus();
@@ -163,6 +167,9 @@
     try {
       const d = await api('POST', '/api/me/signin', { email: $('signinEmail').value });
       me = { email: d.email };
+      // The next telemetry batch carries the session cookie: the server links
+      // this device's earlier activity to the user (web/telemetry.js).
+      if (window.Track) window.Track.identify(d.created ? 'signup' : 'login');
       dlg.close();
       await refresh();
       const fn = pending; pending = null;

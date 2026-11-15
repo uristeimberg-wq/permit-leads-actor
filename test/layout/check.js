@@ -79,6 +79,9 @@ function measure(minTarget) {
       ...(ids.job ? [['job', `/pilot/live/job.html?id=${ids.job}&trade=electrical`]] : []),
       ...(ids.gc ? [['contractor', `/pilot/live/contractor.html?id=${ids.gc}`]] : []),
       ['search', '/search.html'],
+      ['privacy', '/privacy'],
+      // Owner only (ADR-37): the layout run signs in with the owner key.
+      ['admin-analytics', '/admin/analytics'],
     ];
     if (!ids.job || !ids.gc) console.log(`${vp.name}: no ${ids.job ? '' : 'job '}${ids.gc ? '' : 'contractor '}to open (empty data?)`);
     for (const [name, url] of pages) {

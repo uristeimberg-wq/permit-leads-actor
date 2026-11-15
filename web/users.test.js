@@ -95,7 +95,7 @@ const cookieOf = (r) => (r.headers.get('set-cookie') || '').split(';')[0];
     assert.strictEqual((await go('/api/me/signin', jsonReq('POST', { email: 'nope' }))).status, 400);
     const ok = await go('/api/me/signin', jsonReq('POST', { email: ' Dana@Example.com ' }));
     assert.strictEqual(ok.status, 200);
-    assert.deepStrictEqual(await ok.json(), { email: 'dana@example.com' });
+    assert.deepStrictEqual(await ok.json(), { email: 'dana@example.com', created: false });
     const set = ok.headers.get('set-cookie');
     assert.match(set, /HttpOnly/); assert.match(set, /SameSite=Lax/);
   }));

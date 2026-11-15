@@ -104,11 +104,43 @@ const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({
  * address (a dev server left on the port), so the message says so instead of
  * "Unexpected token '<'". The Error carries `status` and the JSON body as `data`.
  */
+/**
+ * Product analytics (web/public/analytics.js, docs/ANALYTICS.md). Fire and
+ * forget: never awaited, and a missing or failing tracker changes nothing.
+ */
+const track = (name, props, ctx) => { try { if (window.Track) window.Track.event(name, props, ctx); } catch { /* never in the way */ } };
+const apiPath = (url) => { try { return new URL(url, location.href).pathname.slice(0, 120); } catch { return null; } };
+// The filters a search is described by; the contractor's display label is
+// left out (the ids carry it).
+const trackedFilters = (filters) => { const { contractorLabel: _l, page: _p, ...rest } = filters; return rest; };
+let lastTracked = null;   // { key, filters } of the last search sent
+/** search_executed, plus filter_applied / filter_cleared / sort_changed against the last search. */
+function trackSearch(view, filters, data) {
+  try {
+    const f = trackedFilters(filters);
+    const key = JSON.stringify([view, f]);
+    if (lastTracked && lastTracked.key === key) return;   // paging, or a re-run of the same search
+    const prev = lastTracked ? lastTracked.filters : {};
+    for (const k of new Set([...Object.keys(prev), ...Object.keys(f)])) {
+      if (k === 'sort' || k === 'csort') { if (prev[k] !== f[k]) track('sort_changed', { sort: f[k] || 'default', view }); continue; }
+      if (f[k] === undefined) track('filter_cleared', { filter: k, view });
+      else if (prev[k] !== f[k]) track('filter_applied', { filter: k, value: String(f[k]).slice(0, 120), view });
+    }
+    lastTracked = { key, filters: f };
+    const count = data ? Number(data.total) || 0 : 0;
+    track('search_executed', {
+      query: f.q || '', filters: f, view, results_count: count, zero_results: count === 0,
+      jurisdiction: f.jurisdiction || null, stage: f.stage || 'default', coverage: (data && data.coverage) || null,
+    });
+  } catch { /* never in the way */ }
+}
+
 async function getJSON(url, opts) {
   let r;
   try {
     r = await fetch(url, opts);
   } catch {
+    track('api_request_failed', { endpoint: apiPath(url), status: 0 });
     throw new Error("Couldn't reach the server. Check your connection, or that the Contractos server is running.");
   }
   const isJson = (r.headers.get('content-type') || '').includes('application/json');
@@ -121,6 +153,7 @@ async function getJSON(url, opts) {
   let data;
   try { data = await r.json(); } catch { throw new Error('The server sent data that could not be read.'); }
   if (!r.ok) {
+    track('api_request_failed', { endpoint: apiPath(url), status: r.status });
     const err = new Error(data.error || `Request failed (HTTP ${r.status})`);
     err.status = r.status;
     err.data = data;
@@ -564,6 +597,8 @@ function renderCard(p) {
   el.tabIndex = 0;
   el.setAttribute('role', 'button');
   el.dataset.id = p.id;
+  el.dataset.trackId = p.id;          // analytics context for clicks inside (phone, source link)
+  el.dataset.trackType = 'permit';
   // Which pin this card belongs to, for the hover link in both directions.
   const areaKey = areaKeyOf(p);
   if (areaKey) el.dataset.area = areaKey;
@@ -700,6 +735,7 @@ async function run({ resetPage = false } = {}) {
 
   paintLensBar(null);
   paintStageCounts(data.facets);
+  trackSearch('permits', filters, data);
 
   if (!data.results || !data.results.length) {
     $('results').innerHTML = emptyState(data, filters);
@@ -711,7 +747,7 @@ async function run({ resetPage = false } = {}) {
 
   const list = document.createElement('div');
   list.className = 'cards';
-  for (const p of data.results) list.appendChild(renderCard(p));
+  data.results.forEach((p, i) => { const c = renderCard(p); c.dataset.pos = String((data.page - 1) * data.pageSize + i + 1); list.appendChild(c); });
   $('results').replaceChildren(list);
   paintPinState();
 
@@ -779,6 +815,7 @@ async function runCompanies(filters, mine) {
   }
   if (mine !== reqId) return;
   paintStageCounts(null);
+  trackSearch('companies', filters, data);
   if (!data.results.length) {
     $('results').innerHTML = `<div class="empty">${emptyIcon()}<strong>No contractors on these permits</strong>
       <p>Widen the location or clear a filter. Individuals are never listed.</p></div>`;
@@ -877,6 +914,7 @@ async function runProjects(filters, mine) {
   lastInferences = Boolean(data.inferences);
   paintStageCounts(data.facets);
   paintLensBar(data);
+  trackSearch(grouping ? 'projects' : 'permits', filters, data);
 
   if (!data.results.length) {
     $('results').innerHTML = emptyState(data, filters);
@@ -887,7 +925,7 @@ async function runProjects(filters, mine) {
   }
   const list = document.createElement('div');
   list.className = 'cards';
-  for (const pr of data.results) list.appendChild(renderProjectCard(pr));
+  data.results.forEach((pr, i) => { const c = renderProjectCard(pr); c.dataset.pos = String((data.page - 1) * data.pageSize + i + 1); list.appendChild(c); });
   $('results').replaceChildren(list);
   paintPinState();
   setSheetCount(data.total);
@@ -934,6 +972,8 @@ function renderProjectCard(pr) {
   el.tabIndex = 0;
   el.setAttribute('role', 'button');
   el.dataset.id = pr.primaryId;
+  el.dataset.trackId = pr.id;
+  el.dataset.trackType = 'project';
   const areaKey = areaKeyOf(pr);
   if (areaKey) el.dataset.area = areaKey;
 
@@ -981,6 +1021,9 @@ function renderProjectCard(pr) {
 /** The project drawer: header facts, then every permit in date order. */
 async function openProject(id, cardEl, { keepFocus = false } = {}) {
   const dlg = $('detail');
+  if (cardEl) track('record_clicked', { position: Number(cardEl.dataset.pos) || null, from: 'list' }, { target_record_id: id, target_entity_type: 'project' });
+  if (window.Track) Track.recordOpen('project', id);
+  dlg.dataset.trackId = id; dlg.dataset.trackType = 'project';
   if (!keepFocus) lastFocused = cardEl || null;
   projectReturn = null;
   for (const c of document.querySelectorAll('.card[aria-current]')) c.removeAttribute('aria-current');
@@ -1068,6 +1111,7 @@ let contractorReturnsTo = null;   // the permit drawer to reopen on close, if an
 
 async function openContractor(name, { from = null } = {}) {
   const dlg = $('contractorPanel');
+  track('record_clicked', { from: from ? 'permit' : 'list' }, { target_record_id: String(name).replace(/[^\w.:-]+/g, '-').slice(0, 100), target_entity_type: 'contractor' });
   contractorReturnsTo = from;
 
   $('cName').textContent = name;
@@ -1655,6 +1699,10 @@ const row = (label, value, cls = '') =>
  */
 async function openDetail(id, cardEl, { fromProject = null } = {}) {
   const dlg = $('detail');
+  const pos = cardEl && Number(cardEl.dataset.pos);
+  if (cardEl || fromProject) track('record_clicked', { position: pos || null, from: fromProject ? 'project' : SAVED_MODE ? 'saved' : 'list' }, { target_record_id: id, target_entity_type: 'permit' });
+  if (window.Track) Track.recordOpen('permit', id, { from: fromProject ? 'project' : 'list' });
+  dlg.dataset.trackId = id; dlg.dataset.trackType = 'permit';
   if (!fromProject) lastFocused = cardEl || null;
   projectReturn = fromProject;
 
@@ -2069,6 +2117,7 @@ $('pager').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-page]');
   if (!btn) return;
   page += btn.dataset.page === 'next' ? 1 : -1;
+  track('pagination_clicked', { direction: btn.dataset.page, page });
   run();
   $('feed').scrollTo({ top: 0, behavior: 'smooth' });
 });
@@ -2095,6 +2144,7 @@ $('useLocation').addEventListener('click', useMyLocation);
 
 $('viewToggle').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-view]');
+  if (btn) track('tab_switched', { tab: btn.dataset.view, control: 'layout' });
   if (btn) setView(btn.dataset.view);
 });
 
@@ -2121,6 +2171,7 @@ $('sidebarClose').addEventListener('click', () => {
 
 $('dClose').addEventListener('click', () => $('detail').close());
 $('detail').addEventListener('close', () => {
+  if (window.Track) Track.recordClose();
   for (const c of document.querySelectorAll('.card[aria-current]')) c.removeAttribute('aria-current');
   // Return focus to the card the drawer was opened from.
   if (lastFocused && lastFocused.isConnected) lastFocused.focus();
