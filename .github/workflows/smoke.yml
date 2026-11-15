@@ -37,6 +37,12 @@ jobs:
           c=$(code "$BASE/login"); echo "sign-in page: $c (want 200)"; [ "$c" = 200 ] || fail=1
           c=$(code "$BASE/api/pilot/meta"); echo "no session API: $c (want 200, open access)"; [ "$c" = 200 ] || fail=1
           c=$(code -H 'accept: application/json' "$BASE/digest/preview"); echo "no session owner-only: $c (want 401)"; [ "$c" = 401 ] || fail=1
+          # Product analytics (ADR-37): owner-only dashboard, public privacy page,
+          # and an ingestion endpoint that refuses a malformed batch (nothing written).
+          c=$(code -H 'accept: application/json' "$BASE/api/admin/analytics/summary"); echo "no session analytics API: $c (want 401)"; [ "$c" = 401 ] || fail=1
+          c=$(code -H 'accept: application/json' "$BASE/admin/analytics"); echo "no session analytics page: $c (want 401)"; [ "$c" = 401 ] || fail=1
+          c=$(code "$BASE/privacy"); echo "privacy page: $c (want 200)"; [ "$c" = 200 ] || fail=1
+          c=$(code -X POST -H 'content-type: application/json' --data '{}' "$BASE/api/telemetry/events"); echo "telemetry malformed batch: $c (want 400)"; [ "$c" = 400 ] || fail=1
           c=$(code -u "x:wrong-password" -H 'accept: application/json' "$BASE/digest/preview"); echo "wrong password: $c (want 401)"; [ "$c" = 401 ] || fail=1
           c=$(code -X POST --data-urlencode "password=wrong-password" "$BASE/login"); echo "wrong sign-in: $c (want 401)"; [ "$c" = 401 ] || fail=1
           if [ -n "$DEMO_PASSWORD" ]; then
@@ -50,6 +56,9 @@ jobs:
               | jq -c '{buildingRecent: .totals.buildingRecent, activeGcs: .totals.activeGcs, weeks: (.weekly|length),
                         topGcs: (.topGcs|length), recent: (.recent|length), pins: (.map.pins|length), unplaced: .map.unplaced}' || fail=1
             rm -f "$jar"
+            c=$(code -u "x:$DEMO_PASSWORD" "$BASE/admin/analytics"); echo "owner analytics page: $c (want 200)"; [ "$c" = 200 ] || fail=1
+            curl -s --max-time 60 -u "x:$DEMO_PASSWORD" "$BASE/api/admin/analytics/summary?range=all" \
+              | jq -c '{sessions: .totals.sessions, events: .totals.events, excluded}' || fail=1
             curl -s --max-time 60 -u "x:$DEMO_PASSWORD" "$BASE/api/pilot/meta" \
               | jq -c '{lastSyncAt, lastSyncStatus, historyFrom, historyTo}' || fail=1
             curl -s --max-time 60 -u "x:$DEMO_PASSWORD" "$BASE/api/pilot/gcs?source=austin-tx&trade=electrical&months=12" \
