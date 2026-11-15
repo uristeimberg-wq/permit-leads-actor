@@ -78,6 +78,7 @@ let baseMapNote = '';         // the standing map note, restored after a transie
 let pointLayer = null;        // located job sites, drawn instead of area pins when zoomed in
 let pointsReq = 0;            // guards against a slow viewport overwriting a newer one
 let lastFilters = {};         // the filters the map was last drawn for
+let lastRunKey = '';          // the filter set the list was last run for
 let areaNote = '';            // the area-pin note (unplaced permits), kept while zoomed in
 
 /* ------------------------------------------------------------ formatting */
@@ -88,9 +89,42 @@ const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({
 
 // Valuations are round and read better without cents ($278,000); fees are exact
 // and $141.90 must not display as $142.
+/**
+ * JSON from our API, or an Error a person can read. A failed response that is
+ * a web page rather than JSON is what you get when another app answers on this
+ * address (a dev server left on the port), so the message says so instead of
+ * "Unexpected token '<'". The Error carries `status` and the JSON body as `data`.
+ */
+async function getJSON(url, opts) {
+  let r;
+  try {
+    r = await fetch(url, opts);
+  } catch {
+    throw new Error("Couldn't reach the server. Check your connection, or that the Contractos server is running.");
+  }
+  const isJson = (r.headers.get('content-type') || '').includes('application/json');
+  if (!isJson) {
+    const err = new Error(`The server answered with a web page instead of data (HTTP ${r.status}). `
+      + 'Another app may be running on this address; open Contractos on its own port.');
+    err.status = r.status;
+    throw err;
+  }
+  let data;
+  try { data = await r.json(); } catch { throw new Error('The server sent data that could not be read.'); }
+  if (!r.ok) {
+    const err = new Error(data.error || `Request failed (HTTP ${r.status})`);
+    err.status = r.status;
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+
 const money = (v) => {
   const n = Number(v);
-  if (!(n > 0)) return null;
+  // $1 is a placeholder some portals file instead of a value (2,444 Austin
+  // permits), so it reads as missing, like a null.
+  if (!(n > 1)) return null;
   const cents = Number.isInteger(n) ? 0 : 2;
   return '$' + n.toLocaleString('en-US', { minimumFractionDigits: cents, maximumFractionDigits: cents });
 };
@@ -225,8 +259,8 @@ function paintStageCounts(facets) {
 
 async function loadOptions() {
   const [areas, filters] = await Promise.all([
-    fetch('/api/areas').then((r) => r.json()),
-    fetch('/api/filters').then((r) => r.json()),
+    getJSON('/api/areas'),
+    getJSON('/api/filters'),
   ]);
 
   typePicker.setIndex(LocationPicker.buildListIndex(filters.permitTypes, { kind: 'type', key: 'permit_type', label: 'permit_type' }));
@@ -297,7 +331,7 @@ const titleCase = (v) => String(v || '').toLowerCase()
 async function loadFreshness() {
   let sources = [];
   try {
-    ({ sources = [] } = await fetch('/api/freshness').then((r) => r.json()));
+    ({ sources = [] } = await getJSON('/api/freshness'));
   } catch {
     sources = [];
   }
@@ -357,7 +391,7 @@ async function loadFreshness() {
 /** Every source's credit line under the results (CC BY needs it wherever City of Miami data shows). */
 async function paintCredits(sources) {
   let enrichment = [];
-  try { ({ enrichment = [] } = await fetch('/api/credits').then((r) => r.json())); } catch { enrichment = []; }
+  try { ({ enrichment = [] } = await getJSON('/api/credits')); } catch { enrichment = []; }
   const permitCredits = sources.filter((s) => s.attribution).map((s) => `${s.label || s.source_area}: ${s.attribution}`);
   const lines = [...permitCredits, ...enrichment.map((e) => e.attribution)];
   $('credits').innerHTML = `
@@ -548,6 +582,10 @@ async function run({ resetPage = false } = {}) {
   if (resetPage) page = 1;
 
   const filters = currentFilters();
+  // A new filter set re-frames the map on its results; paging does not, and
+  // neither does "Search this area" (it marks the map as moved afterwards).
+  const filterKey = JSON.stringify(filters);
+  if (filterKey !== lastRunKey) { userMovedMap = false; lastRunKey = filterKey; }
   syncUrl(filters);
   paintActiveFilters(filters);
   window.dispatchEvent(new Event('leads:areas'));   // the lens button shows the location
@@ -576,11 +614,11 @@ async function run({ resetPage = false } = {}) {
   let data;
   try {
     const params = new URLSearchParams({ ...filters, page: String(page), pageSize: String(PAGE_SIZE) });
-    data = await fetch('/api/permits?' + params).then((r) => r.json());
+    data = await getJSON('/api/permits?' + params);
   } catch (err) {
     if (mine !== reqId) return;
     $('results').innerHTML = `<div class="empty">${emptyIcon()}
-      <strong>Couldn't reach the server</strong><p>${esc(err.message)}</p></div>`;
+      <strong>Couldn't load permits</strong><p>${esc(err.message)}</p></div>`;
     $('count').textContent = '';
     return;
   }
@@ -658,22 +696,22 @@ async function openContractor(name, { from = null } = {}) {
 
   let c;
   try {
-    const res = await fetch('/api/contractors/' + encodeURIComponent(name));
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      $('cMeta').textContent = '';
-      $('cBody').innerHTML = `<div class="empty">${emptyIcon()}
-        <strong>${body.reason === 'owner-builder'
-          ? 'That is an owner-builder, not a company'
-          : 'No permits under that exact name'}</strong>
-        <p>${body.reason === 'owner-builder'
-          ? 'Portals write “OWNER” in the contractor column when the property owner pulled the permit themselves, so there is no firm to show a history for.'
-          : 'The name may be spelled differently on other permits.'}</p></div>`;
+    c = await getJSON('/api/contractors/' + encodeURIComponent(name));
+  } catch (err) {
+    // A JSON 404 is a real answer ("no such company"); anything else is an error.
+    if (err.status !== 404 || !err.data) {
+      $('cBody').innerHTML = `<p class="callout">${esc(err.message)}</p>`;
       return;
     }
-    c = await res.json();
-  } catch (err) {
-    $('cBody').innerHTML = `<p class="callout">${esc(err.message)}</p>`;
+    const body = err.data;
+    $('cMeta').textContent = '';
+    $('cBody').innerHTML = `<div class="empty">${emptyIcon()}
+      <strong>${body.reason === 'owner-builder'
+        ? 'That is an owner-builder, not a company'
+        : 'No permits under that exact name'}</strong>
+      <p>${body.reason === 'owner-builder'
+        ? 'Portals write “OWNER” in the contractor column when the property owner pulled the permit themselves, so there is no firm to show a history for.'
+        : 'The name may be spelled differently on other permits.'}</p></div>`;
     return;
   }
 
@@ -767,8 +805,7 @@ async function openContractor(name, { from = null } = {}) {
 const loadContractorSuggestions = debounce(async (term) => {
   if (!term || term.length < 2) { $('contractorList').innerHTML = ''; $('contractorHint').textContent = ''; return; }
   try {
-    const { contractors } = await fetch('/api/contractors?limit=12&q=' + encodeURIComponent(term))
-      .then((r) => r.json());
+    const { contractors } = await getJSON('/api/contractors?limit=12&q=' + encodeURIComponent(term));
     $('contractorList').innerHTML = contractors
       .map((c) => `<option value="${esc(c.name)}">${esc(c.name)} · ${c.permits}</option>`).join('');
     $('contractorHint').innerHTML = contractors.length
@@ -826,10 +863,11 @@ function initMap() {
 async function loadMap(filters) {
   if (!map) return;
   lastFilters = filters;
+  pointsFramed = false;
 
   let data;
   try {
-    data = await fetch('/api/map?' + new URLSearchParams(filters)).then((r) => r.json());
+    data = await getJSON('/api/map?' + new URLSearchParams(filters));
   } catch {
     return;   // the map is an aid; a failure here must not break the results
   }
@@ -847,7 +885,38 @@ async function loadMap(filters) {
 
   fitPins();
   map._loadedOnce = true;
+  // A small selection (a ZIP, a few neighbourhoods) is framed on its job sites
+  // rather than on one area pin, so the map opens at street level.
+  if (!(await framePoints(filters))) loadPoints();
+}
+
+/**
+ * Fits the map to the current results' located job sites when the area pins
+ * span less than about a city (the points API takes at most 1 degree). The
+ * bounds ignore the outer 5% on each axis, so one mis-geocoded address cannot
+ * zoom the map back out to the whole state. Returns true when it framed.
+ */
+const FRAME_MAX_DEG = 0.9;
+async function framePoints(filters) {
+  if (!map || userMovedMap || !mapPins.length) return false;
+  const lats = mapPins.map((p) => p.lat);
+  const lngs = mapPins.map((p) => p.lng);
+  const pad = 0.06;
+  const box = [Math.min(...lats) - pad, Math.min(...lngs) - pad, Math.max(...lats) + pad, Math.max(...lngs) + pad];
+  if (box[2] - box[0] > FRAME_MAX_DEG || box[3] - box[1] > FRAME_MAX_DEG) return false;
+  let data;
+  try {
+    data = await getJSON(`/api/map/points?${new URLSearchParams({ ...filters, bbox: box.map((v) => v.toFixed(5)).join(',') })}`);
+  } catch { return false; }
+  if (filters !== lastFilters || userMovedMap || !data.points || data.points.length < 2) return false;
+  const q = (arr, f) => { const s = [...arr].sort((a, b) => a - b); return s[Math.min(s.length - 1, Math.max(0, Math.round(f * (s.length - 1))))]; };
+  const pl = data.points.map((p) => p.lat);
+  const pg = data.points.map((p) => p.lng);
+  pointsFramed = true;
+  map.fitBounds([[q(pl, 0.05), q(pg, 0.05)], [q(pl, 0.95), q(pg, 0.95)]], { padding: [40, 40], maxZoom: 16, animate: false });
+  renderPins();
   loadPoints();
+  return true;
 }
 
 /* ------------------------------------------------------------ job sites ===
@@ -873,7 +942,11 @@ function loadPointsSoon() {
   pointsTimer = setTimeout(loadPoints, 250);
 }
 
-const showingPoints = () => map && map.getZoom() >= POINT_ZOOM;
+// A small selection framed on its job sites (framePoints) shows them at that
+// zoom too, down to city level; otherwise job sites start at POINT_ZOOM.
+const FRAMED_MIN_ZOOM = 11;
+let pointsFramed = false;
+const showingPoints = () => map && (map.getZoom() >= POINT_ZOOM || (pointsFramed && map.getZoom() >= FRAMED_MIN_ZOOM));
 
 async function loadPoints() {
   if (!map || !pointLayer) return;
@@ -889,9 +962,7 @@ async function loadPoints() {
   const bbox = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].map((v) => v.toFixed(5)).join(',');
   let data;
   try {
-    const r = await fetch(`/api/map/points?${new URLSearchParams({ ...lastFilters, bbox })}`);
-    if (!r.ok) throw new Error(String(r.status));
-    data = await r.json();
+    data = await getJSON(`/api/map/points?${new URLSearchParams({ ...lastFilters, bbox })}`);
   } catch {
     return;   // the area pins stay; the map is an aid, not the results
   }
@@ -932,7 +1003,9 @@ function fitPins() {
  * pile. Bucketing by a fixed pixel grid means the map is legible at every zoom
  * and splits apart as you go in — and because the grid is in projected
  * coordinates, only zoom changes the grouping, never panning. */
-const CLUSTER_PX = 68;
+// The merge cell shrinks as you zoom in, so groups split apart at city zoom
+// instead of holding together until the street level.
+const clusterPx = (zoom) => (zoom >= 12 ? 36 : zoom >= 9 ? 52 : 68);
 
 function renderPins() {
   if (!map) return;
@@ -944,7 +1017,8 @@ function renderPins() {
 
   for (const pin of mapPins) {
     const pt = map.project([pin.lat, pin.lng], zoom);
-    const cell = `${Math.floor(pt.x / CLUSTER_PX)}:${Math.floor(pt.y / CLUSTER_PX)}`;
+    const px = clusterPx(zoom);
+    const cell = `${Math.floor(pt.x / px)}:${Math.floor(pt.y / px)}`;
     const group = cells.get(cell) ||
       { members: [], permits: 0, pending: 0, x: 0, y: 0 };
     group.members.push(pin);
@@ -1073,7 +1147,7 @@ function distanceKm(a, b) {
  *  current filters happen to exclude. */
 async function loadAllAreas() {
   try {
-    const data = await fetch('/api/map?stage=any').then((r) => r.json());
+    const data = await getJSON('/api/map?stage=any');
     allAreas = data.pins || [];
   } catch { allAreas = []; }
 }
@@ -1180,7 +1254,7 @@ async function openDetail(id, cardEl) {
 
   let p;
   try {
-    p = await fetch('/api/permits/' + encodeURIComponent(id)).then((r) => r.json());
+    p = await getJSON('/api/permits/' + encodeURIComponent(id));
   } catch (err) {
     $('dAddr').textContent = 'Could not load permit';
     $('dBody').innerHTML = `<p class="callout">${esc(err.message)}</p>`;
@@ -1326,9 +1400,7 @@ async function loadJobExtras(id) {
   const box = $('dMore');
   let j;
   try {
-    const r = await fetch(`/api/pilot/jobs/${encodeURIComponent(id)}`);
-    if (!r.ok) throw new Error(`Request failed (${r.status})`);
-    j = await r.json();
+    j = await getJSON(`/api/pilot/jobs/${encodeURIComponent(id)}`);
   } catch (err) {
     if (extrasFor === id && box.isConnected) box.innerHTML = `<div class="sect">Lifecycle, property and licences</div><p class="check-count">Could not load: ${esc(err.message)}</p>`;
     return;

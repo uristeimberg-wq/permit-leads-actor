@@ -19,7 +19,10 @@ const DEFAULT_PAGE_SIZE = 25;
 const SORTS = {
   newest: 'filed_date DESC NULLS LAST, id DESC',
   oldest: 'filed_date ASC NULLS LAST, id ASC',
-  valuation: 'valuation DESC NULLS LAST, filed_date DESC NULLS LAST',
+  // Highest declared value first. A $1 placeholder (2,444 Austin permits) and a
+  // value of $1 billion or more (13 permits, e.g. five at $8.1B on one Austin
+  // lot) are not real job values, so they sort with the missing ones, last.
+  valuation: 'CASE WHEN valuation > 1 AND valuation < 1000000000 THEN valuation END DESC NULLS LAST, filed_date DESC NULLS LAST, id DESC',
 };
 
 // owner, applicant_name and applicant_phone are stored but never selected for
