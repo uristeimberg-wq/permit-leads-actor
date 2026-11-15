@@ -76,20 +76,24 @@ zoning hearings 951, DERM sewer allocations 597, City of Miami tree reviews
 FL DBPR 283,557, TX TDLR 35,206, Sunbiz 23,622. Every source succeeded; no
 validation or rate-limit events were logged and no window needed widening.
 
-Lifecycle, pre-approval vs issued (engine-verify on main at 14:06 UTC, before this sync):
+Lifecycle, pre-approval vs issued (engine-verify on main at 15:40 UTC, after
+this sync):
 
-| Market | Pre-approval share | Detail |
-|---|---|---|
-| Austin plan review | 96.9% | 39 submitted, 1,332 in plan review, 8,902 approved |
-| Austin permits | 0.1% | the permit feed publishes issued permits; pre-issue work is the plan-review feed above |
-| Raleigh | 5.5% | 195 submitted, 445 in review, 1,070 approved |
-| Miami-Dade | 0% | the source publishes issued permits only |
-| City of Miami | 0% | the source publishes issued permits only |
+| Market | Permits | Pre-approval | Issued | Finaled | Pre-approval share |
+|---|---|---|---|---|---|
+| Austin plan review | 10,598 | 39 submitted, 1,332 plan review, 8,902 approved | 0 | 0 | 96.9% |
+| Austin permits | 58,780 | 57 plan review, 6 approved | 23,789 | 32,108 | 0.1% |
+| Raleigh | 31,278 | 193 submitted, 452 review, 1,157 approved | 14,473 | 14,429 | 5.8% |
+| Miami-Dade | 34,229 | 0 | 33,662 | 567 | 0% |
+| City of Miami | 4,335 | 0 | 2,707 | 1,321 | 0% |
+
+Austin's permit feed publishes issued permits; its pre-issue work is the
+plan-review feed. Both Miami feeds publish issued permits only, at source.
 
 Integrity on the live data: 0 duplicate natural keys (permits, planning
 cases, inspections, raw records), 0 permits without a raw record, 0
 lifecycle values outside the vocabulary, 3 of 3 append-only triggers
-installed, 664 permit status transitions in the changelog over 7 days.
+installed, 871 permit status transitions in the changelog over 7 days.
 
 Entity resolution, from the same sync: 15,808 contractors over 128,622
 permits. Links by rule: 26,607 licence (`cross_source_verified`), 85,249
@@ -101,11 +105,34 @@ rows the resolver had left with 0 permits. The real figure is 294 names over
 650 entities; Sunbiz holds 2+ candidates for 218 of them, so no safe merge
 remains and nothing was merged.
 
-**Not yet measured live:** watermark rows, `source_url` fill and the
-post-sync signal and link counts. The post-sync engine-verify run could not
-start: every GitHub Actions job in the repository since about 14:58 UTC has
-failed within two seconds with no log. Run the `engine-verify` workflow once
-Actions runs again; it prints all three.
+After the sync (same engine-verify run):
+
+- **Watermarks:** 24 windows across 13 sources hold their last successful
+  sync and the newest source date seen. Miami-Dade's newest issue date is
+  2026-11-05, ten days behind the sync: that is the county's publication lag,
+  now visible per window.
+- **source_url:** every record fetched since 035 has one (Austin 15,755,
+  Raleigh 7,058, City of Miami 2,813, Miami-Dade 1,083, all inspection rows).
+  Older raw versions stay NULL until the source serves them again; nothing is
+  backfilled by guess.
+- **source_updated_at:** 855 Raleigh rows (from `recordupdatedate`), 0
+  elsewhere, by design.
+- **Signals:** 158,957 rows in `construction_signals`; 10,273 Austin
+  applications and 1,802 Raleigh permits are before issue. 87-100% of
+  permits and applications carry a parcel ref, except inspections and
+  Raleigh development plans (0%: their sources publish no parcel id).
+- **Links:** 9,964 application → permit, 2,139 planning case → permit and
+  4,585 inspection → permit links on official keys (`cross_source_verified`);
+  252 parcel-window planning links (`parsed_inferred`). 78% of Austin
+  applications reach their permit by an official key.
+- **Entity links:** permit → parcel 180,547 links, all on the source's own
+  parcel id. Contractor → licence 5,802 by licence number, 2,749 by name or
+  phone. Portfolios: Florida 26,275 licence-linked permits vs 5,776
+  name-linked; Texas and North Carolina are name-linked only (50,646 and
+  26,794), because their permits carry no licence number.
+- **Health:** in the last 7 days, 3 failed Sunbiz runs and 1 failed
+  Miami-Dade parcel run (both earlier, both since succeeded), 2 schema-change
+  notices; no validation, rate-limit or watermark-gap events.
 
 ## 4. What is still needed to scale
 
