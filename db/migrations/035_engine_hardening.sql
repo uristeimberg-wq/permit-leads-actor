@@ -152,4 +152,3 @@ CREATE INDEX IF NOT EXISTS permits_parcel_number ON permits (source_area, parcel
 CREATE INDEX IF NOT EXISTS raw_records_fetched ON raw_records (source_id, fetched_at DESC);
 CREATE INDEX IF NOT EXISTS raw_records_source_updated ON raw_records (source_id, source_updated_at DESC) WHERE source_updated_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS planning_cases_first_seen ON planning_cases (first_seen_at DESC);
-CREATE INDEX IF NOT EXISTS contractor_registry_licences_licence ON contractor_registry_licences (licence_id);
