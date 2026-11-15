@@ -189,9 +189,18 @@ async function main() {
       ['  two or more licence keys', g.two_plus_licences],
       ['  a phone shared by 2+ of the entities', g.shared_phone],
       ['  Sunbiz: no entity carries the name', g.sunbiz_none],
-      ['  Sunbiz: exactly one entity (v5 should have joined these)', g.sunbiz_one],
-      ['  Sunbiz: 2+ entities carry the name', g.sunbiz_many],
+      ['  stored Sunbiz rows: exactly one carries the name (a partial copy, not proof of uniqueness)', g.sunbiz_one],
+      ['  stored Sunbiz rows: 2+ carry the name', g.sunbiz_many],
     ]);
+    // What the Sunbiz lookups (the input to resolver rule 3) said for these names.
+    const look = await q(`
+      WITH grp AS (SELECT normalized_name FROM contractors WHERE split_part(identity_key, ':', 2) = 'FL' AND party_kind = 'business'
+                    GROUP BY 1 HAVING count(*) > 1)
+      SELECT coalesce(l.outcome || CASE WHEN l.outcome = 'matched' THEN ' (' || CASE WHEN l.candidates = 1 THEN '1 candidate' ELSE '2+ candidates' END || ')' ELSE '' END, 'never looked up') AS outcome,
+             count(*)::int AS n
+        FROM grp g LEFT JOIN registry_lookups l ON l.provider = 'fl-sunbiz' AND l.query_key = g.normalized_name
+       GROUP BY 1 ORDER BY 2 DESC`);
+    table(['Sunbiz lookup for the split name', 'groups'], look.map((r) => [r.outcome, r.n]));
     out('A merge rule for these groups is measured on a hand-checked sample before any count anyone sees changes.'); out();
   });
 
