@@ -76,7 +76,10 @@ dashboard says how many were excluded.
 - **Actor**: a registered user, else a device.
 - **DAU / WAU / MAU**: distinct actors with a session today / in the last 7
   days / in the last 30 days, ending now (not the selected range).
-- **Stickiness**: mean daily actors over the last 30 days divided by MAU.
+- **Stickiness**: mean daily actors divided by MAU, the mean taken over the
+  days with tracking in the last 30 (so the first weeks after launch are not
+  diluted by days before there was any data). 100% means every monthly user
+  came every day.
 - **Retention at N days**: of actors whose first session is in range and at
   least N days old, the share with any later session starting N or more days
   after the first.

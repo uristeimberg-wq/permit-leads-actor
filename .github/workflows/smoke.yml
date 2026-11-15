@@ -61,7 +61,7 @@ jobs:
             rm -f "$jar"
             c=$(code -u "x:$DEMO_PASSWORD" "$BASE/admin/analytics"); echo "owner analytics page: $c (want 200)"; [ "$c" = 200 ] || fail=1
             curl -s --max-time 60 -u "x:$DEMO_PASSWORD" "$BASE/api/admin/analytics/summary?range=all" \
-              | jq -c '{sessions: .totals.sessions, events: .totals.events, excluded}' || fail=1
+              | jq -c '{sessions: .totals.sessions, events: .totals.events, excluded, dau: .activity.dau, mau: .activity.mau, stickiness: .activity.stickiness, daysTracked: .activity.daysTracked}' || fail=1
             curl -s --max-time 60 -u "x:$DEMO_PASSWORD" "$BASE/api/pilot/meta" \
               | jq -c '{lastSyncAt, lastSyncStatus, historyFrom, historyTo}' || fail=1
             curl -s --max-time 60 -u "x:$DEMO_PASSWORD" "$BASE/api/pilot/gcs?source=austin-tx&trade=electrical&months=12" \

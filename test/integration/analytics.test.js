@@ -147,6 +147,9 @@ async function main() {
       assert.deepStrictEqual(body.conversion, { devices: 1, registered: 1, rate: 1 });
       assert.strictEqual(body.activity.dau, 1);
       assert.strictEqual(body.activity.mau, 1);
+      // One person, active on the only day of data: 100%, not 1/30.
+      assert.strictEqual(body.activity.daysTracked, 1);
+      assert.strictEqual(body.activity.stickiness, 1);
       assert.ok(body.paths.some((p) => p.from_path === '/' || p.to_path === '/saved') || body.paths.length === 0);
     });
 

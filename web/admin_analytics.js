@@ -49,15 +49,19 @@ async function summary(query, { since, userId }) {
   const many = async (sql, params = p) => (await query(sql, params)).rows;
 
   const [activity, totals, conversion, retention, searchTerms, areas, stages, filters, zero, records, funnel, paths, elements, errors, excluded] = await Promise.all([
-    // DAU/WAU/MAU are fixed windows ending now; stickiness is the mean daily
-    // actives over the last 30 days over MAU.
+    // DAU/WAU/MAU are fixed windows ending now. Stickiness is the mean daily
+    // actives over MAU, averaged over the days with tracking in the last 30:
+    // while there is less than 30 days of data, dividing by 30 would count
+    // days before launch as zero-user days (1 user on day one read 3%).
     one(`WITH ${SCOPED},
       a AS (SELECT DISTINCT date_trunc('day', s.started_at) AS d, coalesce(s.user_id::text, 'd:' || s.anonymous_device_id::text) AS actor
               FROM s WHERE s.started_at >= now() - interval '30 days' AND ($2::bigint IS NULL OR s.user_id = $2))
       SELECT (SELECT count(DISTINCT actor) FROM a WHERE d >= date_trunc('day', now()))::int AS dau,
              (SELECT count(DISTINCT actor) FROM a WHERE d >= date_trunc('day', now()) - interval '6 days')::int AS wau,
              (SELECT count(DISTINCT actor) FROM a)::int AS mau,
-             (SELECT count(*)::float / 30 FROM a) AS avg_daily_30d`),
+             (SELECT count(*)::float FROM a) AS active_days_30d,
+             (SELECT least(30, (date_trunc('day', now())::date - date_trunc('day', min(started_at))::date) + 1)
+                FROM s WHERE ($2::bigint IS NULL OR s.user_id = $2)) AS days_tracked`),
     one(`WITH ${SCOPED},
       ss AS (SELECT * FROM s WHERE ($1::timestamptz IS NULL OR s.started_at >= $1) AND ($2::bigint IS NULL OR s.user_id = $2))
       SELECT (SELECT count(*) FROM ss)::int AS sessions,
@@ -163,7 +167,11 @@ async function summary(query, { since, userId }) {
 
   const mau = activity.mau;
   return {
-    activity: { dau: activity.dau, wau: activity.wau, mau, stickiness: mau ? activity.avg_daily_30d / mau : null },
+    activity: {
+      dau: activity.dau, wau: activity.wau, mau,
+      daysTracked: activity.days_tracked || 0,
+      stickiness: mau && activity.days_tracked ? activity.active_days_30d / activity.days_tracked / mau : null,
+    },
     totals,
     conversion: { ...conversion, rate: conversion.devices ? conversion.registered / conversion.devices : null },
     retention: retention.length ? retention : [1, 7, 30].map((day) => ({ day, eligible: 0, returned: 0 })),

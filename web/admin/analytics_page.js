@@ -28,14 +28,21 @@
 
   function paint(d) {
     const a = d.activity; const t = d.totals;
+    // [label, value, what it means]. Fixed windows (DAU/WAU/MAU, stickiness) ignore the range picker.
     const kpis = [
-      ['DAU', n(a.dau)], ['WAU', n(a.wau)], ['MAU', n(a.mau)],
-      ['Stickiness (DAU/MAU)', a.stickiness == null ? '—' : `${Math.round(a.stickiness * 100)}%`],
-      ['Sessions', n(t.sessions)], ['People / devices', n(t.actors)],
-      ['Avg active time / session', secs(t.avg_active_seconds)], ['Searches', n(t.searches)],
-      ['Anonymous → registered', d.conversion.rate == null ? '—' : `${pct(d.conversion.registered, d.conversion.devices)} (${n(d.conversion.registered)}/${n(d.conversion.devices)})`],
+      ['DAU · daily active', n(a.dau), 'People who used the app today (UTC).'],
+      ['WAU · weekly active', n(a.wau), 'People who used it in the last 7 days.'],
+      ['MAU · monthly active', n(a.mau), 'People who used it in the last 30 days.'],
+      ['Stickiness', a.stickiness == null ? '—' : `${Math.round(a.stickiness * 100)}%`,
+        `Average daily users ÷ MAU, over ${a.daysTracked || 0} day${a.daysTracked === 1 ? '' : 's'} of data: how often monthly users come back. 100% = every day.`],
+      ['Sessions', n(t.sessions), 'Visits in the range. A new visit starts after 30 minutes idle.'],
+      ['People / devices', n(t.actors), 'Distinct people in the range: a signed-in user, else one browser.'],
+      ['Avg active time / visit', secs(t.avg_active_seconds), 'Time the tab was on screen, per visit. Background tabs don’t count.'],
+      ['Searches', n(t.searches), 'Searches with new filters in the range (paging not counted).'],
+      ['Anonymous → registered', d.conversion.rate == null ? '—' : `${pct(d.conversion.registered, d.conversion.devices)} (${n(d.conversion.registered)}/${n(d.conversion.devices)})`,
+        'Browsers first seen in the range that later signed in with an email.'],
     ];
-    $('kpis').innerHTML = kpis.map(([l, v]) => `<div class="card kpi"><div class="v">${esc(v)}</div><div class="l">${esc(l)}</div></div>`).join('');
+    $('kpis').innerHTML = kpis.map(([l, v, h]) => `<div class="card kpi"><div class="v">${esc(v)}</div><div class="l">${esc(l)}</div><div class="h">${esc(h)}</div></div>`).join('');
     $('status').textContent = `${n(t.events)} events in range. Last event received: ${when(t.last_event_at)}. Excluded: ${n(d.excluded.internal)} internal and ${n(d.excluded.bots)} automated sessions. DAU/WAU/MAU are fixed windows ending now.`;
 
     $('retention').innerHTML = d.retention.some((r) => r.eligible)
