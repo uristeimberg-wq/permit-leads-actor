@@ -118,7 +118,11 @@ async function fetchArcgisSource(source, options) {
     }
     log.info(`  -> ${page.length} features (${features.length} total)`);
 
-    if (page.length < pageSize || !body.exceededTransferLimit) break;
+    // A layer whose maxRecordCount is below our page size returns short pages
+    // with exceededTransferLimit set: keep paging, or the window is silently
+    // cut at the first page. Stop on an empty page, or a short page with no
+    // more to come.
+    if (!page.length || (page.length < pageSize && !body.exceededTransferLimit)) break;
   }
   for (const k of thisWindow) seen.add(k);
   }

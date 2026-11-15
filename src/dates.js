@@ -33,8 +33,10 @@ function toIsoDate(value) {
 
   // Epoch milliseconds, as ArcGIS date fields arrive before mapping.
   if (typeof value === 'number') {
-    if (!Number.isFinite(value)) return null;
-    return new Date(value).toISOString().slice(0, 10);
+    // Out of Date's range (|ms| > 8.64e15) is not a date: one bad cell must not
+    // throw and fail the whole market's sync.
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
   }
 
   if (typeof value !== 'string') return null;

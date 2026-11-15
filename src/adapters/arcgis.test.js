@@ -119,6 +119,32 @@ check('paging stops once the server stops reporting a transfer limit', async () 
   assert.strictEqual(permits.length, 503);
 });
 
+check('a layer capped below our page size keeps paging while it reports a transfer limit', async () => {
+  // maxRecordCount 200: every page is "short", but more rows remain.
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls += 1;
+    return { ok: true, json: async () => ({
+      features: Array.from({ length: calls < 3 ? 200 : 50 }, () => ({ attributes: { PERMIT_STATUS: 'Issued' } })),
+      exceededTransferLimit: calls < 3,
+    }) };
+  };
+  const permits = await fetchArcgisSource(SOURCE, { log: fakeLog(), fetchImpl, maxRecords: 2000 });
+  assert.strictEqual(calls, 3);
+  assert.strictEqual(permits.length, 450);
+});
+
+check('an empty page ends paging even if the server still claims a transfer limit', async () => {
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls += 1;
+    return { ok: true, json: async () => ({ features: calls === 1 ? [{ attributes: { PERMIT_STATUS: 'Issued' } }] : [], exceededTransferLimit: true }) };
+  };
+  const permits = await fetchArcgisSource(SOURCE, { log: fakeLog(), fetchImpl, maxRecords: 2000 });
+  assert.strictEqual(calls, 2);
+  assert.strictEqual(permits.length, 1);
+});
+
 check('onRaw receives the unmapped attributes and the request count', async () => {
   let got;
   const attrs = { PERMIT_STATUS: 'Issued', X: 1 };

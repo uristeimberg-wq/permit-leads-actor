@@ -90,7 +90,7 @@ function num(v, { min = 0, integer = false } = {}) {
 /** Epoch milliseconds (ArcGIS) or a leading ISO date (Socrata) -> 'YYYY-MM-DD'. */
 function day(v) {
   if (blank(v)) return null;
-  if (typeof v === 'number') return Number.isFinite(v) ? new Date(v).toISOString().slice(0, 10) : null;
+  if (typeof v === 'number') { const d = new Date(v); return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10); }
   const m = String(v).match(/^(\d{4}-\d{2}-\d{2})/);
   if (!m) return null;
   return Number.isNaN(Date.parse(m[1])) ? null : m[1];

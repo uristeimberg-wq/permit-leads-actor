@@ -43,4 +43,9 @@ check('returns null for missing or unparseable values', () => {
   }
 });
 
+check('epoch values outside the Date range are null, not a thrown RangeError', () => {
+  for (const v of [1e20, -1e20, 8.64e15 + 1]) assert.strictEqual(toIsoDate(v), null, String(v));
+  assert.strictEqual(toIsoDate(0), '1970-01-01');
+});
+
 console.log('\nDone.');

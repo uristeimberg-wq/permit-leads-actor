@@ -1,0 +1,44 @@
+name: audit-claims
+
+# Read-only checks of the external audit's claims against the live database
+# (recon/audit_claims.js). Runs on demand, and on a PR that changes the script.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - recon/audit_claims.js
+      - .github/workflows/audit-claims.yml
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      - name: Check
+        run: |
+          if [ -z "$DATABASE_URL" ]; then echo "::warning::DATABASE_URL is not available (fork PR?); skipped"; exit 0; fi
+          set -o pipefail
+          node recon/audit_claims.js | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Live ArcGIS page limits
+        run: |
+          for u in \
+            https://services.arcgis.com/8Pc9XBTAsYuxx9Ny/arcgis/rest/services/miamidade_permit_data/FeatureServer/0 \
+            https://services1.arcgis.com/CvuPhqcTQpZPT9qY/arcgis/rest/services/Building_Permits_Since_2014/FeatureServer/0 \
+            https://services.arcgis.com/v400IkDOw1ad7Yad/arcgis/rest/services/Building_Permits/FeatureServer/0 \
+            https://services.arcgis.com/v400IkDOw1ad7Yad/arcgis/rest/services/Permits_Other_Than_Buildings/FeatureServer/0 \
+            https://services.arcgis.com/v400IkDOw1ad7Yad/arcgis/rest/services/Development_Plans/FeatureServer/0 \
+            https://services.arcgis.com/8Pc9XBTAsYuxx9Ny/arcgis/rest/services/DERMSewerAllocation_gdb/FeatureServer/0 \
+            https://services1.arcgis.com/CvuPhqcTQpZPT9qY/arcgis/rest/services/Tree_Permits/FeatureServer/0 \
+            https://services.arcgis.com/8Pc9XBTAsYuxx9Ny/arcgis/rest/services/LandManagementHearingView/FeatureServer/0; do
+            echo "$u $(curl -s --max-time 30 "$u?f=json" | jq -c '{maxRecordCount, pagination: .advancedQueryCapabilities.supportsPagination}')" | tee -a "$GITHUB_STEP_SUMMARY"
+          done
