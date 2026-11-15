@@ -19,6 +19,7 @@ const insight = require('./insight_queries.js');
 const F = require('../src/forecast.js');
 
 const { SOURCES: CONFIG, PILOT_AREAS } = require('../src/sources.js');
+const { locationSql } = require('../src/display_policy.js');
 
 const TRADES = ['electrical', 'mechanical', 'plumbing'];
 // Every pilot market the screens can show: the synced permit feeds, not the
@@ -426,7 +427,7 @@ async function locationFor(permitId) {
       LEFT JOIN geocode_cache g ON g.address_key = l.address_key
       LEFT JOIN permit_parcels pp ON pp.permit_id = l.permit_id AND pp.parcel_id = l.parcel_id
       JOIN sources s ON s.slug = CASE l.method WHEN 'source' THEN p.source_area WHEN 'parcel' THEN pp.provider ELSE 'us-census-geocoder' END
-     WHERE l.permit_id = $1`, [permitId]);
+     WHERE l.permit_id = $1 AND ${locationSql('l')}`, [permitId]);
   if (!r) return null;
   return {
     lat: r.lat, lng: r.lng, method: r.method, quality: r.quality,

@@ -1262,7 +1262,7 @@ async function openDetail(id, cardEl) {
           <td>${esc(i.date || '—')}</td>
           <td class="res">${esc(i.result || i.status || '—')}</td></tr>`).join('')}</tbody></table>` : ''}
 
-    <div id="dMore" aria-live="polite"><div class="sect">Lifecycle, property and licences</div><p class="check-count">Loading…</p></div>
+    <div id="dMore" aria-live="polite"><div class="sect">Lifecycle</div><p class="check-count">Loading…</p></div>
 
     <div class="sect">Record</div>
     <dl class="kv">
@@ -1349,7 +1349,7 @@ async function loadJobExtras(id) {
       ${row('Assessed value', pr.assessedValueBand ? pr.assessedValueBand.label : '')}
     </dl>
     <p class="check-count">Source: ${esc(v.attribution || v.source || 'appraiser')}${pr.valueNote ? ` · ${esc(pr.valueNote)}` : ''}. Owner, sale and exemption fields are not collected.</p>`
-    : '<div class="sect">Property</div><p class="check-count">No appraiser record joined to this permit.</p>';
+    : (j.unmeasuredHidden ? '' : '<div class="sect">Property</div><p class="check-count">No appraiser record joined to this permit.</p>');
 
   const loc = j.location;
   const located = loc ? `<p class="check-count">Job site located by ${esc(METHOD_LABEL[loc.method] || loc.method)}${loc.quality === 'non_exact' ? ' (approximate)' : ''}.</p>` : '';
@@ -1364,9 +1364,10 @@ async function loadJobExtras(id) {
       ${j.gcHiring ? row('Building jobs', j.gcHiring.buildingJobs) : ''}
       ${licences}
     </dl>
-    ${licences ? '' : '<p class="check-count">No state licence record matched yet.</p>'}` : '';
+    ${licences || j.unmeasuredHidden ? '' : '<p class="check-count">No state licence record matched yet.</p>'}` : '';
 
-  box.innerHTML = `${lifecycle}${property}${located}${company}
+  const hidden = j.unmeasuredHidden ? `<p class="check-count">${esc(j.unmeasuredHidden)}</p>` : '';
+  box.innerHTML = `${lifecycle}${property}${located}${company}${hidden}
     <p class="check-count"><a href="/pilot/live/job.html?id=${encodeURIComponent(id)}">Open the full job page →</a> trade permits on this job and who the GC hires.</p>`;
 }
 

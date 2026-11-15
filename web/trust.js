@@ -18,6 +18,7 @@ const RALEIGH = 'raleigh-nc';
 const PIN_NOTE = 'Raleigh links trade permits to building permits only by parcel (PIN). A parcel holds many jobs over the years, so which subs worked on which job is not certain and is not shown.';
 
 const showInferences = (env = process.env) => env.SHOW_INFERENCES === '1';
+const { showUnmeasured } = require('../src/display_policy.js');
 
 const licenceOnly = (recs) => (recs || []).filter((r) => r.matchedBy === 'licence');
 
@@ -94,11 +95,26 @@ const imagery = () => ({});
 
 const FILTERS = { job, contractor, leads, early, momentum, gcs, overview, imagery };
 
-/** Strips class C fields from one API answer, unless SHOW_INFERENCES=1. */
+// Unmeasured (owner, 2026-11-15): values from a second source whose accuracy
+// against that source has never been measured. Stored, not shown, unless
+// SHOW_UNMEASURED=1 (src/display_policy.js). Map points by Census match are
+// held back in the queries themselves (locationSql).
+const UNMEASURED_NOTE = 'Appraiser property facts and state licence details are not shown: their accuracy against the appraiser and the licence board has not been measured yet.';
+const UNMEASURED = {
+  job: (d) => ({ ...d, property: null, gcRegistry: [], unmeasuredHidden: UNMEASURED_NOTE }),
+  contractor: (d) => (d.contractor ? { ...d, registry: [], unmeasuredHidden: UNMEASURED_NOTE } : d),
+};
+
+/** Strips class C fields unless SHOW_INFERENCES=1, and unmeasured ones unless SHOW_UNMEASURED=1. */
 function filter(kind, body, env = process.env) {
-  if (showInferences(env) || !body || body.status) return body;
-  const out = FILTERS[kind](body);
-  return kind === 'imagery' ? out : { ...out, inferencesHidden: true };
+  if (!body || body.status) return body;
+  let out = body;
+  if (!showInferences(env)) {
+    out = FILTERS[kind](out);
+    if (kind !== 'imagery') out = { ...out, inferencesHidden: true };
+  }
+  if (!showUnmeasured(env) && UNMEASURED[kind]) out = UNMEASURED[kind](out);
+  return out;
 }
 
-module.exports = { filter, showInferences, PIN_NOTE };
+module.exports = { filter, showInferences, PIN_NOTE, UNMEASURED_NOTE };

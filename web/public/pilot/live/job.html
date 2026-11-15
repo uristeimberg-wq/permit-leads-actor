@@ -147,7 +147,7 @@
     </div>
 
     <div class="grid2">
-    ${L.propertyCard(d.property, pm.source_area)}
+    ${d.unmeasuredHidden ? `<div class="card"><h2>The property</h2><p class="sub">${L.esc(d.unmeasuredHidden)}</p></div>` : L.propertyCard(d.property, pm.source_area)}
     <div class="card" id="photos"></div>
     <div class="card">
       <h2>Trade permits on this job</h2>
