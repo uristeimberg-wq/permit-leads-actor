@@ -54,6 +54,18 @@ async function main() {
     table(['natural key', 'duplicate groups'], rows.map((r) => [r.k, r.n]));
   });
 
+  await section('Phase 1: latest sync run per source (records fetched)', async () => {
+    const rows = await q(`
+      SELECT DISTINCT ON (s.slug) s.slug, r.kind, r.status, r.started_at, r.finished_at, r.requests_made,
+             r.records_fetched, r.records_new, r.records_changed, r.records_failed, r.error_class
+        FROM sync_runs r JOIN sources s ON s.id = r.source_id
+       ORDER BY s.slug, r.started_at DESC`);
+    table(['source', 'kind', 'status', 'started', 'seconds', 'requests', 'fetched', 'new', 'changed', 'failed', 'error'],
+      rows.map((r) => [r.slug, r.kind, r.status, r.started_at.toISOString().slice(0, 16),
+        r.finished_at ? Math.round((r.finished_at - r.started_at) / 1000) : '', r.requests_made,
+        r.records_fetched, r.records_new, r.records_changed, r.records_failed, r.error_class || '']));
+  });
+
   await section('Phase 1: raw payload preservation', async () => {
     const withUrl = await hasColumn('raw_records', 'source_url');
     const rows = await q(`
