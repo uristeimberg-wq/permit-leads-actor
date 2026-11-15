@@ -93,37 +93,15 @@ function regionsFrom(areas) {
 }
 
 /**
- * Rewrites `a:<STATE>` keys in an `areas` filter into the `c:` and `z:` keys
- * db/queries.js understands (every city and ZIP we hold in that state), so a
- * shared link stays short and the query layer is unchanged. Other keys pass
- * through untouched, and duplicates are dropped.
+ * The query filters for an `areas` value: each broad area `a:XX` becomes the
+ * state key `s:XX` that db/queries.js matches on the state column. That is
+ * exact, and it reaches the sources that publish no city or ZIP at all (City
+ * of Miami, Austin's plan-review feed), alone or mixed with other places.
+ * Returns the fields to merge over the request's filters.
  */
-function expandAreaKeys(areasParam, areas) {
+function areaFilters(areasParam) {
   const keys = String(areasParam || '').split(',').map((k) => k.trim()).filter(Boolean);
-  if (!keys.some((k) => k.startsWith('a:'))) return keys.join(',');
-  const out = new Set();
-  for (const key of keys) {
-    if (!key.startsWith('a:')) { out.add(key); continue; }
-    const st = key.slice(2).toUpperCase();
-    for (const c of areas.cities || []) if (String(c.state || '').toUpperCase() === st) out.add(`c:${String(c.city).toUpperCase()}|${st}`);
-    for (const z of areas.zips || []) if (String(z.state || '').toUpperCase() === st) out.add(`z:${z.zip}`);
-  }
-  // An area we hold nothing for must still filter to nothing, not to everything.
-  return out.size ? [...out].join(',') : 'none:';
+  return { areas: keys.map((k) => (k.startsWith('a:') ? `s:${k.slice(2).toUpperCase()}` : k)).join(',') };
 }
 
-/**
- * The query filters for an `areas` value. One broad area on its own becomes
- * `state=`, which is exact: some sources publish no city or ZIP at all (City
- * of Miami, Austin's plan-review feed), so only the state reaches them. Mixed
- * with other places, an area expands to its cities and ZIPs (expandAreaKeys),
- * because db/queries.js cannot OR a state with them; those city-less rows are
- * then left out. Returns the fields to merge over the request's filters.
- */
-function areaFilters(areasParam, areas) {
-  const keys = String(areasParam || '').split(',').map((k) => k.trim()).filter(Boolean);
-  if (keys.length === 1 && keys[0].startsWith('a:')) return { areas: undefined, state: keys[0].slice(2).toUpperCase() };
-  return { areas: expandAreaKeys(keys.join(','), areas) };
-}
-
-module.exports = { placeArea, zipIsTrusted, farApart, cityKeyOf, regionsFrom, expandAreaKeys, areaFilters, REGION_LABELS };
+module.exports = { placeArea, zipIsTrusted, farApart, cityKeyOf, regionsFrom, areaFilters, REGION_LABELS };

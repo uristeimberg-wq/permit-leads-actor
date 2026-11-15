@@ -47,12 +47,20 @@ app.set('trust proxy', 1);
 // demo password; the token is the only key (web/digest_routes.js).
 app.use(digestRoutes.publicRouter());
 
-// A hosted demo sets DEMO_PASSWORD; see web/access.js.
-// Invite-only access (ADR-27): personal codes from `npm run invite`.
-app.use(demoGate(undefined, { invites: require('./invites.js').pgStore(db.query) }));
+// A hosted demo sets DEMO_PASSWORD; see web/access.js. Sign-in is by email
+// (web/users.js), which replaced the invite codes of ADR-27 (owner decision,
+// 2026-11-15); DEMO_PASSWORD stays the owner's key. Unset, the app is open and
+// the email is asked the first time someone saves a permit.
+const users = require('./users.js');
+const userStore = users.pgStore(db.query);
+const userSessions = users.sessions();
+app.use(demoGate(undefined, { users: { store: userStore, sessions: userSessions, normalEmail: users.normalEmail } }));
 
 // Digest email previews, behind the gate.
 app.use(digestRoutes.previewRouter());
+
+// The signed-in user and their saved permits (/api/me...).
+app.use(users.router({ store: userStore, sessions: userSessions, permitsByIds: queries.permitsByIds }));
 app.disable('x-powered-by');
 
 // Only these reach the query builder. Anything else a client sends is ignored
@@ -61,7 +69,7 @@ const FILTER_PARAMS = [
   'zip', 'city', 'state', 'jurisdiction', 'sourceArea', 'from', 'to',
   'stage', 'statusRaw', 'status', 'permitType', 'minValuation',
   'trade', 'minScore', 'q', 'page', 'pageSize', 'sort',
-  'hasContact', 'contractor', 'areas',
+  'hasContact', 'contractor', 'areas', 'ownerBuilder',
 ];
 
 function pickFilters(query) {
@@ -75,25 +83,10 @@ function pickFilters(query) {
   return filters;
 }
 
-// The list of places we hold, for expanding broad-area keys (web/areas.js).
-// It changes only with a sync, so ten minutes of memory is plenty.
-const AREAS_TTL_MS = 10 * 60 * 1000;
-let areasMemo = null;
-async function heldAreas() {
-  if (!areasMemo || Date.now() - areasMemo.at > AREAS_TTL_MS) {
-    areasMemo = { at: Date.now(), value: queries.listAreas() };
-    areasMemo.value.catch(() => { areasMemo = null; });
-  }
-  return areasMemo.value;
-}
-
-/** pickFilters, with `a:<STATE>` area keys rewritten (web/areas.js areaFilters). */
-async function pickFiltersExpanded(query) {
+/** pickFilters, with broad-area keys `a:XX` rewritten to state keys (web/areas.js). */
+function pickFiltersExpanded(query) {
   const filters = pickFilters(query);
-  if (filters.areas && /(^|,)\s*a:/.test(filters.areas)) {
-    Object.assign(filters, areaFilters(filters.areas, await heldAreas()));
-    if (filters.areas === undefined) delete filters.areas;
-  }
+  if (filters.areas) Object.assign(filters, areaFilters(filters.areas));
   return filters;
 }
 
@@ -250,7 +243,8 @@ app.use('/api/pilot', pilotApi);
 // The Leads screen (the search tool) is the front door. /search and
 // /search.html stay as aliases so old links keep working. The pilot screens
 // (/pilot/live/*) are no longer linked from it but still load by URL.
-app.get(['/', '/search', '/search.html'], (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+// /saved is the same page in its Saved view (app.js reads the path).
+app.get(['/', '/search', '/search.html', '/saved'], (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 app.use(express.static(path.join(__dirname, 'public')));
 

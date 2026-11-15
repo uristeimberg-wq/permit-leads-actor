@@ -186,7 +186,8 @@
 
   // Ask on the first visit. ?lens=1 asks again; ?lens=0 never asks (for checks).
   const ask = new URLSearchParams(location.search).get('lens');
-  if (ask === '1' || (!lens && ask !== '0')) open();
+  // Not on the Saved page: someone there already knows what they're after.
+  if (ask === '1' || (!lens && ask !== '0' && location.pathname !== '/saved')) open();
 
   // The location chip, map pins and Clear all change the location: keep the
   // header button in step.

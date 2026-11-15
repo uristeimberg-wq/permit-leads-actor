@@ -311,7 +311,7 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
 
 .signout {
   display: inline-flex; align-items: center;
-  font-size: var(--t-sm); color: var(--ink-3);
+  font-size: var(--t-sm); color: var(--ink-3); white-space: nowrap;
 }
 .signout:hover { color: var(--ink); }
 
@@ -1134,4 +1134,70 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
 
 @media (pointer: coarse) {
   .lens-btn { min-height: 44px; }
+}
+
+/* ============================================================== saving === */
+/* The heart (saved.js): on every card, beside the date, and in the drawer. */
+.heart {
+  display: inline-grid; place-items: center; flex: none;
+  width: 36px; height: 36px; margin: -8px -8px -8px 0; padding: 0;
+  color: var(--ink-faint); background: none; border: 0; cursor: pointer;
+}
+.heart:hover { color: var(--cancelled-dot); }
+.heart[aria-pressed="true"] { color: var(--cancelled-dot); }
+.heart:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.heart-label {
+  display: inline-flex; gap: 6px; width: auto; height: auto; margin: 10px 0 0; padding: 6px 12px;
+  font: inherit; font-size: var(--t-sm); font-weight: 700; color: var(--ink-2);
+  border: 1px solid var(--line-strong); background: var(--surface);
+}
+.heart-label[aria-pressed="true"] { color: var(--cancelled); border-color: var(--cancelled-dot); background: var(--cancelled-bg); }
+.card-top .heart { align-self: center; }
+
+/* Header: Saved count and the account corner. */
+.nav-count {
+  display: inline-grid; place-items: center; min-width: 20px; height: 20px; margin-left: 6px; padding: 0 5px;
+  font-family: var(--font); font-size: 11px; font-weight: 700; letter-spacing: 0;
+  color: var(--on-accent); background: var(--accent);
+}
+.mainnav { gap: var(--sp-2); }
+.account { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
+.acct-email { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-sm); color: var(--ink-2); }
+.account button.signout { font: inherit; font-size: var(--t-sm); background: none; border: 0; padding: 0; cursor: pointer; color: var(--accent-ink); font-weight: 600; }
+
+/* The Saved view: no toolbar, no filters, no map; just the list. */
+.app[data-mode="saved"] { --topbar-h: calc(var(--masthead-h) + 3px); --col-sidebar: 0px; --col-map: 0px; }
+.app[data-mode="saved"] .toolbar,
+.app[data-mode="saved"] .sidebar,
+.app[data-mode="saved"] .mappane,
+.app[data-mode="saved"] .sort,
+.app[data-mode="saved"] .source-note { display: none !important; }
+.app[data-mode="saved"] .feed-inner { max-width: 820px; margin: 0 auto; }
+.saved-filter { margin-bottom: var(--sp-4); }
+.saved-ctl {
+  display: grid; grid-template-columns: auto 1fr auto; gap: var(--sp-2); align-items: center;
+  margin-top: var(--sp-3); padding-top: var(--sp-3); border-top: 1px dashed var(--line);
+}
+.saved-status .select { min-width: 150px; }
+.card[data-status="not_relevant"] { opacity: .55; }
+.card[data-status="not_relevant"]:hover, .card[data-status="not_relevant"]:focus-within { opacity: 1; }
+.card[data-status="won"] { border-left: 4px solid var(--approved-dot); }
+.card[data-status="called"], .card[data-status="quoted"] { border-left: 4px solid var(--pending-dot); }
+
+@media (max-width: 620px) {
+  .saved-ctl { grid-template-columns: 1fr auto; }
+  .saved-ctl .saved-note { grid-column: 1 / -1; grid-row: 2; }
+  /* The account corner moves out of the crowded phone header; the Saved view
+     and the drawer still offer sign-in, and Sign out stays in the Saved view. */
+  .masthead .account { display: none; }
+  .app[data-mode="saved"] .masthead .account { display: flex; }
+  .app[data-mode="saved"] .masthead .lens-slot { display: none; }
+  .acct-email { max-width: 120px; }
+  .mainnav a { padding: 0 6px; }
+}
+
+@media (pointer: coarse) {
+  .heart { width: 44px; height: 44px; margin: -10px -10px -10px 0; }
+  .heart-label { min-height: 44px; }
+  .account button.signout, .account a.signout { min-height: 44px; display: inline-flex; align-items: center; }
 }

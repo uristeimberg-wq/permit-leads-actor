@@ -38,7 +38,16 @@ const TYPING_DELAY = 300;
 
 const TEXT_FILTERS = ['contractor', 'minValuation', 'q'];
 // No trade filter: it read our keyword fit scores, an inference (ADR-26).
-const PICK_FILTERS = ['permitType', 'from', 'to'];
+const PICK_FILTERS = ['from', 'to'];
+
+// Permit types: a multi-select with search (location.js picker), sent as
+// `permitType=a|b`. Some raw types contain commas; none contains a pipe.
+const TYPE_SEP = '|';
+let typeSelection = [];
+let typePicker = null;
+
+// The Saved view (/saved): the user's saved permits instead of the search.
+const SAVED_MODE = location.pathname === '/saved';
 
 /* Location is one multi-select (location.js) whose value is `areaSelection`: a
    list of keys in the map's vocabulary — `a:TX` (a broad area, expanded by the
@@ -122,7 +131,9 @@ function currentFilters() {
     Object.assign(f, unmatchedLocation);
   }
   if (jurisdictionFilter) f.jurisdiction = jurisdictionFilter;
+  if (typeSelection.length) f.permitType = typeSelection.join(TYPE_SEP);
   if ($('hasContact').checked) f.hasContact = 'true';
+  if ($('ownerBuilder').checked) f.ownerBuilder = 'true';
 
   const stages = checkedStages();
   // Three cases, so the URL stays as short as the query is plain:
@@ -161,6 +172,8 @@ function applyUrl() {
   }
   areaSelection = p.get('areas') ? p.get('areas').split(',').filter(Boolean) : null;
   jurisdictionFilter = p.get('jurisdiction') || '';
+  typeSelection = p.get('permitType') ? p.get('permitType').split(TYPE_SEP).map((t) => t.trim()).filter(Boolean) : [];
+  $('ownerBuilder').checked = p.get('ownerBuilder') === 'true';
   // An old `zip=`/`city=` link is turned into a picker key once the places are
   // loaded (loadOptions). The raw params are kept meanwhile, because a URL can
   // name a place we hold nothing for, and answering that with the whole table
@@ -215,14 +228,8 @@ async function loadOptions() {
     fetch('/api/filters').then((r) => r.json()),
   ]);
 
-  const frag = document.createDocumentFragment();
-  for (const row of filters.permitTypes) {
-    const o = document.createElement('option');
-    o.value = row.permit_type;
-    o.textContent = `${row.permit_type} (${row.permits})`;
-    frag.appendChild(o);
-  }
-  $('permitType').appendChild(frag);
+  typePicker.setIndex(LocationPicker.buildListIndex(filters.permitTypes, { kind: 'type', key: 'permit_type', label: 'permit_type' }));
+  typePicker.setValue(typeSelection);
 
   areaIndex = LocationPicker.buildIndex(areas);
   locPicker.setIndex(areaIndex);
@@ -251,6 +258,11 @@ function resolveLegacyKey() {
 
 /** Replaces the location selection (picker, map pins and popup all land here). */
 function setAreas(keys, { rerun = true } = {}) {
+  // From the Saved view (the lens popup), a location means "show me leads there".
+  if (SAVED_MODE) {
+    location.href = keys && keys.length ? `/?areas=${encodeURIComponent(keys.join(','))}` : '/';
+    return;
+  }
   areaSelection = keys && keys.length ? [...new Set(keys)] : null;
   unmatchedLocation = null;
   userMovedMap = false;
@@ -358,7 +370,7 @@ const CHIP_LABELS = {
   zip: 'ZIP', city: 'City', jurisdiction: 'Jurisdiction', permitType: 'Type',
   trade: 'Trade', minValuation: 'Min value', contractor: 'Contractor',
   from: 'From', to: 'To', q: 'Search', hasContact: 'Contact', stage: 'Stage',
-  areas: 'Map area',
+  areas: 'Map area', ownerBuilder: 'Owner',
 };
 
 function paintActiveFilters(filters) {
@@ -374,8 +386,12 @@ function paintActiveFilters(filters) {
       unmatchedLocation.zip || [unmatchedLocation.city, unmatchedLocation.state].filter(Boolean).join(', ')]);
   }
 
+  if (typeSelection.length) {
+    chips.push(['permitType', 'Type', typeSelection.length > 1 ? `${typeSelection[0]} +${typeSelection.length - 1}` : typeSelection[0]]);
+  }
+
   for (const [key, value] of Object.entries(filters)) {
-    if (key === 'sort' || key === 'areas') continue;
+    if (key === 'sort' || key === 'areas' || key === 'permitType') continue;
     if (key === 'zip' || key === 'city' || key === 'state') continue;
     if (key === 'stage') {
       // The default view needs no chip; anything else is worth stating.
@@ -387,6 +403,7 @@ function paintActiveFilters(filters) {
       continue;
     }
     const shown = key === 'hasContact' ? 'has a phone number'
+      : key === 'ownerBuilder' ? 'filed by the homeowner'
       : key === 'minValuation' ? (money(value) || value)
       : value;
     chips.push([key, CHIP_LABELS[key] || key, shown]);
@@ -410,6 +427,11 @@ function clearFilter(key) {
     for (const [k] of STAGES) $('stage-' + k).checked = DEFAULT_STAGES.includes(k);
   } else if (key === 'hasContact') {
     $('hasContact').checked = false;
+  } else if (key === 'ownerBuilder') {
+    $('ownerBuilder').checked = false;
+  } else if (key === 'permitType') {
+    typeSelection = [];
+    typePicker.setValue([]);
   } else if (key === 'jurisdiction') {
     jurisdictionFilter = '';
   } else {
@@ -464,20 +486,23 @@ function renderCard(p) {
     <div class="card-top">
       <h3 class="card-addr">${esc(p.address || 'Address not listed')}</h3>
       <span class="card-date">${esc(fmtDate(p.filed_date) || 'No date')}</span>
+      ${window.Saved ? Saved.heartHtml(p.id) : ''}
     </div>
     ${p.permit_type ? `<div class="card-type">${esc(p.permit_type)}</div>` : ''}
     ${p.work_description ? `<p class="card-desc">${esc(p.work_description)}</p>` : ''}
     <div class="card-foot">${foot}</div>`;
 
   const open = (e) => {
-    // The phone link dials and the contractor name opens a history; neither
-    // should also open this permit.
-    if (e.target.closest('[data-tel], [data-open-contractor]')) return;
+    // The phone link dials, the contractor name opens a history, the heart
+    // saves, and the Saved view's controls edit; none should also open it.
+    if (e.target.closest('[data-tel], [data-open-contractor], [data-heart], .saved-ctl')) return;
     flyToPermit(p);
     openDetail(p.id, el);
   };
   el.addEventListener('click', open);
   el.addEventListener('keydown', (e) => {
+    // Only the card itself: Enter on a button or field inside it is theirs.
+    if (e.target !== el) return;
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       flyToPermit(p);
@@ -1147,6 +1172,7 @@ async function openDetail(id, cardEl) {
   $('dAddr').textContent = 'Loading…';
   $('dType').textContent = '';
   $('dStage').innerHTML = '';
+  $('dSave').innerHTML = '';
   $('dBody').innerHTML = skeletons(3);
   $('dFoot').innerHTML = '';
   if (!dlg.open) dlg.showModal();
@@ -1163,6 +1189,7 @@ async function openDetail(id, cardEl) {
   $('dAddr').textContent = p.address || 'Address not listed';
   $('dType').textContent = p.permit_type || '';
   $('dStage').innerHTML = stageBadge(p);
+  $('dSave').innerHTML = window.Saved ? Saved.heartHtml(p.id, { label: true }) : '';
 
   const scores = Object.entries(p.trade_scores || {})
     .filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1])
@@ -1479,6 +1506,7 @@ const runSoon = debounce(runNow, TYPING_DELAY);
 for (const id of TEXT_FILTERS) $(id).addEventListener('input', runSoon);
 for (const id of PICK_FILTERS) $(id).addEventListener('change', runNow);
 $('hasContact').addEventListener('change', runNow);
+$('ownerBuilder').addEventListener('change', runNow);
 $('sort').addEventListener('change', runNow);
 $('stageGroup').addEventListener('change', runNow);
 
@@ -1521,6 +1549,9 @@ $('clearAll').addEventListener('click', () => {
   locPicker.setValue([]);
   for (const id of [...TEXT_FILTERS, ...PICK_FILTERS]) $(id).value = '';
   $('hasContact').checked = false;
+  $('ownerBuilder').checked = false;
+  typeSelection = [];
+  typePicker.setValue([]);
   $('sort').value = 'newest';
   for (const [k] of STAGES) $('stage-' + k).checked = DEFAULT_STAGES.includes(k);
   runNow();
@@ -1539,6 +1570,16 @@ locPicker = LocationPicker.create($('locPicker'), {
   label: 'Where',
   placeholder: 'Search an area, city or ZIP',
   onChange: (keys) => setAreas(keys),
+});
+
+// Permit types: several at once, searchable, busiest first.
+typePicker = LocationPicker.create($('typePicker'), {
+  label: 'Permit type',
+  placeholder: 'Search permit types',
+  listLabel: 'Permit types',
+  noun: 'permit type',
+  groups: [{ kind: 'type', title: 'Permit types', idleTitle: 'Most common types', idle: 12, max: 40 }],
+  onChange: (keys) => { typeSelection = keys; runNow(); },
 });
 
 $('searchArea').addEventListener('click', searchVisibleArea);
@@ -1582,17 +1623,132 @@ $('detail').addEventListener('click', (e) => { if (e.target === $('detail')) $('
 
 wide.addEventListener('change', syncSidebar);
 
+/* ============================================================ saved view ===
+ *
+ * /saved: the signed-in user's saved permits (web/users.js), as the same cards
+ * plus a status, a note and Remove. Filter chips by status; "Not relevant"
+ * sinks to the bottom, dimmed. No sidebar, no map.
+ */
+
+const SAVED_ORDER = ['saved', 'called', 'no_answer', 'quoted', 'won', 'lost', 'not_relevant'];
+let savedItems = [];
+let savedFilter = 'all';
+let savedLoadedFor = null;     // the email the list was loaded for
+
+async function loadSaved() {
+  savedLoadedFor = Saved.email();
+  $('count').textContent = 'Saved permits';
+  $('pager').innerHTML = '';
+  if (!savedLoadedFor) {
+    $('activeFilters').innerHTML = '';
+    $('results').innerHTML = `<div class="empty">${emptyIcon()}
+      <strong>Sign in to see your saved permits</strong>
+      <p>Tap ♥ on any permit to save it. Your email keeps the list; there's no password.</p>
+      <p><button type="button" class="btn btn-primary" data-signin>Sign in with email</button></p></div>`;
+    return;
+  }
+  $('results').innerHTML = skeletons(3);
+  try {
+    savedItems = (await Saved.api('GET', '/api/me/saved')).items || [];
+  } catch (err) {
+    $('results').innerHTML = `<div class="empty">${emptyIcon()}<strong>Couldn't load your saved permits</strong><p>${esc(err.message)}</p></div>`;
+    return;
+  }
+  paintSaved();
+}
+
+function paintSaved() {
+  const counts = {};
+  for (const it of savedItems) counts[it.status] = (counts[it.status] || 0) + 1;
+  $('count').textContent = plural(savedItems.length, 'saved permit', 'saved permits');
+  $('activeFilters').innerHTML = savedItems.length ? `<div class="chips saved-filter" role="group" aria-label="Show by status">
+    ${[['all', 'All', savedItems.length], ...SAVED_ORDER.filter((s) => counts[s]).map((s) => [s, Saved.STATUS_LABELS[s], counts[s]])]
+      .map(([k, label, n]) => `<button type="button" class="chip" data-sfilter="${k}" aria-pressed="${savedFilter === k}">${esc(label)} · ${n}</button>`).join('')}
+    </div>` : '';
+
+  if (!savedItems.length) {
+    $('results').innerHTML = `<div class="empty">${emptyIcon()}
+      <strong>No saved permits yet</strong>
+      <p>Tap ♥ on any permit to save it here, then mark who you called and add notes.</p>
+      <p><a class="btn btn-ghost" href="/">Browse leads</a></p></div>`;
+    return;
+  }
+  if (savedFilter !== 'all' && !counts[savedFilter]) savedFilter = 'all';
+  const shown = savedItems
+    .filter((it) => savedFilter === 'all' || it.status === savedFilter)
+    .sort((a, b) => (a.status === 'not_relevant') - (b.status === 'not_relevant')
+      || String(b.updatedAt).localeCompare(String(a.updatedAt)));
+
+  const list = document.createElement('div');
+  list.className = 'cards';
+  for (const it of shown) {
+    const card = renderCard(it.permit);
+    card.dataset.status = it.status;
+    card.appendChild(savedControls(it));
+    list.appendChild(card);
+  }
+  $('results').replaceChildren(list);
+}
+
+function savedControls(it) {
+  const id = String(it.permit.id);
+  const div = document.createElement('div');
+  div.className = 'saved-ctl';
+  div.innerHTML = `
+    <label class="saved-status"><span class="visually-hidden">Status</span>
+      <select class="select">${SAVED_ORDER.map((s) => `<option value="${s}"${s === it.status ? ' selected' : ''}>${esc(Saved.STATUS_LABELS[s])}</option>`).join('')}</select></label>
+    <input class="input saved-note" type="text" maxlength="500" value="${esc(it.note || '')}"
+           placeholder="Add a note: who you spoke to, next step…" aria-label="Note for this permit">
+    <button type="button" class="btn btn-ghost saved-remove">Remove</button>`;
+  const fail = (err) => alert(err.message);
+  div.querySelector('select').addEventListener('change', (e) => {
+    Saved.update(id, { status: e.target.value }).then((r) => { it.status = r.status; it.updatedAt = r.updatedAt; paintSaved(); }, fail);
+  });
+  div.querySelector('.saved-note').addEventListener('change', (e) => {
+    Saved.update(id, { note: e.target.value }).then((r) => { it.note = r.note; it.updatedAt = r.updatedAt; }, fail);
+  });
+  div.querySelector('.saved-remove').addEventListener('click', () => {
+    Saved.remove(id).then(() => { savedItems = savedItems.filter((x) => x !== it); paintSaved(); }, fail);
+  });
+  return div;
+}
+
+$('activeFilters').addEventListener('click', (e) => {
+  const chip = e.target.closest('[data-sfilter]');
+  if (!chip) return;
+  savedFilter = chip.dataset.sfilter;
+  paintSaved();
+});
+
 /* --------------------------------------------------------------- bootstrap */
 
 buildStageCheckboxes();
 applyUrl();
 
-const savedLayout = readStore();
-setView(savedLayout.view || 'split', { remember: false });
-setFilters(savedLayout.filters !== 'closed', { remember: false });
+if (SAVED_MODE) {
+  $('app').dataset.mode = 'saved';
+  $('navLeads').removeAttribute('aria-current');
+  $('navSaved').setAttribute('aria-current', 'page');
+  document.title = 'Saved permits · Contractos';
+  setView('list', { remember: false });
+  loadFreshness();
+  Saved.ready.then(loadSaved);
+  // Signing in (or out) from this page reloads the list for that email; the
+  // heart in a card removing a permit drops it from the list.
+  window.addEventListener('saved:change', () => {
+    if (Saved.email() !== savedLoadedFor) { loadSaved(); return; }
+    const before = savedItems.length;
+    savedItems = savedItems.filter((it) => Saved.isSaved(it.permit.id));
+    if (savedItems.length !== before) paintSaved();
+  });
+} else {
+  const savedLayout = readStore();
+  setView(savedLayout.view || 'split', { remember: false });
+  setFilters(savedLayout.filters !== 'closed', { remember: false });
 
-syncSidebar();
-initMap();
-loadFreshness();
-loadAllAreas();
-loadOptions().finally(run);
+  syncSidebar();
+  initMap();
+  loadFreshness();
+  loadAllAreas();
+  loadOptions().finally(run);
+}

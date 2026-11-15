@@ -1,6 +1,6 @@
 // Offline: placing ZIPs and cities on the search map (web/areas.js).
 const assert = require('node:assert');
-const { placeArea, zipIsTrusted, regionsFrom, expandAreaKeys, areaFilters } = require('./areas.js');
+const { placeArea, zipIsTrusted, regionsFrom, areaFilters } = require('./areas.js');
 
 const coords = {
   zips: { 78704: { lat: 30.24, lng: -97.77 }, 10028: { lat: 40.776, lng: -73.953 } },
@@ -55,15 +55,9 @@ assert.deepStrictEqual(regions.map((r) => r.key), ['a:TX', 'a:FL'], 'busiest fir
 assert.strictEqual(regions[0].label, 'Austin area, TX');
 assert.strictEqual(regions[0].permits, 940);
 
-// a: keys expand to that state's cities and ZIPs; other keys pass through.
-assert.deepStrictEqual(expandAreaKeys('a:TX,z:33101', held).split(',').sort(),
-  ['c:AUSTIN|TX', 'c:MANOR|TX', 'z:33101', 'z:78704']);
-assert.strictEqual(expandAreaKeys('z:78704,c:MIAMI|FL', held), 'z:78704,c:MIAMI|FL', 'no a: key: unchanged');
-assert.strictEqual(expandAreaKeys('a:ZZ', held), 'none:', 'an area we hold nothing for filters to nothing');
-
-// One area alone filters by state (exact, reaches city-less rows); mixed, it expands.
-assert.deepStrictEqual(areaFilters('a:fl', held), { areas: undefined, state: 'FL' });
-assert.deepStrictEqual(Object.keys(areaFilters('a:FL,z:78704', held)), ['areas']);
-assert.strictEqual(areaFilters('z:78704', held).areas, 'z:78704');
+// Broad areas become state keys (exact, reaches city-less rows), alone or mixed.
+assert.deepStrictEqual(areaFilters('a:fl'), { areas: 's:FL' });
+assert.deepStrictEqual(areaFilters('a:FL,z:78704,c:MIAMI|FL'), { areas: 's:FL,z:78704,c:MIAMI|FL' });
+assert.deepStrictEqual(areaFilters('z:78704'), { areas: 'z:78704' });
 
 console.log('areas.test.js: all passed');

@@ -45,16 +45,36 @@
     return key;
   }
 
-  const GROUPS = [['area', 'Areas'], ['city', 'Cities'], ['zip', 'ZIP codes']];
+  /** A flat list (e.g. permit types) as an index: the row's own text is the key. */
+  function buildListIndex(rows, { kind = 'item', key = 'key', label = 'label', count = 'permits' } = {}) {
+    const items = rows.filter((r) => r[key]).map((r) => ({
+      key: String(r[key]), kind, label: String(r[label] ?? r[key]), sub: '', permits: Number(r[count] || 0),
+    }));
+    items.sort((a, b) => b.permits - a.permits);
+    for (const it of items) it.hay = it.label.toLowerCase();
+    return { items, byKey: new Map(items.map((it) => [it.key, it])) };
+  }
+
+  // Groups to list: kind, heading, heading when nothing is typed, how many to
+  // show with nothing typed, and how many while searching.
+  const LOCATION_GROUPS = [
+    { kind: 'area', title: 'Areas', idleTitle: 'Areas', idle: 10, max: 10 },
+    { kind: 'city', title: 'Cities', idleTitle: 'Busiest cities', idle: 5, max: 8 },
+    { kind: 'zip', title: 'ZIP codes', idleTitle: 'Busiest ZIP codes', idle: 6, max: 8 },
+  ];
 
   let seq = 0;
 
   /**
    * @param {HTMLElement} root  an empty element to render into
-   * @param {{label?: string, placeholder?: string, onChange?: (keys: string[]) => void}} opts
+   * @param {{label?: string, placeholder?: string, onChange?: (keys: string[]) => void,
+   *          groups?: object[], noun?: string}} opts
+   *   groups: what to list (default: areas, cities, ZIPs); noun: for the empty message
    */
   function create(root, opts = {}) {
     const id = `loc${++seq}`;
+    const groupsDef = opts.groups || LOCATION_GROUPS;
+    const noun = opts.noun || 'place we cover';
     let index = { items: [], byKey: new Map() };
     let value = [];
     let active = -1;       // index into the visible options, for the keyboard
@@ -69,8 +89,8 @@
                role="combobox" aria-expanded="false" aria-controls="${id}-list" aria-autocomplete="list"
                placeholder="${esc(opts.placeholder || 'Search an area, city or ZIP')}">
       </div>
-      <div class="loc-list" id="${id}-list" role="listbox" aria-multiselectable="true" aria-label="Places" hidden></div>
-      <div class="loc-chips" aria-label="Selected places"></div>`;
+      <div class="loc-list" id="${id}-list" role="listbox" aria-multiselectable="true" aria-label="${esc(opts.listLabel || 'Places')}" hidden></div>
+      <div class="loc-chips" aria-label="Selected"></div>`;
     const input = root.querySelector('.loc-input');
     const list = root.querySelector('.loc-list');
     const chips = root.querySelector('.loc-chips');
@@ -83,8 +103,7 @@
     function matches(q) {
       const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
       const pick = (kind, max) => index.items.filter((it) => it.kind === kind && terms.every((t) => it.hay.includes(t))).slice(0, max);
-      if (!terms.length) return [['area', pick('area', 10)], ['city', pick('city', 5)], ['zip', pick('zip', 6)]];
-      return [['area', pick('area', 10)], ['city', pick('city', 8)], ['zip', pick('zip', 8)]];
+      return groupsDef.map((g) => [g, pick(g.kind, terms.length ? g.max : g.idle)]);
     }
 
     function renderList() {
@@ -92,20 +111,19 @@
       const groups = matches(q);
       visible = [];
       let html = '';
-      for (const [kind, rows] of groups) {
+      for (const [g, rows] of groups) {
         if (!rows.length) continue;
-        const title = GROUPS.find(([k]) => k === kind)[1];
-        html += `<div class="loc-group" role="presentation">${esc(!q && kind !== 'area' ? `Busiest ${title.toLowerCase()}` : title)}</div>`;
+        html += `<div class="loc-group" role="presentation">${esc(q ? g.title : g.idleTitle || g.title)}</div>`;
         for (const it of rows) {
           const i = visible.push(it) - 1;
           const on = value.includes(it.key);
           html += `<div class="loc-opt${i === active ? ' is-active' : ''}" role="option" id="${id}-o${i}" data-i="${i}" aria-selected="${on}">
             <span class="loc-box" aria-hidden="true">${on ? '✓' : ''}</span>
-            <span class="loc-name">${esc(it.label)}<small>${esc(it.sub)}</small></span>
+            <span class="loc-name">${esc(it.label)}${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span>
             <span class="loc-n">${n(it.permits)}</span></div>`;
         }
       }
-      list.innerHTML = html || `<div class="loc-empty">No place we cover matches “${esc(q)}”.</div>`;
+      list.innerHTML = html || `<div class="loc-empty">No ${esc(noun)} matches “${esc(q)}”.</div>`;
       if (active >= 0 && visible[active]) input.setAttribute('aria-activedescendant', `${id}-o${active}`);
       else input.removeAttribute('aria-activedescendant');
     }
@@ -177,5 +195,5 @@
     };
   }
 
-  window.LocationPicker = { create, buildIndex, labelFor };
+  window.LocationPicker = { create, buildIndex, buildListIndex, labelFor };
 })();

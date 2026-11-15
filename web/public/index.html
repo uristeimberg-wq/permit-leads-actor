@@ -39,10 +39,12 @@
         <div class="lens-slot" id="lensSlot" data-slot="lens" aria-hidden="true"></div>
 
         <nav class="mainnav" aria-label="Main">
-          <a href="/" aria-current="page">Leads</a>
+          <a href="/" id="navLeads" aria-current="page">Leads</a>
+          <a href="/saved" id="navSaved">Saved<span class="nav-count" id="savedCount" hidden></span></a>
         </nav>
 
-        <a class="signout" href="/logout">Sign out</a>
+        <!-- Filled by saved.js: the signed-in email and Sign out, or Sign in. -->
+        <div class="account" id="account"><a class="signout" href="/logout">Sign out</a></div>
       </div>
     </div>
 
@@ -163,7 +165,14 @@
               <input type="checkbox" id="hasContact" name="hasContact" value="true">
               <span class="check-label">Has a phone number</span>
             </label>
+            <!-- Owner-builder permits: the homeowner pulled it. Only the marker
+                 is used; owners' names and phones are never shown (ADR-10). -->
+            <label class="check">
+              <input type="checkbox" id="ownerBuilder" name="ownerBuilder" value="true">
+              <span class="check-label">Filed by the homeowner (owner-builder)</span>
+            </label>
           </div>
+          <p class="hint">Mostly Miami-Dade; other cities don't record it. Owners' names and phones are never shown.</p>
           <div class="field">
             <label for="contractor">Contractor or company</label>
             <input class="input" id="contractor" name="contractor" list="contractorList"
@@ -193,12 +202,8 @@
       <section class="group">
         <h3>Work</h3>
         <div class="group-stack">
-          <div class="field">
-            <label for="permitType">Permit type</label>
-            <select class="select" id="permitType" name="permitType">
-              <option value="">Any type</option>
-            </select>
-          </div>
+          <!-- Several types at once, with a search box (location.js picker). -->
+          <div id="typePicker"></div>
           <div class="field">
             <label for="minValuation">Minimum valuation ($)</label>
             <input class="input" id="minValuation" name="minValuation"
@@ -280,6 +285,8 @@
       <div class="addr" id="dAddr"></div>
       <div class="type" id="dType"></div>
       <div id="dStage"></div>
+      <!-- Save to my list (saved.js); filled when a permit opens. -->
+      <div class="d-save" id="dSave"></div>
     </div>
     <button type="button" class="drawer-close" id="dClose" aria-label="Close permit details">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -314,6 +321,7 @@
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="links.js"></script>
 <script src="location.js"></script>
+<script src="saved.js"></script>
 <script src="app.js"></script>
 <script src="lens.js"></script>
 </body>
