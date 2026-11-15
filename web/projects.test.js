@@ -1,6 +1,8 @@
 // Projects (web/projects.js + web/project_stages.js): which permits link,
 // the project's value, kinds and stage. Offline, on hand-made rows.
 const assert = require('node:assert');
+// Job links are hidden by default (ADR-33); these cases test the linking itself.
+process.env.SHOW_UNMEASURED = '1';
 const { group, listProjects, projectFor, projectValue, addressKey } = require('./projects.js');
 const { stageOf } = require('./project_stages.js');
 
@@ -77,3 +79,9 @@ assert.strictEqual(projectFor(3, job).permitCount, 3);
 assert.strictEqual(projectFor(999, job), null);
 
 console.log('projects.test.js: all passed');
+
+// ADR-33: without SHOW_UNMEASURED=1 nothing links; every permit is its own card.
+assert.deepStrictEqual(sizes(group(job, { jobLinks: false })), [1, 1, 1]);
+delete process.env.SHOW_UNMEASURED;
+assert.deepStrictEqual(sizes(group(job)), [1, 1, 1], 'job links off by default');
+console.log('projects: job links hidden by default (ADR-33) ok');

@@ -9,11 +9,14 @@
 // Link 3 is an inference (docs/DATA_TRUST_AUDIT.md class C): it is used only
 // when SHOW_INFERENCES=1, like the construction-stage label. Without it, a
 // project is what the official numbers say and nothing more.
+// All links are job links, which ADR-33 hides until a hand-checked sample
+// passes: without SHOW_UNMEASURED=1 no permits are grouped at all.
 //
 // The rows come from db/queries.js projectRows/projectCandidates, already
 // redacted (rule 5): a phone here is a business contact, never an owner's.
 
 const rules = require('./project_stages.js');
+const { showUnmeasured } = require('../src/display_policy.js');
 
 const DAY = 86400000;
 const ODD_VALUE = 1e9;
@@ -34,7 +37,10 @@ const usable = (v) => { const n = Number(v); return n > 1 && n < ODD_VALUE ? n :
 const dateOf = (p) => (p.filed_date ? new Date(`${String(p.filed_date).slice(0, 10)}T12:00:00Z`).getTime() : null);
 
 /** Union-find over permit ids; returns arrays of rows, one per project. */
-function group(rows, { inferences = false } = {}) {
+function group(rows, { inferences = false, jobLinks = showUnmeasured() } = {}) {
+  // Job links are hidden in every market until hand-checked (ADR-33): without
+  // SHOW_UNMEASURED=1 every permit is its own card, linked to nothing.
+  if (!jobLinks) return rows.map((r) => ({ members: [r], basis: [] }));
   const parent = new Map(rows.map((r) => [String(r.id), String(r.id)]));
   const basis = new Map();   // root -> Set of link kinds used
   const find = (a) => { let x = a; while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x))); x = parent.get(x); } return x; };

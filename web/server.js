@@ -85,6 +85,7 @@ const FILTER_PARAMS = [
 ];
 
 const showOwnerBuilder = () => process.env.SHOW_OWNER_BUILDER === '1';
+const { showUnmeasured } = require('../src/display_policy.js');
 
 function pickFilters(query) {
   const filters = {};
@@ -138,7 +139,7 @@ const projects = require('./projects.js');
 const lens = require('./lens_config.js');
 
 // What the welcome popup offers, and whether trade matching is on here.
-app.get('/api/lens', (_req, res) => res.json({ ...lens.publicConfig(), enabled: trust.showInferences() }));
+app.get('/api/lens', (_req, res) => res.json({ ...lens.publicConfig(), enabled: trust.showInferences() && showUnmeasured() }));
 const ROWS_TTL_MS = 60 * 1000;
 const rowsMemo = new Map();
 async function projectRowsFor(filters) {
@@ -163,7 +164,9 @@ app.get('/api/projects', asyncRoute(async (req, res) => {
   // The lens (web/lens_config.js) filters and ranks by trade signals: an
   // inference, so it applies only with SHOW_INFERENCES=1.
   const parsed = req.query.lens ? lens.selector(req.query.lens) : null;
-  const select = inferences ? parsed : null;
+  // Its "no electrical permit filed yet" signal reads the project's permits, so
+  // it also needs the job links that ADR-33 hides: off unless SHOW_UNMEASURED=1.
+  const select = inferences && showUnmeasured() ? parsed : null;
   const out = projects.listProjects(data.rows, {
     page, pageSize, sort: req.query.sort, inferences, select, grouped: req.query.group !== '0',
   });

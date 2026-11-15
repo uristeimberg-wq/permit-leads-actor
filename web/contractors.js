@@ -3,8 +3,8 @@
 //
 // Duplicates: the resolver already makes one contractor per licence number or
 // per normalized name within a state (src/contractors.js). Here rows are also
-// merged when they share a normalized name (case, LLC/Inc. and punctuation
-// ignored) across states, or a licence number recorded on their permits.
+// merged when they share a licence number recorded on their permits, and,
+// only with SHOW_INFERENCES=1, a normalized name across states.
 // Never by phone: 77 phone numbers are shared by two or more different
 // companies (permit runners, answering services), so a phone is not an identity.
 //
@@ -21,14 +21,16 @@ const MATCH = { licence: 'licence number on the permit', name_state: 'same busin
 const cleanName = (n) => String(n || '').replace(/\s*\*+\s*MAIN\s*\*+\s*/gi, ' ').replace(/\s+/g, ' ').trim() || n;
 
 /** Union rows sharing a normalized name or a licence number. */
-function merge(rows) {
+function merge(rows, { inferences = false } = {}) {
   const parent = rows.map((_, i) => i);
   const find = (i) => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
   const union = (a, b) => { const ra = find(a); const rb = find(b); if (ra !== rb) parent[ra] = rb; };
   const seen = new Map();
   rows.forEach((r, i) => {
     const keys = [];
-    if (r.normalized_name) keys.push(`n|${r.normalized_name}`);
+    // Across states, a shared name is a near-match, not an identity (class C):
+    // two firms can share a name in Texas and Florida. Only with inferences.
+    if (r.normalized_name) keys.push(inferences ? `n|${r.normalized_name}` : `n|${r.business_state || ''}|${r.normalized_name}`);
     for (const l of r.licences || []) keys.push(`l|${String(l).toUpperCase().replace(/\s+/g, ' ')}`);
     for (const k of keys) { if (seen.has(k)) union(i, seen.get(k)); else seen.set(k, i); }
   });
@@ -64,7 +66,7 @@ const SORTERS = {
  * (pilot_queries.contractorsById), recordsFor (contractorRecords) }.
  */
 async function listContractors({ rows, phonesById, recordsFor }, { sort = 'active', page = 1, pageSize = 25, inferences = false } = {}) {
-  const all = merge(rows).sort(SORTERS[sort] || SORTERS.active);
+  const all = merge(rows, { inferences }).sort(SORTERS[sort] || SORTERS.active);
   const pageRows = all.slice((page - 1) * pageSize, page * pageSize);
   const ids = pageRows.flatMap((r) => r.ids);
   const [phones, records] = await Promise.all([phonesById(ids), recordsFor(ids)]);

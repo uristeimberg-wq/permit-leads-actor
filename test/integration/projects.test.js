@@ -58,6 +58,16 @@ async function main() {
     const base = `http://127.0.0.1:${server.address().port}`;
     const get = async (p) => { const r = await realFetch(base + p); return { status: r.status, body: await r.json() }; };
 
+    await check('job links hidden (ADR-33): every permit is its own card', async () => {
+      delete process.env.SHOW_UNMEASURED;
+      delete process.env.SHOW_INFERENCES;
+      const { body } = await get('/api/projects?stage=any');
+      assert.ok(body.results.every((r) => r.permitCount === 1));
+      const one = (await get(`/api/projects/by-permit/${id('2026-107243 BP')}`)).body;
+      assert.deepStrictEqual(one.permits.map((p) => p.permit_number), ['2026-107243 BP']);
+    });
+
+    process.env.SHOW_UNMEASURED = '1';
     await check('inferences off: official numbers and Ref links only, no stage', async () => {
       delete process.env.SHOW_INFERENCES;
       const { body } = await get('/api/projects?stage=any');
@@ -91,6 +101,7 @@ async function main() {
     });
   } finally {
     delete process.env.SHOW_INFERENCES;
+    delete process.env.SHOW_UNMEASURED;
     if (server) server.close();
     await db.close();
     await admin.query(`DROP DATABASE IF EXISTS ${DB_NAME} WITH (FORCE)`);

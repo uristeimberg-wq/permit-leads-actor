@@ -7,13 +7,16 @@ const row = (id, o = {}) => ({ id, display_name: `Co ${id}`, normalized_name: `c
   permits: 1, active: 1, active_value: null, latest: '2026-10-01', licences: null, ...o });
 
 // Same normalized name (case, LLC, punctuation) -> one row; names kept as aliases.
-const m = merge([
+const rowsM = [
   row(1, { display_name: 'Acme Builders, LLC', normalized_name: 'acme builders', permits: 5, active: 3, active_value: '100000' }),
   row(2, { display_name: 'ACME BUILDERS', normalized_name: 'acme builders', business_state: null, permits: 2, active: 2, active_value: '50000', latest: '2026-11-01' }),
   row(3, { display_name: 'Volt Electric', normalized_name: 'volt electric', licences: ['TX 12345'] }),
   row(4, { display_name: 'Volt Elec. Co', normalized_name: 'volt elec', licences: ['TX 12345'] }),   // same licence number
   row(5, { display_name: 'Other Co', normalized_name: 'other co' }),
-]);
+];
+// Across states (here TX and unknown) a shared name joins only with inferences.
+assert.strictEqual(merge(rowsM).length, 4, 'a name in two states is two rows by default');
+const m = merge(rowsM, { inferences: true });
 assert.strictEqual(m.length, 3);
 const acme = m.find((r) => r.name === 'Acme Builders, LLC');
 assert.deepStrictEqual(acme.ids.sort(), ['1', '2']);
