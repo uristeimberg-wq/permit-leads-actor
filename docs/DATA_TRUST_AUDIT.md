@@ -69,6 +69,18 @@ class C, even if the arithmetic is exact.
 | **Property field conflicts** (`field_conflicts`) | Not shown today | Comparison rules we chose | Keep unshown |
 | **Site-plan "92% / 80% a year before" context line** | Early filings | Research statistic, not about this filing | Move to docs; drop from the screen |
 
+## Unmeasured second-source values (ADR-32, 2026-11-15)
+
+Hidden unless `SHOW_UNMEASURED=1`. Each returns after a fidelity check of a
+random sample against its live source.
+
+| Value | Why hidden | Measurement that brings it back |
+|---|---|---|
+| Appraiser property facts (land use, year built, area, lot, assessed band) | Joined on an official key, but values never compared with the live appraiser record | Re-fetch 150 linked parcels per appraiser by key; field match rate |
+| State licence details (board, expiry, valid/expired) | Matched by licence number, but registry values never compared with the live board | Re-fetch 150 licences per board; field match rate |
+| Census-interpolated map points | Placed along the street's address range; error never measured | Distance to the parcel or source point on permits that have both |
+| "First seen by us" on the drawer and job page | Our load time, not a fact about the filing; mostly the source's first sync | Not planned for display |
+
 ## Sync-side items held in PR #77
 
 | Item | Join | Class | Verdict |

@@ -831,3 +831,34 @@ what would make us revisit it. Never delete an entry; supersede it.
   1,421 names to 294 once entities with no permits left (merged away by
   rule 3 and kept by `ingest/resolve.js`) are excluded; the 294 have 2+ or
   no Sunbiz candidates and stay apart until a rule is measured.
+
+## ADR-32: Status labels from one table; unmeasured second-source values hidden
+
+- **Context (owner, 2026-11-15):** an Austin plan-review case showed the badge
+  "Waiting for approval" beside its source status "Approved and Released" and
+  a lifecycle row "Approved, not issued". The badge labelled the filter group
+  `pending`, which means "no permit issued yet" and also holds plans the city
+  has approved. Measured live (recon/status_labels.js): 10,065 of 139,220
+  records (7.2%) showed a badge that contradicted their source status: 8,902
+  of 10,598 Austin plan-review cases ("Approved", "Approved and Released"),
+  1,157 Raleigh "Ready for Issuance", 6 Austin "Pending Permit". The owner also
+  ruled that the product may not show data from sources that are not verified
+  or not supervised.
+- **Decision:** `web/public/stages.js` is the only label table. Group labels
+  say what the group holds ("Not issued yet", "Issued", "Cancelled or
+  expired", "Status not mapped"); the badge shows the finer lifecycle stage
+  when the source's wording maps to one. `stages.test.js` checks that every
+  source's status_stage and lifecycle tables agree. The date column is
+  labelled Applied for plan-review cases and Issued for permits. "First seen
+  by us" is not shown: it is when our pipeline loaded the row (for most cases
+  the first sync of the source), not a fact about the filing. Values from a
+  second source whose accuracy against that source was never measured are
+  hidden unless `SHOW_UNMEASURED=1`: appraiser property facts, state licence
+  details, and Census-interpolated map points (`src/display_policy.js`,
+  `web/trust.js`).
+- **Consequences:** after the change 0 records contradict (same script). The
+  hidden values come back one at a time, each after a fidelity check against
+  its live source like the 2026-11-14 permit check. Job-key counts (trade
+  permits on a job, a GC's subs) stay: they are equality joins on official
+  permit numbers that the fidelity check measured at 100%; whether every job
+  key denotes one job has not been hand-checked.
