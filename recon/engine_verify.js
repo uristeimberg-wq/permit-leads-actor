@@ -129,6 +129,72 @@ async function main() {
     table(['index', 'present'], want.map((n) => [n, have.has(n) ? 'yes' : 'no']));
   });
 
+  // --- Phase 2 --------------------------------------------------------------
+  await section('Phase 2: construction signals and their links', async () => {
+    if (!(await exists('construction_signals'))) { out('_construction_signals not migrated yet (036)._'); out(); return; }
+    const rows = await q(`SELECT source_area, signal_type, count(*)::int AS n,
+                                 count(*) FILTER (WHERE lifecycle_phase IN ('pre_application', 'application_submitted', 'plan_review', 'approved'))::int AS pre,
+                                 count(*) FILTER (WHERE parcel_ref IS NOT NULL)::int AS parcel
+                            FROM construction_signals GROUP BY 1, 2 ORDER BY 1, 2`);
+    table(['source', 'signal type', 'signals', 'before issue', 'with a parcel ref'],
+      rows.map((r) => [r.source_area, r.signal_type, r.n, r.pre, `${r.parcel} (${pct(r.parcel, r.n)})`]));
+    const links = await q(`SELECT split_part(from_signal, ':', 1) AS from_kind, link_basis, provenance, count(*)::int AS n
+                             FROM signal_links GROUP BY 1, 2, 3 ORDER BY 1, 2`);
+    table(['from', 'basis', 'provenance', 'links'], links.map((r) => [r.from_kind, r.link_basis, r.provenance, r.n]));
+    // Share of pre-permit filings that reach a permit through any link.
+    const reach = await q(`SELECT s.source_area, s.signal_type, count(*)::int AS n,
+                                  count(*) FILTER (WHERE EXISTS (SELECT 1 FROM signal_links l WHERE l.from_signal = s.signal_id))::int AS linked,
+                                  count(*) FILTER (WHERE EXISTS (SELECT 1 FROM signal_links l WHERE l.from_signal = s.signal_id AND l.provenance = 'cross_source_verified'))::int AS verified
+                             FROM construction_signals s WHERE s.signal_type NOT IN ('permit', 'inspection') GROUP BY 1, 2 ORDER BY 1, 2`);
+    table(['source', 'filing type', 'filings', 'linked to a permit', 'by an official key'],
+      reach.map((r) => [r.source_area, r.signal_type, r.n, `${r.linked} (${pct(r.linked, r.n)})`, `${r.verified} (${pct(r.verified, r.n)})`]));
+  });
+
+  // --- Phase 3 --------------------------------------------------------------
+  await section('Phase 3: entity links by provenance', async () => {
+    if (!(await exists('entity_links'))) { out('_entity_links not migrated yet (036)._'); out(); return; }
+    const rows = await q(`SELECT link_type, match_rule, provenance, count(*)::int AS n FROM entity_links GROUP BY 1, 2, 3 ORDER BY 1, 2`);
+    table(['link', 'rule', 'provenance', 'links'], rows.map((r) => [r.link_type, r.match_rule, r.provenance, r.n]));
+    const port = await q(`SELECT split_part(identity_key, ':', 2) AS state, count(*)::int AS firms,
+                                 count(*) FILTER (WHERE permits_licence_linked > 0)::int AS lic,
+                                 sum(permits_licence_linked)::int AS lp, sum(permits_name_linked)::int AS np
+                            FROM contractor_portfolio WHERE party_kind = 'business' GROUP BY 1 ORDER BY 1`);
+    table(['state', 'business entities', 'with licence-linked permits', 'licence-linked permits', 'name-linked permits'],
+      port.map((r) => [r.state, r.firms, r.lic, r.lp, r.np]));
+  });
+
+  await section('Phase 3: Florida names split across entities (measured, nothing merged)', async () => {
+    // A group = business entities in Florida sharing one normalised name.
+    const [g] = await q(`
+      WITH fl AS (SELECT id, normalized_name, identity_key LIKE 'lic:%' AS lic FROM contractors
+                   WHERE split_part(identity_key, ':', 2) = 'FL' AND party_kind = 'business'),
+           grp AS (SELECT normalized_name, array_agg(id) AS ids, count(*) AS n, count(*) FILTER (WHERE lic) AS lics
+                     FROM fl GROUP BY 1 HAVING count(*) > 1),
+           phone AS (SELECT g.normalized_name FROM grp g JOIN contact_points cp ON cp.contractor_id = ANY(g.ids) AND cp.kind = 'phone'
+                      GROUP BY g.normalized_name, cp.value HAVING count(DISTINCT cp.contractor_id) > 1),
+           sb AS (SELECT g.normalized_name, (SELECT count(*) FROM business_registrations b WHERE b.provider = 'fl-sunbiz' AND b.name_key = g.normalized_name) AS ents FROM grp g)
+      SELECT (SELECT count(*) FROM grp)::int AS groups,
+             (SELECT coalesce(sum(n), 0) FROM grp)::int AS entities,
+             (SELECT count(*) FROM grp WHERE lics = 0)::int AS name_keys_only,
+             (SELECT count(*) FROM grp WHERE lics = 1)::int AS one_licence,
+             (SELECT count(*) FROM grp WHERE lics >= 2)::int AS two_plus_licences,
+             (SELECT count(DISTINCT normalized_name) FROM phone)::int AS shared_phone,
+             (SELECT count(*) FROM sb WHERE ents = 0)::int AS sunbiz_none,
+             (SELECT count(*) FROM sb WHERE ents = 1)::int AS sunbiz_one,
+             (SELECT count(*) FROM sb WHERE ents >= 2)::int AS sunbiz_many`);
+    table(['measure', 'groups'], [
+      ['names on 2+ Florida business entities', `${g.groups} (${g.entities} entities)`],
+      ['  all keys are name keys', g.name_keys_only],
+      ['  exactly one licence key', g.one_licence],
+      ['  two or more licence keys', g.two_plus_licences],
+      ['  a phone shared by 2+ of the entities', g.shared_phone],
+      ['  Sunbiz: no entity carries the name', g.sunbiz_none],
+      ['  Sunbiz: exactly one entity (v5 should have joined these)', g.sunbiz_one],
+      ['  Sunbiz: 2+ entities carry the name', g.sunbiz_many],
+    ]);
+    out('A merge rule for these groups is measured on a hand-checked sample before any count anyone sees changes.'); out();
+  });
+
   await db.close();
 }
 
