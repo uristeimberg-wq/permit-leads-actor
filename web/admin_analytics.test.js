@@ -24,13 +24,14 @@ async function withApp(password, fn) {
   const queries = [];
   const query = async (sql, params) => {
     queries.push(sql);
+    if (/INSERT INTO analytics_internal_devices/.test(sql)) { queries.marks = (queries.marks || []).concat([params]); return { rows: [{ users: 1, sessions: 2 }] }; }
     if (/FROM app_users WHERE id = \$1/.test(sql)) return { rows: [{ id: 1, email: 'a@b.co', created_at: new Date(0) }] };
     return { rows: [] };
   };
   const app = express();
   app.set('trust proxy', 1);
   app.use(gate);
-  app.use(admin.router({ query, isOwner: gate.isOwner }));
+  app.use(admin.router({ query, isOwner: gate.isOwner, userIdOf: (req) => sessions.userId(req) }));
   app.get('/digest/preview', (_req, res) => res.json({ ok: true }));
   app.get('/api/open', (_req, res) => res.json({ ok: true }));
   const server = app.listen(0, '127.0.0.1');
@@ -108,6 +109,20 @@ async function withApp(password, fn) {
     assert.strictEqual(login.status, 303);
     const cookie = (login.headers.get('set-cookie') || '').split(';')[0];
     assert.strictEqual((await go('/api/admin/analytics/users', { headers: { cookie } })).status, 200);
+  }));
+
+  await check('marking the owner\'s browser internal: owner only, JSON only, a real device id; the signed-in email user goes with it', () => withApp('owner-key', async (go, { userCookie, queries }) => {
+    const DEV = '0b9c3f3e-1d2a-4c5b-8e6f-123456789abc';
+    const post = (headers, body) => go('/api/admin/analytics/internal', { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
+    assert.strictEqual((await post({}, { device_id: DEV })).status, 401);
+    assert.strictEqual((await post({ cookie: userCookie }, { device_id: DEV })).status, 403, 'an email user cannot mark anyone');
+    const auth = { authorization: basic('x:owner-key') };
+    assert.strictEqual((await post(auth, { device_id: 'nope' })).status, 400);
+    assert.strictEqual((await go('/api/admin/analytics/internal', { method: 'POST', headers: { ...auth, 'content-type': 'text/plain' }, body: '{}' })).status, 415);
+    const ok = await post({ ...auth, cookie: userCookie }, { device_id: DEV });
+    assert.strictEqual(ok.status, 200);
+    assert.deepStrictEqual(await ok.json(), { users: 1, sessions: 2 });
+    assert.deepStrictEqual(queries.marks, [[DEV, 5]], 'device and the email user on that request');
   }));
 
   await check('no owner key configured: the dashboard is closed (403), not open', () => withApp('', async (go) => {

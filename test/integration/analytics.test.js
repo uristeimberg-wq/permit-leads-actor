@@ -202,6 +202,37 @@ async function main() {
       assert.deepStrictEqual(await pruneAnalytics(db.query).then((x) => [x.events, x.sessions]), [0, 0], 'a re-run deletes nothing');
     });
 
+    await check('the owner\'s own email sign-in is internal once their browser opens the dashboard, past visits included', async () => {
+      const D5 = uuid('5', 5); const D6 = uuid('4', 4);
+      const S5 = uuid('3', 5); const S6 = uuid('3', 6); const S7 = uuid('3', 7);
+      // Before: the owner, on their phone, signs in with an email like any user.
+      const r = await fetch(`${base}/api/me/signin`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'owner@example.com' }) });
+      const ownerCookie = (r.headers.get('set-cookie') || '').split(';')[0];
+      assert.strictEqual((await post({ session_id: S5, anonymous_device_id: D5, events: [ev('page_view', {}, { minAgo: 3 }), ev('login_succeeded', {}, { minAgo: 3 })] }, { cookie: ownerCookie })).status, 202);
+      const { id: ownerId } = await one("SELECT id FROM app_users WHERE email = 'owner@example.com'");
+      const before = (await adminGet('/api/admin/analytics/summary?range=all')).body;
+      assert.ok((await adminGet('/api/admin/analytics/users')).body.users.some((u) => u.id === ownerId), 'counted as a user so far');
+
+      // The dashboard page on that phone reports its device id.
+      const mark = await fetch(`${base}/api/admin/analytics/internal`, { method: 'POST', headers: { ...ownerAuth, 'content-type': 'application/json' }, body: JSON.stringify({ device_id: D5 }) });
+      assert.strictEqual(mark.status, 200);
+      assert.deepStrictEqual(await mark.json(), { users: 1, sessions: 1 });
+      assert.strictEqual((await one('SELECT is_internal FROM analytics_sessions WHERE session_id = $1', [S5])).is_internal, true, 'retroactive');
+      const after = (await adminGet('/api/admin/analytics/summary?range=all')).body;
+      assert.strictEqual(after.totals.sessions, before.totals.sessions - 1);
+      assert.strictEqual(after.excluded.internal, before.excluded.internal + 1);
+      assert.ok(!(await adminGet('/api/admin/analytics/users')).body.users.some((u) => u.id === ownerId), 'gone from Registered users');
+
+      // Later visits: from that device with no flags, and the same email on a new device.
+      assert.strictEqual((await post({ session_id: S6, anonymous_device_id: D5, events: [ev('page_view', {}, { minAgo: 1 })] })).status, 202);
+      assert.strictEqual((await post({ session_id: S7, anonymous_device_id: D6, events: [ev('page_view', {}, { minAgo: 1 })] }, { cookie: ownerCookie })).status, 202);
+      const flags = (await db.query('SELECT is_internal FROM analytics_sessions WHERE session_id IN ($1, $2)', [S6, S7])).rows;
+      assert.deepStrictEqual(flags.map((f) => f.is_internal), [true, true]);
+      // Re-marking is harmless; a stranger's session is untouched.
+      assert.deepStrictEqual(await (await fetch(`${base}/api/admin/analytics/internal`, { method: 'POST', headers: { ...ownerAuth, 'content-type': 'application/json' }, body: JSON.stringify({ device_id: D5 }) })).json(), { users: 1, sessions: 0 });
+      assert.strictEqual((await one('SELECT is_internal FROM analytics_sessions WHERE session_id = $1', [S1])).is_internal, false);
+    });
+
     await check('the privacy page is public', async () => {
       const r = await fetch(`${base}/privacy`);
       assert.strictEqual(r.status, 200);

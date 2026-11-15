@@ -148,7 +148,8 @@ async function getJSON(url, opts) {
   try {
     r = await fetch(url, opts);
   } catch {
-    track('api_request_failed', { endpoint: apiPath(url), status: 0 });
+    // hidden: the tab was in the background (iOS drops fetches when you switch apps).
+    track('api_request_failed', { endpoint: apiPath(url), status: 0, hidden: document.visibilityState === 'hidden', online: navigator.onLine });
     throw new Error("Couldn't reach the server. Check your connection, or that the Contractos server is running.");
   }
   const isJson = (r.headers.get('content-type') || '').includes('application/json');

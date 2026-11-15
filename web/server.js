@@ -83,7 +83,9 @@ app.use(require('./telemetry.js').router({
   userIdOf: (req) => userSessions.userId(req),
   isOwner: gate.isOwner,
 }));
-app.use(require('./admin_analytics.js').router({ query: db.query, isOwner: gate.isOwner }));
+app.use(require('./admin_analytics.js').router({
+  query: db.query, isOwner: gate.isOwner, userIdOf: (req) => userSessions.userId(req),
+}));
 // What is collected, and the opt-out switch.
 app.get('/privacy', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'privacy.html')));
 

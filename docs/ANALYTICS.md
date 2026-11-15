@@ -71,6 +71,19 @@ owner key, or the browser opened the dashboard) and `is_bot` (crawler,
 headless browser, curl and similar user-agents). They are stored, and the
 dashboard says how many were excluded.
 
+When the dashboard opens, it reports its browser's device id
+(`POST /api/admin/analytics/internal`, owner only). That device, any email
+account signed in on the request or ever linked to that device, and every
+session of either (past ones included) become internal
+(`analytics_internal_devices`, `analytics_internal_users`, migration 041).
+Later batches from them are internal on arrival, and those accounts are left
+out of Registered users. To undo one: delete its row and set `is_internal`
+back on its sessions by hand.
+
+`api_request_failed` carries `status` (0 = no answer: the fetch itself failed)
+and `hidden` (the tab was in the background, which on iOS usually means the
+user switched apps and Safari dropped the request, not a server fault).
+
 ## Definitions
 
 - **Actor**: a registered user, else a device.

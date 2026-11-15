@@ -139,7 +139,9 @@ function pgStore(getPool) {
           INSERT INTO analytics_sessions (session_id, user_id, anonymous_device_id, started_at, last_active_at,
             entry_path, referrer, utm_source, utm_medium, utm_campaign, device_type, browser, os, ip_country, ip_region,
             is_internal, is_bot)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+            $16 OR EXISTS (SELECT 1 FROM analytics_internal_devices WHERE anonymous_device_id = $3)
+                OR EXISTS (SELECT 1 FROM analytics_internal_users WHERE user_id = $2), $17)
           ON CONFLICT (session_id) DO UPDATE SET
             user_id        = coalesce(analytics_sessions.user_id, EXCLUDED.user_id),
             started_at     = least(analytics_sessions.started_at, EXCLUDED.started_at),
@@ -173,6 +175,10 @@ function pgStore(getPool) {
                                WHERE anonymous_device_id = $1 AND user_id IS NULL`, [session.anonymous_device_id, userId]);
           await client.query(`UPDATE analytics_sessions SET user_id = $2
                                WHERE anonymous_device_id = $1 AND user_id IS NULL`, [session.anonymous_device_id, userId]);
+          // The owner signed in with an email on this device: the whole device is theirs.
+          await client.query(`UPDATE analytics_sessions SET is_internal = true
+                               WHERE anonymous_device_id = $1 AND NOT is_internal
+                                 AND EXISTS (SELECT 1 FROM analytics_internal_users WHERE user_id = $2)`, [session.anonymous_device_id, userId]);
         }
 
         // Active time: per page view, the longest visible time it reported.

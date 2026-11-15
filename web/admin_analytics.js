@@ -157,7 +157,12 @@ async function summary(query, { since, userId }) {
         FROM e WHERE element_id IS NOT NULL OR event_name IN ('external_source_link_clicked', 'contact_info_clicked')
        GROUP BY 1, 2, 3 ORDER BY clicks DESC LIMIT 25`),
     many(`WITH ${SCOPED}
-      SELECT event_name, coalesce(properties->>'endpoint', properties->>'message', page_path) AS detail,
+      SELECT event_name,
+             CASE WHEN event_name = 'api_request_failed'
+                  THEN concat(properties->>'endpoint',
+                              CASE WHEN properties->>'status' = '0' THEN ' · no answer' ELSE ' · HTTP ' || (properties->>'status') END,
+                              CASE WHEN properties->>'hidden' = 'true' THEN ' · tab in background' END)
+                  ELSE coalesce(properties->>'endpoint', properties->>'message', page_path) END AS detail,
              count(*)::int AS times, max(client_timestamp) AS last_at
         FROM e WHERE event_category = 'error'
        GROUP BY 1, 2 ORDER BY times DESC LIMIT 20`),
@@ -195,8 +200,36 @@ async function listUsers(query) {
            (SELECT count(*) FROM saved_permits sp WHERE sp.user_id = u.id)::int AS saved
       FROM app_users u
       LEFT JOIN analytics_sessions s ON s.user_id = u.id AND NOT s.is_internal AND NOT s.is_bot
+     WHERE NOT EXISTS (SELECT 1 FROM analytics_internal_users iu WHERE iu.user_id = u.id)
      GROUP BY u.id ORDER BY max(s.last_active_at) DESC NULLS LAST, u.created_at DESC LIMIT 500`);
   return rows;
+}
+
+/**
+ * Mark the owner's own browser and accounts internal, past sessions included:
+ * the device that opened the dashboard, the email user signed in on this
+ * request, and every user ever linked to that device. Returns the counts.
+ */
+async function markInternal(query, { deviceId = null, userId = null } = {}) {
+  const { rows: [out] } = await query(`
+    WITH dev AS (
+      INSERT INTO analytics_internal_devices (anonymous_device_id)
+      SELECT $1::uuid WHERE $1::uuid IS NOT NULL
+      ON CONFLICT DO NOTHING RETURNING 1),
+    users AS (
+      SELECT $2::bigint AS user_id WHERE $2::bigint IS NOT NULL
+      UNION SELECT user_id FROM analytics_identities WHERE $1::uuid IS NOT NULL AND anonymous_device_id = $1::uuid),
+    ins AS (
+      INSERT INTO analytics_internal_users (user_id) SELECT user_id FROM users
+      ON CONFLICT DO NOTHING RETURNING user_id),
+    upd AS (
+      UPDATE analytics_sessions SET is_internal = true
+       WHERE NOT is_internal
+         AND ((anonymous_device_id = $1::uuid) OR user_id IN (SELECT user_id FROM users)
+              OR anonymous_device_id IN (SELECT anonymous_device_id FROM analytics_identities WHERE user_id IN (SELECT user_id FROM users)))
+      RETURNING 1)
+    SELECT (SELECT count(*) FROM users)::int AS users, (SELECT count(*) FROM upd)::int AS sessions`, [deviceId, userId]);
+  return out;
 }
 
 /** One user's sessions, each with its events in order. */
@@ -263,7 +296,7 @@ const PAGE_HTML = path.join(__dirname, 'admin', 'analytics.html');
 /**
  * @param {{query: Function, isOwner: (req) => boolean}} deps
  */
-function router({ query, isOwner }) {
+function router({ query, isOwner, userIdOf = () => null }) {
   const r = express.Router();
   const requireOwner = (req, res, next) => {
     res.set('Cache-Control', 'no-store');
@@ -281,6 +314,14 @@ function router({ query, isOwner }) {
   r.get('/api/admin/analytics/summary', requireOwner, wrap(async (req, res) => {
     const scope = parseScope(req.query);
     res.json({ scope, generatedAt: new Date().toISOString(), ...(await summary(query, scope)) });
+  }));
+  // The dashboard page calls this on load with its own device id.
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  r.post('/api/admin/analytics/internal', requireOwner, express.json({ limit: '1kb' }), wrap(async (req, res) => {
+    if (!req.is('application/json')) return res.status(415).json({ error: 'JSON only' });
+    const d = req.body && req.body.device_id;
+    if (d != null && !UUID.test(String(d))) return res.status(400).json({ error: 'Bad device id' });
+    return res.json(await markInternal(query, { deviceId: d || null, userId: userIdOf(req) || null }));
   }));
   r.get('/api/admin/analytics/users', requireOwner, wrap(async (_req, res) => res.json({ users: await listUsers(query) })));
   r.get('/api/admin/analytics/users/:id/timeline', requireOwner, wrap(async (req, res) => {
@@ -300,7 +341,7 @@ function router({ query, isOwner }) {
   return r;
 }
 
-module.exports = { router, summary, listUsers, timeline, parseScope, rangeStart, csvCell, toCsv, EXPORTS };
+module.exports = { markInternal, router, summary, listUsers, timeline, parseScope, rangeStart, csvCell, toCsv, EXPORTS };
 
 // Fail fast at boot if the page is missing from the image.
 if (!fs.existsSync(PAGE_HTML)) console.warn(`admin analytics: ${PAGE_HTML} is missing`);

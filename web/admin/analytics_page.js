@@ -6,17 +6,32 @@
   const n = (v) => (v == null ? '—' : Number(v).toLocaleString('en-US'));
   const pct = (a, b) => (b ? `${Math.round((a / b) * 1000) / 10}%` : '—');
   const secs = (s) => (s == null ? '—' : s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`);
-  const when = (t) => (t ? new Date(t).toISOString().replace('T', ' ').slice(0, 16) : '—');
+  // Short UTC dates, "Nov 15 18:54", with the year only when it is not this one.
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const when = (t) => {
+    if (!t) return '—';
+    const d = new Date(t);
+    if (Number.isNaN(d.getTime())) return '—';
+    const yr = d.getUTCFullYear() === new Date().getUTCFullYear() ? '' : ` ${d.getUTCFullYear()}`;
+    return `${MON[d.getUTCMonth()]} ${d.getUTCDate()}${yr} ${d.toISOString().slice(11, 16)}`;
+  };
+  const clock = (t) => (t ? new Date(t).toISOString().slice(11, 16) : '');
   const EMPTY = '<p class="empty">No data in this range yet.</p>';
 
-  // This browser is the owner's: its own tracked visits are marked internal.
-  try { localStorage.setItem('ct_internal', '1'); } catch { /* private mode */ }
+  // This browser is the owner's: its own tracked visits are marked internal,
+  // and so are its earlier ones, and any email account signed in on it.
+  let deviceId = null;
+  try { localStorage.setItem('ct_internal', '1'); deviceId = localStorage.getItem('ct_device'); } catch { /* private mode */ }
+  const marked = fetch('/api/admin/analytics/internal', {
+    method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ device_id: /^[0-9a-f-]{36}$/i.test(deviceId || '') ? deviceId : null }),
+  }).then((r) => r.text()).catch(() => null);   // read the body, or the request never finishes
 
   const state = { range: '7d', user: '' };
   try { const p = new URLSearchParams(location.search); if (p.get('range')) state.range = p.get('range'); if (p.get('user')) state.user = p.get('user'); } catch { /* defaults */ }
 
   const table = (cols, rows) => (rows && rows.length ? `<div class="tw"><table><thead><tr>${cols.map(([, h, c]) => `<th class="${c || ''}">${esc(h)}</th>`).join('')}</tr></thead>
-    <tbody>${rows.map((r) => `<tr>${cols.map(([k, , c, f]) => `<td class="${c || ''}">${f ? f(r[k], r) : esc(r[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : EMPTY);
+    <tbody>${rows.map((r) => `<tr>${cols.map(([k, h, c, f]) => `<td class="${c || ''}" data-label="${esc(h)}">${f ? f(r[k], r) : esc(r[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : EMPTY);
 
   async function getJSON(url) {
     const r = await fetch(url, { credentials: 'same-origin', headers: { accept: 'application/json' } });
@@ -93,7 +108,7 @@
       $('timeline').innerHTML = (t.sessions.length ? t.sessions.map((s) => `<div class="sess">
         <strong>${esc(when(s.started_at))}</strong> · ${esc(secs(s.duration_seconds))} active · ${esc([s.device_type, s.browser, s.os].filter(Boolean).join(' / '))}
         ${s.referrer ? ` · from ${esc(s.referrer)}` : ''}${s.utm_source ? ` · utm ${esc(s.utm_source)}` : ''}${s.is_internal ? ' · internal' : ''}${s.is_bot ? ' · bot' : ''}
-        <ol>${s.events.map((e) => `<li><time>${esc(when(e.client_timestamp).slice(11))}</time> ${esc(describe(e))}</li>`).join('')}</ol></div>`).join('')
+        <ol>${s.events.map((e) => `<li><time>${esc(clock(e.client_timestamp))}</time> ${esc(describe(e))}</li>`).join('')}</ol></div>`).join('')
         : EMPTY) + (t.truncated ? '<p class="note">Showing the newest 2,000 events.</p>' : '');
       $('timelineCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (err) { $('timeline').innerHTML = `<p class="err">${esc(err.message)}</p>`; }
@@ -110,7 +125,9 @@
   $('range').addEventListener('click', (e) => { const b = e.target.closest('[data-range]'); if (b) { state.range = b.dataset.range; load(); } });
   $('user').addEventListener('change', (e) => { state.user = e.target.value; load(); if (state.user) openTimeline(state.user); else $('timelineCard').hidden = true; });
   $('users').addEventListener('click', (e) => { const b = e.target.closest('[data-user]'); if (b) openTimeline(b.dataset.user); });
-  loadUsers().catch((err) => { $('users').innerHTML = `<p class="err">${esc(err.message)}</p>`; });
-  load();
+  marked.then(() => {
+    loadUsers().catch((err) => { $('users').innerHTML = `<p class="err">${esc(err.message)}</p>`; });
+    load();
+  });
   if (state.user) openTimeline(state.user);
 }());

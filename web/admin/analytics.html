@@ -45,9 +45,19 @@ select, .btn { min-height: 44px; border: 2px solid var(--ink); background: var(-
 .empty { color: var(--muted); font-size: 14px; }
 .tw { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-size: 14px; }
-th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--rule); vertical-align: top; overflow-wrap: anywhere; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--rule); vertical-align: top; overflow-wrap: break-word; }
 th { font-size: 12px; text-transform: uppercase; color: var(--muted); font-weight: 600; }
 td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Phones: each row becomes a small card, one "label: value" line per cell. */
+@media (max-width: 640px) {
+  .tw table, .tw tbody, .tw tr, .tw td { display: block; width: 100%; }
+  .tw thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .tw tr { border-bottom: 1px solid var(--rule); padding: 6px 0; }
+  .tw td { display: grid; grid-template-columns: minmax(6.5rem, 38%) minmax(0, 1fr); gap: 8px; padding: 2px 0; border: 0; text-align: left; }
+  .tw td.n { text-align: left; white-space: normal; }
+  .tw td::before { content: attr(data-label); font-size: 12px; text-transform: uppercase; color: var(--muted); font-weight: 600; padding-top: 2px; }
+  .tw td:first-child { font-weight: 600; }
+}
 .bar { display: grid; grid-template-columns: minmax(0, 9rem) 1fr auto; gap: 8px; align-items: center; margin: 6px 0; font-size: 14px; }
 .bar .track { background: var(--paper-2); height: 14px; }
 .bar .fill { background: var(--accent); height: 14px; }
@@ -64,7 +74,7 @@ footer { color: var(--muted); font-size: 12px; padding: 24px 0; }
 <header><div class="wrap"><span class="wordmark"><i aria-hidden="true"></i>Contractos · Analytics</span><a href="/">Back to the app</a></div></header>
 <main class="wrap">
   <h1>Product analytics</h1>
-  <p class="note">Real events only, UTC. Your own visits (owner key, or this browser after opening this page) and automated clients are excluded. <a href="/privacy">What is collected</a>.</p>
+  <p class="note">Real events only, UTC. Your own visits are excluded: the owner key, this browser (past visits too, once it opens this page) and any email account used on it. Automated clients are excluded too. <a href="/privacy">What is collected</a>.</p>
   <div class="controls">
     <div class="seg" role="group" aria-label="Date range" id="range">
       <button type="button" data-range="today">Today</button><button type="button" data-range="7d">7D</button><button type="button" data-range="30d">30D</button><button type="button" data-range="all">All</button>
