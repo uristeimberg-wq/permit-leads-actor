@@ -924,3 +924,23 @@ what would make us revisit it. Never delete an entry; supersede it.
   total can still sort high; overview medians include repeats. The grouping
   is by address text and filing day, not by the source's job key, because
   job links are not hand-checked (ADR-33).
+
+## ADR-36: A repeated declared value counts once in sorts, filters, sums and medians
+
+- **Context:** ADR-35 words a value that a source repeats on several permits
+  as the project's figure, but sorting by value, the minimum-value filter, a
+  contractor's total declared value and the overview median still counted
+  it once per permit: 77 copies of Austin's $830M sorted to the top.
+- **Decision:** `permits.valuation_repeats` and `permits.valuation_first` are
+  stored (migration 039) and refreshed for a source after every permit write
+  (`refresh_value_repeats`, called by `db/index.js upsertPermits`). Two
+  permits of one source repeat each other when they have the same value and
+  the same address, or the same filing day when the value is $1M or more; a
+  missing address or day matches nothing. The value sort, the minimum-value
+  filters (search and leads), the contractor total and the overview median
+  use only the first permit (lowest id) of each repeat group. Screens read
+  the stored count (ADR-35 computed it per row).
+- **Consequences:** the later copies keep their value on screen with "on N
+  permits" but sort with the unvalued permits and fail a minimum-value
+  filter. The count is the larger of the two groupings (same address, same
+  day), so "on N permits" can undercount, never overcount.

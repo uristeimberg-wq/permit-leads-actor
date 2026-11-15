@@ -104,16 +104,33 @@ async function main() {
       assert.deepStrictEqual(body.results.map((r) => r.valuation_repeats), [1, 1]);
       // $5M on both, filed the same day: one project's figure repeated.
       await db.query('UPDATE permits SET valuation = 5000000 WHERE id = ANY($1)', [[id(1), id(2)]]);
+      await db.query("SELECT refresh_value_repeats('austin-tx')");
       ({ body } = await get('/api/permits?stage=any&zip=78704'));
       assert.deepStrictEqual(body.results.map((r) => r.valuation_repeats), [2, 2]);
       const one = await get(`/api/permits/${id(1)}`);
       assert.strictEqual(one.body.valuation_repeats, 2);
       // A permit with no value has nothing repeated.
-      const none = await get(`/api/permits/${id(4)}`);
       await db.query('UPDATE permits SET valuation = NULL WHERE id = $1', [id(4)]);
-      assert.ok(none.body.valuation_repeats >= 1);
+      await db.query("SELECT refresh_value_repeats('austin-tx')");
       const after = await get(`/api/permits/${id(4)}`);
       assert.strictEqual(after.body.valuation_repeats, 0);
+    });
+    await check('a repeated value counts once in the value sort and the minimum-value filter (ADR-36)', async () => {
+      // Permits 1 and 2 share $5M (above). The filter passes the first only.
+      let { body } = await get('/api/permits?stage=any&minValuation=1000000');
+      assert.deepStrictEqual(body.results.map((r) => r.id), [id(1)]);
+      // The value sort puts the first copy first and the second with the unvalued ones.
+      ({ body } = await get('/api/permits?stage=any&sort=valuation'));
+      assert.strictEqual(body.results[0].id, id(1));
+      const ids = body.results.map((r) => r.id);
+      assert.ok(ids.indexOf(id(2)) > ids.indexOf(id(3)), 'the repeat sorts after a $1,000 permit');
+      // A new sync refreshes the counts by itself.
+      const { rows: [r] } = await db.query('SELECT valuation_repeats, valuation_first FROM permits WHERE id = $1', [id(2)]);
+      assert.deepStrictEqual(r, { valuation_repeats: 2, valuation_first: false });
+      pages = [[row(2, '78704', { total_job_valuation: '7000' })]];
+      await ingestArea('austin-tx', { days: 14, max: 100, allDetails: false });
+      const { rows: [r2] } = await db.query('SELECT valuation, valuation_repeats, valuation_first FROM permits WHERE id = $1', [id(2)]);
+      assert.deepStrictEqual({ ...r2, valuation: Number(r2.valuation) }, { valuation: 7000, valuation_repeats: 1, valuation_first: true });
     });
   } finally {
     if (server) server.close();

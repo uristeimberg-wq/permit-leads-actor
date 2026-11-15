@@ -14,17 +14,13 @@ const SHOWN_LOCATION_METHODS = ['source', 'parcel'];
 const locationSql = (alias = 'l', env = process.env) =>
   (showUnmeasured(env) ? 'TRUE' : `${alias}.method IN (${SHOWN_LOCATION_METHODS.map((m) => `'${m}'`).join(', ')})`);
 
-// One declared value on several permits (ADR-35). Sources copy a project's
-// total onto each of its permits: Austin $830M on 77 permits filed one day
-// (pergolas, a gatehouse), Miami-Dade $580M on "LIGHT POLES" and "LOW VOLTAGE
-// CCTVS" at one address. The value is shown as the source gives it, with the
-// count, so no screen presents it as that permit's own cost. Counted within
-// one source: same value and same address, or same value filed the same day
-// when it is $1M or more (a round $50K filed the same day is a coincidence).
-const REPEAT_SAME_DAY_MIN = 1000000;
-const valueRepeatsSql = (alias) => `(SELECT count(*)::int FROM permits vr
-   WHERE vr.source_area = ${alias}.source_area AND vr.valuation = ${alias}.valuation
-     AND (upper(trim(vr.address)) = upper(trim(${alias}.address))
-          OR (vr.filed_date = ${alias}.filed_date AND ${alias}.valuation >= ${REPEAT_SAME_DAY_MIN})))`;
+// One declared value on several permits (ADR-35, ADR-36): sources copy a
+// project's total onto each of its permits. permits.valuation_repeats and
+// permits.valuation_first are stored (migration 039, refreshed by
+// db/index.js upsertPermits); screens word a repeated value as the project's
+// figure, and sorts, filters, sums and medians use only the first permit of
+// each repeat group, so one figure counts once.
+// SQL for "this permit's value, counted once": NULL on a repeat's later copies.
+const countedValueSql = (alias = '') => `CASE WHEN ${alias ? `${alias}.` : ''}valuation_first THEN ${alias ? `${alias}.` : ''}valuation END`;
 
-module.exports = { showUnmeasured, locationSql, SHOWN_LOCATION_METHODS, valueRepeatsSql, REPEAT_SAME_DAY_MIN };
+module.exports = { showUnmeasured, locationSql, SHOWN_LOCATION_METHODS, countedValueSql };

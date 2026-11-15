@@ -11,7 +11,6 @@
 // (src/sources.js maps Austin issue_date and Miami-Dade PermitIssuedDate).
 
 const { query } = require('./index.js');
-const { valueRepeatsSql } = require('../src/display_policy.js');
 const { publicContractor, marketBaseline, sourceMeta, TRADES } = require('./pilot_queries.js');
 
 const WEEKS = 26;
@@ -38,7 +37,7 @@ const num = (v) => (v == null ? null : Number(v));
 async function totals(source) {
   const { rows: [t] } = await query(`
     WITH p AS (
-      SELECT p.id, p.filed_date, p.valuation, pp.is_building, pp.trade, pp.contractor_id, c.party_kind,
+      SELECT p.id, p.filed_date, p.valuation, p.valuation_first, pp.is_building, pp.trade, pp.contractor_id, c.party_kind,
              EXISTS (SELECT 1 FROM contact_points cp WHERE cp.contractor_id = c.id AND cp.kind = 'phone'
                         AND cp.display_policy = 'show'
                         AND cp.value NOT IN (SELECT value FROM suppressed_phones)) AS has_phone
@@ -57,7 +56,7 @@ async function totals(source) {
            count(*) FILTER (WHERE is_building AND filed_date > current_date - $2::int AND party_kind = 'business' AND has_phone)::int AS bp_recent_phone,
            count(*) FILTER (WHERE is_building AND filed_date > current_date - $2::int AND valuation IS NOT NULL)::int AS bp_recent_valued,
            percentile_cont(0.5) WITHIN GROUP (ORDER BY valuation)
-             FILTER (WHERE is_building AND filed_date > current_date - $2::int AND valuation IS NOT NULL) AS bp_recent_median_value,
+             FILTER (WHERE is_building AND filed_date > current_date - $2::int AND valuation IS NOT NULL AND valuation_first) AS bp_recent_median_value,
            count(DISTINCT contractor_id) FILTER (WHERE is_building AND party_kind = 'business'
                                                    AND filed_date > current_date - $3::int)::int AS active_gcs,
            count(DISTINCT contractor_id) FILTER (WHERE trade IS NOT NULL AND party_kind = 'business'
@@ -188,7 +187,7 @@ async function topGcs(source, limit = 10) {
 async function recentBuilding(source, limit = 12) {
   const { rows } = await query(`
     SELECT p.id, p.permit_number, p.address, p.city, p.zip, p.permit_type, p.valuation, p.filed_date,
-           ${valueRepeatsSql('p')} AS valuation_repeats,
+           p.valuation_repeats,
            p.status_raw, p.status_stage, pp.contractor_id,
            c.id AS c_id, c.display_name, c.party_kind,
            (SELECT coalesce(array_agg(DISTINCT t.trade), '{}')

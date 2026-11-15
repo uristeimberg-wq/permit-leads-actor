@@ -239,6 +239,8 @@ async function upsertPermits(permits, sourceArea) {
     RETURNING (xmax = 0) AS inserted`;
 
   const result = await query(sql, params);
+  // Which values this source repeats on several permits (ADR-36, migration 039).
+  if (result.rowCount) await query('SELECT refresh_value_repeats($1)', [sourceArea]);
   return {
     written: result.rowCount,
     inserted: result.rows.filter((r) => r.inserted).length,

@@ -19,7 +19,7 @@ const insight = require('./insight_queries.js');
 const F = require('../src/forecast.js');
 
 const { SOURCES: CONFIG, PILOT_AREAS } = require('../src/sources.js');
-const { locationSql, valueRepeatsSql } = require('../src/display_policy.js');
+const { locationSql, countedValueSql } = require('../src/display_policy.js');
 
 const TRADES = ['electrical', 'mechanical', 'plumbing'];
 // Every pilot market the screens can show: the synced permit feeds, not the
@@ -298,7 +298,7 @@ async function sourceMeta(source) {
 // Permit columns a client may see (no owner/applicant: src/privacy.js).
 const PERMIT_COLS = `p.id, p.source_area, p.permit_number, p.address, p.city, p.state, p.zip, p.permit_type,
   p.work_description, p.valuation, p.status_raw, p.status_stage, p.lifecycle_stage, p.filing_kind, p.permit_url, p.filed_date, p.trade_scores,
-  p.first_seen_at, p.last_seen_at, ${valueRepeatsSql('p')} AS valuation_repeats`;
+  p.first_seen_at, p.last_seen_at, p.valuation_repeats`;
 
 async function provenanceFor(rawRecordId) {
   if (!rawRecordId) return null;
@@ -613,10 +613,10 @@ async function listLeads(f, { days = 7, limit = 25, minValuation = null, since =
        AND ($9::int IS NULL OR pp.issued_on >= current_date - $9::int)
        AND ($3::text[] IS NULL OR p.zip = ANY($3))
        AND coalesce(p.status_stage, 'unknown') NOT IN ('finished','cancelled')
-       AND ($6::numeric IS NULL OR p.valuation >= $6)
+       AND ($6::numeric IS NULL OR ${countedValueSql('p')} >= $6)
        AND NOT EXISTS (SELECT 1 FROM permit_parties t JOIN permits p2 ON p2.id = t.permit_id
                         WHERE t.job_key = pp.job_key AND t.trade = $4 AND p2.source_area = $1)
-     ORDER BY ${order === 'date' ? 'pp.issued_on DESC NULLS LAST, p.id DESC' : 'score DESC NULLS LAST, p.valuation DESC NULLS LAST, p.id'}
+     ORDER BY ${order === 'date' ? 'pp.issued_on DESC NULLS LAST, p.id DESC' : `score DESC NULLS LAST, ${countedValueSql('p')} DESC NULLS LAST, p.id`}
      LIMIT $5`, [f.source, days, f.zips, f.trade, limit, minValuation, SCORE_KEY[f.trade], since, issuedWithinDays]);
   const people = await contractorsById([...new Set(rows.map((r) => r.contractor_id).filter(Boolean))]);
   return rows.map((r) => ({
@@ -659,7 +659,7 @@ async function listEarly(f, { days = 30, limit = 100, segment = null, since = nu
                 FROM filing_filers ff JOIN filer_orgs o ON o.org_key = ff.org_key WHERE ff.permit_id = p.id) AS filers
         FROM permits p LEFT JOIN permit_parties pp ON pp.permit_id = p.id AND pp.role = 'contractor'
        WHERE ${where}
-       ORDER BY coalesce(p.submitted_on, p.first_seen_at::date) DESC, p.valuation DESC NULLS LAST, p.id
+       ORDER BY coalesce(p.submitted_on, p.first_seen_at::date) DESC, ${countedValueSql('p')} DESC NULLS LAST, p.id
        LIMIT $7`, args),
     query(`SELECT p.lifecycle_stage AS stage, count(*)::int AS n FROM permits p WHERE ${where} GROUP BY 1 ORDER BY 2 DESC`, args.slice(0, 6)),
     query(`SELECT ${segmentCols} FROM permits p WHERE ${base}`, [...args.slice(0, 5), ...Object.values(SEGMENTS).map((x) => x.pattern)]),

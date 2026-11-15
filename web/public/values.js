@@ -5,7 +5,7 @@
  * garage); Miami-Dade lists $580,000,000 on "LIGHT POLES" and "LOW VOLTAGE
  * CCTVS" at one address. The server counts, within one source, the permits
  * with the same value at the same address, or filed the same day when the
- * value is $1M or more (valuation_repeats, src/display_policy.js). When that
+ * value is $1M or more (permits.valuation_repeats, migration 039). When that
  * count is above 1 the value is still shown as the source gives it, but never
  * as this permit's own cost.
  *
