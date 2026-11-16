@@ -82,13 +82,18 @@ function measure(minTarget) {
       ...(ids.gc ? [['contractor', `/pilot/live/contractor.html?id=${ids.gc}`]] : []),
       ['search', '/search.html'],
       ['privacy', '/privacy'],
+      // Public pages for search and AI crawlers (ADR-42).
+      ['home', '/'],
+      ['markets', '/markets'],
+      ['market-austin', '/markets/tx/austin'],
+      ['methodology', '/data-methodology'],
       // Owner only (ADR-37): the layout run signs in with the owner key.
       ['admin-analytics', '/admin/analytics'],
     ];
     if (!ids.job || !ids.gc) console.log(`${vp.name}: no ${ids.job ? '' : 'job '}${ids.gc ? '' : 'contractor '}to open (empty data?)`);
     for (const [name, url] of pages) {
-      // The sign-in page is checked signed out, as a visitor sees it.
-      const page = name === 'login' || name === 'owner-login' ? await (await browser.newContext({ viewport: { width: vp.width, height: vp.height }, hasTouch: true, isMobile: true })).newPage() : await ctx.newPage();
+      // The sign-in page and the home page are checked signed out, as a first-time visitor sees them.
+      const page = name === 'login' || name === 'owner-login' || name === 'home' ? await (await browser.newContext({ viewport: { width: vp.width, height: vp.height }, hasTouch: true, isMobile: true })).newPage() : await ctx.newPage();
       const errors = [];
       page.on('pageerror', (e) => errors.push(e.message));
       await page.goto(BASE + url, { waitUntil: 'networkidle', timeout: 60000 }).catch((e) => errors.push(`load: ${e.message}`));

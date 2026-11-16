@@ -44,6 +44,19 @@ app.get('/healthz/schema', async (_req, res) => {
 // cookie flag). See web/proxy_trust.js.
 app.set('trust proxy', require('./proxy_trust').trustProxy);
 
+// Public pages for search engines and AI answer engines (ADR-42): market
+// counts, methodology, robots.txt, sitemap.xml, llms.txt. Before the gate and
+// before the app's noindex header, because they carry aggregates only (no
+// record, contractor, owner or phone). See web/seo/router.js.
+const seoQueries = require('../db/seo_queries.js');
+const seo = require('./seo/router.js');
+const seoRouter = seo.router({
+  marketStats: seoQueries.marketStats,
+  allSources: seoQueries.allPermitSources,
+  recordCrawl: seo.pgCrawlRecorder(db.query),
+});
+app.use(seoRouter);
+
 // Signed links from digest emails (ADR-20): one job page per token, and the
 // unsubscribe. Before the gate, because a customer opens them without the
 // demo password; the token is the only key (web/digest_routes.js).
@@ -361,7 +374,15 @@ app.use('/api/pilot', pilotApi);
 // /search.html stay as aliases so old links keep working. The pilot screens
 // (/pilot/live/*) are no longer linked from it but still load by URL.
 // /saved is the same page in its Saved view (app.js reads the path).
-app.get(['/', '/search', '/search.html', '/saved', '/contractors'], (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+// A first-time visitor at a bare / gets the public home page instead
+// (web/seo/router.js, ADR-43); opening any of these marks the browser with
+// ct_app=1 so / goes straight to the app afterwards. Functional only: it
+// holds no id and is never read by analytics.
+app.get(['/', '/search', '/search.html', '/saved', '/contractors'], (req, res) => {
+  res.cookie(seo.APP_COOKIE, '1', { maxAge: 365 * 24 * 3600 * 1000, sameSite: 'lax', secure: req.secure, httpOnly: true, path: '/' });
+  res.set('Vary', 'Accept-Encoding, Cookie');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -372,6 +393,7 @@ if (require.main === module) {
     // first screen after a deploy is served from memory (web/cache.js).
     const t0 = Date.now();
     cache.warm(warmList()).then(() => console.log(`cache: overviews warmed in ${Date.now() - t0} ms`));
+    seoRouter.warm().then(() => console.log('seo: market pages warmed'));
   });
   const shutdown = async () => { server.close(); await db.close(); process.exit(0); };
   process.on('SIGINT', shutdown);

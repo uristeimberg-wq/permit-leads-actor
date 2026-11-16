@@ -55,13 +55,15 @@ const BASE = `
   win AS (SELECT d - ($1::int - 1) AS start, d AS stop FROM today),
   days AS (SELECT g::date AS day FROM win, generate_series(win.start, win.stop, interval '1 day') g)`;
 
+const { channelSql, CHANNELS, CHANNEL_LABELS } = require('./referrer_channels.js');
+
 const OPENED = `('record_clicked', 'record_detail_viewed')`;
 
 async function charts(query, { days, role, source }) {
   const p = [days, role, source];
   const many = async (sql, params = p) => (await query(sql, params)).rows;
 
-  const [growth, dauByRole, funnelRows, roleRows, retentionRows, sources, sourceOptions, ingestion, since] = await Promise.all([
+  const [growth, dauByRole, funnelRows, roleRows, retentionRows, sources, sourceOptions, ingestion, since, channels, crawlers] = await Promise.all([
     // 1. Active people per day, split into first-time and returning, and email sign-ups.
     many(`WITH ${BASE},
       ad AS (SELECT DISTINCT e.actor, e.day FROM e JOIN fa USING (actor) WHERE e.day >= (SELECT start FROM win))
@@ -141,6 +143,26 @@ async function charts(query, { days, role, source }) {
         FROM planning_cases, t WHERE first_seen_at >= t.ts GROUP BY 1, 2
       ORDER BY 1, 2, 3`, [days]),
     many(`SELECT (min(started_at) AT TIME ZONE 'UTC')::date::text AS day FROM analytics_sessions`, []),
+    // 6. Search engines and AI assistants (ADR-42): each visit's channel read
+    // from its referrer host and UTM source (web/referrer_channels.js). Signed
+    // up = the person has an email sign-in; Activated = searched and opened a
+    // record in the window. The role filter applies; the source filter does not.
+    many(`WITH ${BASE},
+      ws AS (SELECT s.*, ${channelSql('s.referrer', 's.utm_source')} AS channel
+               FROM s JOIN fa USING (actor) WHERE s.started_at >= (SELECT start FROM win)::timestamp AT TIME ZONE 'UTC'),
+      act AS (SELECT e.actor FROM e WHERE e.day >= (SELECT start FROM win) GROUP BY e.actor
+               HAVING bool_or(e.event_name = 'search_executed') AND bool_or(e.event_name IN ${OPENED}))
+      SELECT channel, count(*)::int AS sessions, count(DISTINCT actor)::int AS actors,
+             count(DISTINCT actor) FILTER (WHERE actor IN (SELECT actor FROM act))::int AS activated,
+             count(DISTINCT actor) FILTER (WHERE user_id IS NOT NULL OR actor ~ '^[0-9]+$')::int AS signed_up,
+             count(*) FILTER (WHERE entry_path LIKE '/markets%' OR entry_path = '/data-methodology')::int AS landed_public
+        FROM ws GROUP BY channel ORDER BY sessions DESC`, [days, role, null]),
+    // 7. Requests from crawlers to the public pages, by the name their User-Agent claims (migration 042).
+    many(`SELECT crawler, sum(hits)::int AS hits,
+             sum(hits) FILTER (WHERE status_class = '2xx' OR status_class = '3xx')::int AS ok,
+             count(DISTINCT path)::int AS paths, max(last_at) AS last_at
+        FROM crawler_visits WHERE day >= (now() AT TIME ZONE 'UTC')::date - ($1::int - 1)
+       GROUP BY crawler ORDER BY hits DESC, crawler LIMIT 30`, [days]),
   ]);
 
   const retention = new Map(retentionRows.map((r) => [r.role, r]));
@@ -167,6 +189,11 @@ async function charts(query, { days, role, source }) {
     sources,
     sourceOptions,
     ingestion,
+    channels: CHANNELS.map((c) => {
+      const r = channels.find((x) => x.channel === c) || {};
+      return { channel: c, label: CHANNEL_LABELS[c], sessions: r.sessions || 0, actors: r.actors || 0, activated: r.activated || 0, signedUp: r.signed_up || 0, landedPublic: r.landed_public || 0 };
+    }),
+    crawlers,
   };
 }
 
