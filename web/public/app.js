@@ -712,8 +712,16 @@ async function run({ resetPage = false } = {}) {
   }
 
   const mine = ++reqId;
-  $('results').innerHTML = skeletons(6);
-  $('count').textContent = 'Searching…';
+  // With results already on screen, keep them (dimmed, app.css aria-busy)
+  // until the new ones land, rather than collapsing the list to skeletons and
+  // growing it back on every filter change. Skeletons only on a first load.
+  if ($('results').querySelector('.card')) {
+    $('results').setAttribute('aria-busy', 'true');
+    $('count').setAttribute('aria-busy', 'true');
+  } else {
+    $('results').innerHTML = skeletons(6);
+    $('count').textContent = 'Searching…';
+  }
 
   // Projects, or any list under a lens (the lens ranks on the server).
   if (CONTRACTORS_MODE) { runCompanies(filters, mine); return; }
@@ -1092,7 +1100,10 @@ function setSheetCount(total) {
 function updateFilterCount(filters) {
   // The lens and the grouping switch are not filters: the lens has its own bar.
   const n = Object.keys(filters).filter((k) => !['sort', 'csort', 'stage', 'lens', 'group', 'contractorLabel'].includes(k)).length;
-  $('filtersToggleLabel').textContent = n ? `Filters (${n})` : 'Filters';
+  // The count sits in a fixed-size badge (index.html) so the button never
+  // changes width and the List | Map toggle beside it never shifts.
+  $('filtersCount').textContent = n ? String(n) : '';
+  $('filtersToggle').setAttribute('aria-label', n ? `Filters, ${n} active` : 'Filters');
 }
 
 /* ==================================================== contractor history ===
@@ -1964,6 +1975,9 @@ function setView(view, { remember = true } = {}) {
   afterLayoutChange();
 }
 
+// How long the sidebar column takes to open or close (app.css --t-layout).
+const LAYOUT_MS = 280;
+
 function setFilters(open, { remember = true } = {}) {
   $('app').dataset.filters = open ? 'open' : 'closed';
   $('filtersToggle').setAttribute('aria-expanded', String(open));
@@ -1974,13 +1988,18 @@ function setFilters(open, { remember = true } = {}) {
 /** Leaflet measures its container once; any column resize invalidates that. */
 function afterLayoutChange() {
   if (!map) return;
-  // Wait for the grid to settle before re-measuring, or Leaflet reads the old
-  // width and renders a band of grey tiles where the pane just grew.
-  requestAnimationFrame(() => {
-    map.invalidateSize();
+  // The sidebar column animates its width (app.css, data-motion), so the map
+  // pane grows over several frames. Re-measure on each of them, or Leaflet
+  // shows a band of grey where the pane just grew; then fit and draw once the
+  // grid has settled.
+  const until = performance.now() + LAYOUT_MS + 60;
+  const step = () => {
+    map.invalidateSize({ pan: false });
+    if (performance.now() < until) { requestAnimationFrame(step); return; }
     fitPins();
     renderPins();
-  });
+  };
+  requestAnimationFrame(step);
 }
 
 /**
@@ -2020,6 +2039,35 @@ function showTransientMapNote(text) {
   clearTimeout(noteTimer);
   $('mapNote').textContent = text;
   noteTimer = setTimeout(() => { noteTimer = null; $('mapNote').textContent = baseMapNote; }, 7000);
+}
+
+/* ------------------------------------------------------- dialog motion */
+
+// A <dialog> vanishes in one frame when closed. When the user dismisses one
+// (close button, backdrop, Esc, "Show results"), play its exit first: the
+// sheet slides down, the drawer slides out (app.css .is-closing). Closes the
+// code makes itself stay instant, so a dialog that is about to be reopened is
+// never shut by a pending exit.
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+function dismiss(dlg) {
+  if (!dlg.open || dlg.classList.contains('is-closing')) return;
+  // The desktop sidebar is a grid column, not a modal; it has no exit of its own.
+  if (reduceMotion.matches || (dlg.id === 'sidebar' && wide.matches)) { dlg.close(); return; }
+  dlg.classList.add('is-closing');
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    // Close first: dropping the class while still open would flash it back.
+    if (dlg.open) dlg.close();
+    dlg.classList.remove('is-closing');
+  };
+  dlg.addEventListener('animationend', (e) => { if (e.target === dlg) finish(); }, { once: true });
+  setTimeout(finish, 400);   // in case animationend never fires
+}
+// Esc closes a modal dialog natively and instantly; route it through dismiss().
+for (const id of ['sidebar', 'detail', 'contractorPanel']) {
+  $(id).addEventListener('cancel', (e) => { e.preventDefault(); dismiss($(id)); });
 }
 
 /* -------------------------------------------------------------- responsive */
@@ -2081,9 +2129,9 @@ document.addEventListener('click', (e) => {
 
 $('contractor').addEventListener('input', (e) => loadContractorSuggestions(e.target.value.trim()));
 
-$('cClose').addEventListener('click', () => $('contractorPanel').close());
+$('cClose').addEventListener('click', () => dismiss($('contractorPanel')));
 $('contractorPanel').addEventListener('click', (e) => {
-  if (e.target === $('contractorPanel')) $('contractorPanel').close();
+  if (e.target === $('contractorPanel')) dismiss($('contractorPanel'));
 });
 $('contractorPanel').addEventListener('close', () => {
   // Coming from a permit, go back to it rather than dumping the user in the list.
@@ -2158,19 +2206,19 @@ $('filtersToggle').addEventListener('click', () => {
     // A column, so this collapses it and the remaining panes take the width.
     setFilters($('app').dataset.filters === 'closed');
   } else if (sidebar.open) {
-    sidebar.close();
+    dismiss(sidebar);
   } else {
     sidebar.showModal();
   }
 });
 
-$('sheetApply').addEventListener('click', () => $('sidebar').close());
+$('sheetApply').addEventListener('click', () => dismiss($('sidebar')));
 
 $('sidebarClose').addEventListener('click', () => {
-  if (wide.matches) setFilters(false); else $('sidebar').close();
+  if (wide.matches) setFilters(false); else dismiss($('sidebar'));
 });
 
-$('dClose').addEventListener('click', () => $('detail').close());
+$('dClose').addEventListener('click', () => dismiss($('detail')));
 $('detail').addEventListener('close', () => {
   if (window.Track) Track.recordClose();
   for (const c of document.querySelectorAll('.card[aria-current]')) c.removeAttribute('aria-current');
@@ -2179,7 +2227,7 @@ $('detail').addEventListener('close', () => {
   lastFocused = null;
 });
 // Clicking the backdrop closes the drawer.
-$('detail').addEventListener('click', (e) => { if (e.target === $('detail')) $('detail').close(); });
+$('detail').addEventListener('click', (e) => { if (e.target === $('detail')) dismiss($('detail')); });
 
 wide.addEventListener('change', syncSidebar);
 
@@ -2333,3 +2381,13 @@ if (SAVED_MODE) {
   loadAllAreas();
   Promise.all([loadOptions(), featuresReady]).finally(run);
 }
+
+// Whatever paints the list or the count next (results, empty state, error,
+// a newer search) ends the busy state set in run().
+for (const id of ['results', 'count']) {
+  new MutationObserver(() => $(id).removeAttribute('aria-busy')).observe($(id), { childList: true });
+}
+
+// Layout transitions (app.css [data-motion]) start after the first paint, so
+// restoring the stored layout on load doesn't animate.
+requestAnimationFrame(() => requestAnimationFrame(() => { $('app').dataset.motion = 'on'; }));

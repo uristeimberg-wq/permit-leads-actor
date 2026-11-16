@@ -71,6 +71,9 @@
           <path d="M3 6h18M6 12h12M10 18h4"/>
         </svg>
         <span id="filtersToggleLabel">Filters</span>
+        <!-- Always present and fixed-size, so the button keeps its width when
+             filters are added and the controls beside it don't shift. -->
+        <span class="fcount" id="filtersCount" aria-hidden="true"></span>
       </button>
 
       <!-- List / Split / Map. "Split" is hidden below 1181px, where there is
@@ -194,15 +197,14 @@
 
       <section class="group">
         <h3>Filed</h3>
-        <div class="field-pair">
-          <div class="field">
-            <label for="from">From</label>
-            <input class="input" id="from" name="from" type="date">
-          </div>
-          <div class="field">
-            <label for="to">To</label>
-            <input class="input" id="to" name="to" type="date">
-          </div>
+        <!-- One row per date, label beside the box: two side-by-side date
+             boxes don't fit the 288px column (the native control has a
+             minimum width) and spilled past the panel edge. -->
+        <div class="date-range">
+          <label for="from">From</label>
+          <input class="input" id="from" name="from" type="date">
+          <label for="to">To</label>
+          <input class="input" id="to" name="to" type="date">
         </div>
       </section>
 
@@ -219,7 +221,7 @@
               <option value="non_residential">Non-residential</option>
             </select>
             <!-- The class is the city's own (src/sources.js propertyClass). -->
-            <p class="hint">As the city classes it. Austin, Miami-Dade, City of Miami and Raleigh only.</p>
+            <p class="hint">As the city classes it, where the city records it.</p>
           </div>
           <div class="field">
             <label for="minValuation">Minimum valuation ($)</label>
