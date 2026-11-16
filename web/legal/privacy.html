@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy · Giboro</title>
+<meta name="description" content="What Giboro collects, what it does not, who else is involved, and how to turn analytics off or have your data deleted.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;700&amp;family=Oswald:wght@700&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/legal.css">
+</head>
+<body>
+<header><div class="wrap"><a class="wordmark" href="/"><i aria-hidden="true"></i>Giboro</a><a class="back" href="/search">Back to the app</a></div></header>
+<main class="wrap">
+  <h1>Privacy</h1>
+  <p class="updated">Last updated November 16, 2026</p>
+  <p class="lede">Giboro is a search tool over public building-permit records. This page says what we collect about you when you use it, what we do not, who else is involved, and how to have it deleted.</p>
+
+  <h2>What you give us</h2>
+  <ul>
+    <li><b>Your email address</b>, if you sign in to save permits or ask for email digests. During the pilot the address is not verified, so anyone who types an address can open that address's saved list. Don't put anything sensitive in your notes.</li>
+    <li><b>Your saved permits</b>, with the status and notes you add to them (for example "called" or "quoted").</li>
+    <li><b>Digest settings</b>: the email, area and trades you choose for a digest.</li>
+    <li><b>Your answer to the welcome question</b> (what you do and where you work), if you give one. It is kept in your browser and recorded with the usage analytics below.</li>
+  </ul>
+
+  <h2>Usage analytics</h2>
+  <p>We record how the app is used so we can learn which data and screens are useful.</p>
+  <ul>
+    <li>Pages you open and how long the tab was visible on each (time in a background tab is not counted), and how far you scroll.</li>
+    <li>Searches: the words you type in the search box, the filters you choose, and how many results came back.</li>
+    <li>Which permits, projects and contractors you open, and actions such as saving a permit, copying or calling a phone number, or opening a county portal link.</li>
+    <li>Errors the app hit, so we can fix them.</li>
+    <li>A random identifier stored in your browser (localStorage), so visits from the same browser can be counted as one visitor. If you sign in with your email, that browser's earlier visits are linked to your email.</li>
+    <li>The website that sent you here (its name only, not the page address) and campaign tags in the link, if any.</li>
+    <li>Device type (phone, tablet, desktop), browser and operating system family.</li>
+  </ul>
+  <p>We do not record:</p>
+  <ul>
+    <li>Your IP address. The analytics data never holds it; it is only used, in memory, to slow down abuse while a request is handled.</li>
+    <li>Your full browser identification string, passwords, keys or cookies.</li>
+    <li>Email addresses or phone numbers typed into the search box: they are replaced with a placeholder before anything is stored.</li>
+    <li>The phone numbers you copy or call: only that you used one.</li>
+  </ul>
+
+  <h2>Turning analytics off</h2>
+  <p>If your browser sends <b>Do Not Track</b> or <b>Global Privacy Control</b>, nothing is recorded. You can also switch it off for this browser here.</p>
+  <div class="plate">
+    <p>Usage analytics in this browser: <span id="state" role="status">checking…</span></p>
+    <button type="button" class="btn" id="toggle" hidden>Turn off</button>
+  </div>
+
+  <h2>Cookies and browser storage</h2>
+  <ul>
+    <li><code>ct_app=1</code>: set when you open the app, so giboro.com takes you straight to it next time. It holds no identifier and analytics never reads it.</li>
+    <li>A session cookie when you sign in, so you stay signed in (up to 30 days).</li>
+    <li>In your browser's local storage: your layout preference (list, split or map; filters open or closed), your welcome answer, the analytics identifier above and your analytics opt-out.</li>
+  </ul>
+  <p>We use no advertising or third-party tracking cookies.</p>
+
+  <h2>Records about people and businesses</h2>
+  <p>Giboro shows permit and planning records that government agencies publish. Business names and the phone numbers on those records are shown as published. Property owners' names and contacts, and names that look like individuals, are stored as part of the public record but never shown or exported.</p>
+  <p>If your number or details appear and you want them removed or corrected, see <a href="/contact">Contact &amp; removal</a>.</p>
+
+  <h2>Who else is involved</h2>
+  <ul>
+    <li><b>Services your browser loads directly.</b> Pages load fonts from Google Fonts, the map library from unpkg.com and map tiles from OpenStreetMap. Permit pages may show a Google Street View photo, loaded from Google Maps. Like any website you load content from, these services receive your IP address and browser details. Google's use is covered by the <a href="https://policies.google.com/privacy" rel="noopener noreferrer">Google Privacy Policy</a>.</li>
+    <li><b>Our providers.</b> The companies that host and deliver the site, and, when you ask for digests, an email delivery service. They process data only to run Giboro.</li>
+  </ul>
+  <p>We do not sell your information, share it with advertisers, or use third-party analytics or advertising services.</p>
+
+  <h2>How long we keep it</h2>
+  <ul>
+    <li>Usage records: deleted automatically 13 months after they were recorded.</li>
+    <li>Your email, saved permits and notes: until you ask us to delete them.</li>
+    <li>Digests: unsubscribing (one click, in every email) stops every Giboro email to that address at once.</li>
+  </ul>
+
+  <h2>Your choices</h2>
+  <p>To see, correct or delete what we hold about you, email {{CONTACT}} from, or naming, the address you signed in with. We act on deletion requests within 10 business days.</p>
+
+  <h2>Children</h2>
+  <p>Giboro is a business tool. It is not directed at children under 13 and we do not knowingly collect their information.</p>
+
+  <h2>Changes</h2>
+  <p>We will update this page when what we collect changes, and change the date at the top.</p>
+</main>
+{{FOOTER}}
+<script>
+(function () {
+  var get = function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  var set = function (k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { /* blocked */ } };
+  var browserSays = navigator.doNotTrack === '1' || window.doNotTrack === '1' || navigator.globalPrivacyControl === true;
+  var state = document.getElementById('state');
+  var btn = document.getElementById('toggle');
+  function paint() {
+    if (browserSays) { state.textContent = 'off (your browser asks not to be tracked)'; btn.hidden = true; return; }
+    var off = get('ct_analytics_optout') === '1';
+    state.textContent = off ? 'off' : 'on';
+    btn.textContent = off ? 'Turn back on' : 'Turn off';
+    btn.hidden = false;
+  }
+  btn.addEventListener('click', function () {
+    if (get('ct_analytics_optout') === '1') set('ct_analytics_optout', null);
+    else { set('ct_analytics_optout', '1'); set('ct_device', null); set('ct_session', null); }
+    paint();
+  });
+  paint();
+}());
+</script>
+</body>
+</html>

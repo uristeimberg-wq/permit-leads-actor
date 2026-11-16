@@ -151,12 +151,12 @@ async function getJSON(url, opts) {
   } catch {
     // hidden: the tab was in the background (iOS drops fetches when you switch apps).
     track('api_request_failed', { endpoint: apiPath(url), status: 0, hidden: document.visibilityState === 'hidden', online: navigator.onLine });
-    throw new Error("Couldn't reach the server. Check your connection, or that the Contractos server is running.");
+    throw new Error("Couldn't reach the server. Check your connection, or that the Giboro server is running.");
   }
   const isJson = (r.headers.get('content-type') || '').includes('application/json');
   if (!isJson) {
     const err = new Error(`The server answered with a web page instead of data (HTTP ${r.status}). `
-      + 'Another app may be running on this address; open Contractos on its own port.');
+      + 'Another app may be running on this address; open Giboro on its own port.');
     err.status = r.status;
     throw err;
   }
@@ -435,6 +435,9 @@ const titleCase = (v) => String(v || '').toLowerCase()
  * "Latest permits" is a claim about recency. If the newest ingest is two weeks
  * old, that belongs in the header, not in grey 12px text below the form.
  */
+/** "Miami-Dade, FL (DERM sewer certifications)" and "Miami-Dade County, FL" -> "Miami-Dade, FL". */
+const marketOf = (label) => String(label || '').replace(/\s*\(.*\)\s*$/, '').replace(' County,', ',');
+
 async function loadFreshness() {
   let sources = [];
   try {
@@ -462,21 +465,35 @@ async function loadFreshness() {
   badge.setAttribute('aria-label', `Data freshness: ${$('freshLabel').textContent}`);
   badge.title = $('freshLabel').textContent;
 
+  // One row per city, not one per feed: twelve feeds with names like
+  // "Miami-Dade, FL (zoning hearing applications)" made a list taller than a
+  // phone screen. Each row shows its OLDEST feed, so the city never looks
+  // fresher than its stalest part (rule 7), and "failed" if any feed failed.
+  // The full list with credits is one link away (/sources, in the note).
   const level = (d) => (d < 1 ? 'ok' : d < 7 ? 'warn' : 'stale');
-  $('freshSources').innerHTML = sources
-    .slice()
-    .sort((a, b) => new Date(b.finished_at || 0) - new Date(a.finished_at || 0))
-    .map((s) => {
-      const d = s.finished_at ? daysSince(s.finished_at) : null;
-      const note = s.error ? 'failed' : d === null ? 'never run' : relativeDays(d);
-      return `<div class="src-row" data-level="${s.error ? 'stale' : level(d ?? 99)}">
-          <span class="name">${esc(s.label || s.source_area)}</span>
-          <span>${s.permits_seen ? plural(s.permits_seen, 'permit', 'permits') : ''}</span>
-          <span class="age">${esc(note)}</span>
-          ${s.publicationLag ? `<span class="lag">${esc(s.publicationLag)}, on top of our sync.</span>` : ''}
-        </div>`;
-    })
-    .join('');
+  const cities = new Map();
+  for (const s of sources) {
+    const label = s.label || s.source_area;
+    const city = marketOf(label);
+    if (!cities.has(city)) cities.set(city, { feeds: 0, failed: false, never: false, oldest: null, lag: null });
+    const c = cities.get(city);
+    c.feeds += 1;
+    if (s.error) c.failed = true;
+    if (!s.finished_at) c.never = true;
+    else c.oldest = Math.max(c.oldest ?? 0, daysSince(s.finished_at));
+    // The city's main permit feed is the one without a "(...)" qualifier.
+    if (label === city || !c.lag) c.lag = s.publicationLag || c.lag;
+  }
+  $('freshSources').innerHTML = [...cities].sort(([a], [b]) => a.localeCompare(b)).map(([city, c]) => {
+    const note = c.failed ? 'failed' : c.never ? 'never run' : relativeDays(c.oldest);
+    const lvl = c.failed || c.never ? 'stale' : level(c.oldest);
+    return `<div class="src-row" data-level="${lvl}">
+        <span class="name">${esc(city)}</span>
+        <span>${c.feeds > 1 ? `${c.feeds} feeds` : ''}</span>
+        <span class="age">${esc(note)}</span>
+        ${c.lag ? `<span class="lag">${esc(c.lag)}.</span>` : ''}
+      </div>`;
+  }).join('');
 
 
   // Popover toggle.
@@ -2346,7 +2363,7 @@ if (SAVED_MODE) {
   $('app').dataset.mode = 'saved';
   $('navLeads').removeAttribute('aria-current');
   $('navSaved').setAttribute('aria-current', 'page');
-  document.title = 'Saved permits · Contractos';
+  document.title = 'Saved permits · Giboro';
   setView('list', { remember: false });
   loadFreshness();
   Saved.ready.then(loadSaved);
@@ -2362,7 +2379,7 @@ if (SAVED_MODE) {
   $('app').dataset.mode = 'contractors';
   $('navLeads').removeAttribute('aria-current');
   $('navContractors').setAttribute('aria-current', 'page');
-  document.title = 'Contractors · Contractos';
+  document.title = 'Contractors · Giboro';
   const savedLayout = readStore();
   setView('list', { remember: false });
   setFilters(savedLayout.filters !== 'closed', { remember: false });

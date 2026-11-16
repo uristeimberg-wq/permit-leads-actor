@@ -85,7 +85,7 @@ async function main() {
 
   const q = async (sql, p) => (await db.query(sql, p)).rows;
   const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'digest-it-'));
-  const dry = { ...dryRunProvider({ outDir }), allowlist: [], from: 'Contractos <digest@example.com>', replyTo: null };
+  const dry = { ...dryRunProvider({ outDir }), allowlist: [], from: 'Giboro <digest@example.com>', replyTo: null };
   const ingestAll = async () => {
     await ingestArea('austin-tx', { days: 30, max: 100, allDetails: false });
     await ingestArea('austin-plan-review-tx', { days: 30, max: 100, allDetails: false });
@@ -171,7 +171,7 @@ async function main() {
     await check('live: provider failures are recorded with their class and retried the same day', async () => {
       let n = 0;
       const fetchImpl = async () => { n += 1; return n === 1 ? { ok: false, status: 503, json: async () => ({ message: 'down' }) } : { ok: true, status: 200, json: async () => ({ id: 'msg_ok' }) }; };
-      const live = { ...resendProvider({ apiKey: 'k', fetchImpl }), allowlist: [], from: 'Contractos <digest@example.com>', replyTo: null };
+      const live = { ...resendProvider({ apiKey: 'k', fetchImpl }), allowlist: [], from: 'Giboro <digest@example.com>', replyTo: null };
       const bad = await runDigests({ provider: live, env: ENV });
       assert.deepStrictEqual(bad.results.map((r) => [r.status, r.errorClass]), [['failed', 'provider_down']]);
       assert.strictEqual(bad.failed, 1);

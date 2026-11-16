@@ -83,6 +83,9 @@ const gate = demoGate(undefined, {
   isPublic: OPEN_ACCESS ? (req) => !OWNER_ONLY.test(req.path) : null,
   ownerOnly: (req) => OWNER_ONLY.test(req.path),
 });
+// Terms, privacy, disclaimer, sources and contact (web/legal.js): registered
+// before the gate so they are public in every access mode.
+app.use(require('./legal.js').router());
 app.use(gate);
 // Public pages carry contractor names and phones: keep them out of search engines.
 if (OPEN_ACCESS) app.use((_req, res, next) => { res.set('X-Robots-Tag', 'noindex, nofollow'); next(); });
@@ -101,9 +104,6 @@ app.use(require('./telemetry.js').router({
 app.use(require('./admin_analytics.js').router({
   query: db.query, isOwner: gate.isOwner, userIdOf: (req) => userSessions.userId(req),
 }));
-// What is collected, and the opt-out switch.
-app.get('/privacy', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'privacy.html')));
-app.get('/sources', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'sources.html')));
 
 // The signed-in user and their saved permits (/api/me...).
 app.use(users.router({ store: userStore, sessions: userSessions, permitsByIds: queries.permitsByIds }));

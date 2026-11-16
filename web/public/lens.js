@@ -62,7 +62,7 @@
     dlg.innerHTML = `
       <form class="welcome-body" method="dialog" novalidate>
         <div class="welcome-head">
-          <h2 id="welcomeTitle">Welcome to Contractos</h2>
+          <h2 id="welcomeTitle">Welcome to Giboro</h2>
           <p>Tell us what you do and where, and we'll show the leads that fit. Optional, no signup.</p>
         </div>
         <fieldset class="welcome-q">

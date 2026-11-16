@@ -24,7 +24,7 @@
   // has arrived.
   const STEPS = [
     {
-      title: 'What Contractos is',
+      title: 'What Giboro is',
       body: [
         'Construction permit records from public city and county sources: what is being built, where, when each step was filed, and the business named on each permit, with the source behind every value.',
         'Markets: Austin, Miami-Dade, City of Miami and Raleigh. Data syncs daily, and every screen shows the last sync and how far behind the city publishes.',

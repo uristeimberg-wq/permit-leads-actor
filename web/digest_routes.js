@@ -46,7 +46,7 @@ function page(title, body) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <meta name="referrer" content="no-referrer">
-<title>${esc(title)} · Contractos</title>
+<title>${esc(title)} · Giboro</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; }
 html, body { overflow-x: clip; }
@@ -74,7 +74,7 @@ footer div { padding-top: 16px; padding-bottom: 24px; border-top: 1px solid ${C.
 </style>
 </head>
 <body>
-<header><div><i aria-hidden="true"></i>Contractos</div></header>
+<header><div><i aria-hidden="true"></i>Giboro</div></header>
 <main>${body}</main>
 <footer><div>Built on public permit records. Not affiliated with or endorsed by any government agency. Names that look like individuals are withheld.</div></footer>
 </body>
@@ -82,7 +82,7 @@ footer div { padding-top: 16px; padding-bottom: 24px; border-top: 1px solid ${C.
 }
 
 const notFound = (res) => noStore(res).status(404).type('html').send(page('Link not valid',
-  '<h1>This link has expired or is not valid</h1><p>Job links in digest emails work for 60 days. Open a newer email, or sign in to Contractos.</p>'));
+  '<h1>This link has expired or is not valid</h1><p>Job links in digest emails work for 60 days. Open a newer email, or sign in to Giboro.</p>'));
 
 async function subscriptionById(id) {
   const { rows: [s] } = await db.query('SELECT * FROM digest_subscriptions WHERE id = $1', [id]);
@@ -160,7 +160,7 @@ ${p.work_description ? `<p>${esc(p.work_description)}</p>` : ''}`);
   parts.push(`<p class="fresh${stale || meta.lastSyncStatus === 'failed' ? ' warn' : ''}">Last ${esc(meta.city || '')} sync ${esc(R.fmtDateTime(meta.lastSyncAt, tz))}${meta.lastSyncStatus === 'failed' ? ' (the latest attempt failed)' : ''}. ${meta.publicationLag ? `${esc(meta.publicationLag)}.` : ''}
 ${prov ? ` This record was fetched ${esc(R.fmtDateTime(prov.fetchedAt, tz))} (record ${esc(prov.rawRecordId)}).` : ''}</p>
 <p class="sub">Source: ${esc(R.credits({ source: p.source_area, attribution: null }, false) || meta.attribution || p.source_area)}. Phones are as published on permits; nobody has called to check them.</p>
-<p class="sub"><a href="/pilot/live/job.html?id=${encodeURIComponent(p.id)}&amp;source=${encodeURIComponent(sub.source_area)}">Open the full job page in Contractos</a> (sign-in).</p>`);
+<p class="sub"><a href="/pilot/live/job.html?id=${encodeURIComponent(p.id)}&amp;source=${encodeURIComponent(sub.source_area)}">Open the full job page in Giboro</a> (sign-in).</p>`);
   return page(p.address || p.permit_number, parts.join('\n'));
 }
 
@@ -196,10 +196,10 @@ function publicRouter({ env = process.env } = {}) {
     const sub = await subscriptionById(t.subscriptionId);
     if (!sub) return notFound(res);
     if (sub.status === 'unsubscribed') {
-      return noStore(res).type('html').send(page('Unsubscribed', `<h1>You are unsubscribed</h1><p>${esc(maskEmail(sub.email))} gets no Contractos emails.</p>`));
+      return noStore(res).type('html').send(page('Unsubscribed', `<h1>You are unsubscribed</h1><p>${esc(maskEmail(sub.email))} gets no Giboro emails.</p>`));
     }
-    return noStore(res).type('html').send(page('Unsubscribe', `<h1>Unsubscribe from Contractos emails?</h1>
-<p>This stops every Contractos email to ${esc(maskEmail(sub.email))}, not just this digest.</p>
+    return noStore(res).type('html').send(page('Unsubscribe', `<h1>Unsubscribe from Giboro emails?</h1>
+<p>This stops every Giboro email to ${esc(maskEmail(sub.email))}, not just this digest.</p>
 <form method="post" action="/u/${esc(req.params.token)}"><button class="btn" type="submit">Unsubscribe</button></form>`));
   }));
 
@@ -211,7 +211,7 @@ function publicRouter({ env = process.env } = {}) {
     const oneClick = req.body && req.body['List-Unsubscribe'] === 'One-Click';
     await unsubscribe(sub, oneClick ? 'one_click' : 'link');
     return noStore(res).type('html').send(page('Unsubscribed', `<h1>You are unsubscribed</h1>
-<p>${esc(maskEmail(sub.email))} will get no more Contractos emails. If one was already on its way it may still arrive today.</p>
+<p>${esc(maskEmail(sub.email))} will get no more Giboro emails. If one was already on its way it may still arrive today.</p>
 <p class="sub">Changed your mind? Reply to any digest or contact us, and we will turn it back on.</p>`));
   }));
 

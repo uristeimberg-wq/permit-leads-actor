@@ -1,4 +1,4 @@
--- 043: residential or non-residential, as the source classes the property.
+-- 044: residential or non-residential, as the source classes the property.
 --
 -- Four permit sources publish a class column (src/sources.js propertyClass):
 -- Austin permit_class_mapped, Miami-Dade ResidentialCommercial, City of

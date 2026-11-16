@@ -249,7 +249,7 @@ function renderDigest(model, links, opts = {}) {
 ${previewBar}
 <tr><td style="padding:14px 20px;background:${C.ink};">
 <span style="display:inline-block;width:12px;height:12px;background:${C.accent};vertical-align:middle;"></span>
-<span style="font:700 18px/1 ${FONT};color:${C.plate};text-transform:uppercase;letter-spacing:0.02em;vertical-align:middle;">&nbsp;Contractos</span>
+<span style="font:700 18px/1 ${FONT};color:${C.plate};text-transform:uppercase;letter-spacing:0.02em;vertical-align:middle;">&nbsp;Giboro</span>
 </td></tr>
 <tr><td style="padding:20px 20px 16px;background:${C.plate};border-bottom:3px solid ${C.ink};">
 <h1 style="margin:0;font:700 24px/1.2 ${FONT};color:${C.ink};">${esc(plural(c.total, 'new record'))} in ${esc(m.city)}</h1>
@@ -259,9 +259,9 @@ ${previewBar}
 ${warn ? `<tr><td style="padding:10px 20px;background:${C.warnWash};font:700 14px/1.45 ${FONT};color:${C.warn};">${esc(warn)}</td></tr>` : ''}
 ${rows.join('\n')}
 <tr><td style="padding:24px 20px 32px;background:${C.paper};font:400 12px/1.6 ${FONT};color:${C.muted};">
-<p style="margin:0 0 8px;">From public permit records${credits(m, model.early) ? `: ${esc(credits(m, model.early))}` : ''}. Contractos is not affiliated with or endorsed by any government agency. Phones are as published on permits; nobody has called to check them. Names that look like individuals are withheld.</p>
+<p style="margin:0 0 8px;">From public permit records${credits(m, model.early) ? `: ${esc(credits(m, model.early))}` : ''}. Giboro is not affiliated with or endorsed by any government agency. Phones are as published on permits; nobody has called to check them. Names that look like individuals are withheld.</p>
 <p style="margin:0 0 8px;">You get this ${esc(sub.frequency === 'weekly' ? 'weekly' : 'daily')} email because ${esc(sub.email)} subscribed to ${esc(m.city)} ${esc(list(wants))}.
-<a href="${esc(unsubscribe)}" style="color:${C.ink2};text-decoration:underline;">Unsubscribe</a> (one click, stops every Contractos email to this address).${opts.contactEmail ? ` Questions or a removal request: <a href="mailto:${esc(opts.contactEmail)}" style="color:${C.ink2};">${esc(opts.contactEmail)}</a>.` : ''}</p>
+<a href="${esc(unsubscribe)}" style="color:${C.ink2};text-decoration:underline;">Unsubscribe</a> (one click, stops every Giboro email to this address).${opts.contactEmail ? ` Questions or a removal request: <a href="mailto:${esc(opts.contactEmail)}" style="color:${C.ink2};">${esc(opts.contactEmail)}</a>.` : ''}</p>
 <p style="margin:0;">${address ? esc(address) : '<strong style="color:' + C.warn + ';">[Mailing address not set: MAILING_ADDRESS is required before any real send]</strong>'}</p>
 </td></tr>
 </table>
@@ -303,7 +303,7 @@ ${rows.join('\n')}
   }
   t.push('', '--',
     `From public permit records${credits(m, model.early) ? `: ${credits(m, model.early)}` : ''}. Not affiliated with or endorsed by any government agency.`,
-    `Unsubscribe (stops every Contractos email to ${sub.email}): ${unsubscribe}`,
+    `Unsubscribe (stops every Giboro email to ${sub.email}): ${unsubscribe}`,
     address || '[Mailing address not set: MAILING_ADDRESS is required before any real send]');
 
   return { subject, html, text: t.join('\n'), preheader, total: c.total };

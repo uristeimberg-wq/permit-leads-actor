@@ -48,7 +48,7 @@ function model(over = {}) {
   };
 }
 const links = { job: (id) => `https://app.example.com/l/tok-${id}`, unsubscribe: () => 'https://app.example.com/u/unsub-tok' };
-const opts = { mailingAddress: 'Contractos, 100 Congress Ave Suite 200, Austin, TX 78701', contactEmail: 'hello@example.com', appUrl: 'https://app.example.com' };
+const opts = { mailingAddress: 'Giboro, 100 Congress Ave Suite 200, Austin, TX 78701', contactEmail: 'hello@example.com', appUrl: 'https://app.example.com' };
 
 check('subject counts what is new, by section, in the market', () => {
   assert.strictEqual(subjectFor(model()), 'Austin: 5 new home filings, 2 for electrical · Nov 14');

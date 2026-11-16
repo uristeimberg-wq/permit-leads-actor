@@ -1,0 +1,37 @@
+/* The public notices (web/legal/*.html): terms, privacy, disclaimer, sources,
+   contact. Same tokens and type as the app. */
+:root { --paper: oklch(96.4% 0.009 85); --plate: oklch(98.6% 0.005 85); --ink: oklch(22% 0.02 260); --ink-2: oklch(31% 0.018 260);
+  --muted: oklch(44% 0.014 260); --line: oklch(86% 0.01 85); --accent: oklch(52% 0.15 48); --accent-deep: oklch(40% 0.12 48);
+  --accent-ink: oklch(98.6% 0.005 85); --focus: oklch(50% 0.17 48);
+  --display: "Oswald", "Arial Narrow", ui-sans-serif, sans-serif; --body: "Archivo", ui-sans-serif, system-ui, sans-serif; }
+*, *::before, *::after { box-sizing: border-box; }
+html, body { overflow-x: clip; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 16px/1.55 var(--body); -webkit-font-smoothing: antialiased; }
+header { background: var(--ink); }
+.wrap { max-width: 760px; margin: 0 auto; padding: 0 16px; }
+header .wrap { min-height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.wordmark { display: flex; align-items: center; gap: 8px; font: 700 20px/1 var(--display); text-transform: uppercase; color: var(--plate); text-decoration: none; }
+.wordmark i { width: 12px; height: 12px; background: var(--accent); display: inline-block; }
+header a.back { color: var(--plate); min-height: 44px; display: inline-flex; align-items: center; }
+main { padding: 24px 0 40px; }
+h1 { font: 700 2.25rem/1.05 var(--display); text-transform: uppercase; margin: 0 0 12px; overflow-wrap: anywhere; }
+h2 { font: 700 1.25rem/1.15 var(--display); text-transform: uppercase; margin: 32px 0 8px; }
+p, li { color: var(--ink-2); }
+li + li { margin-top: 4px; }
+a { color: var(--accent-deep); }
+.updated { color: var(--muted); font-size: 14px; margin: 0 0 20px; }
+.lede { font-size: 18px; color: var(--ink); }
+.plate { background: var(--plate); border: 3px solid var(--ink); padding: 20px; margin-top: 24px; }
+.plate > :first-child { margin-top: 0; }
+.plate > :last-child { margin-bottom: 0; }
+.unset { color: var(--muted); font-style: italic; }
+.btn { min-height: 44px; padding: 0 16px; border: 0; cursor: pointer; background: var(--accent); color: var(--accent-ink); font: 700 15px/1 var(--display); text-transform: uppercase; letter-spacing: .02em; }
+.btn:hover { background: var(--accent-deep); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+#state { font-weight: 700; }
+
+.legal-foot { border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+.legal-foot .wrap { padding-top: 8px; padding-bottom: 24px; }
+.legal-foot nav { display: flex; flex-wrap: wrap; gap: 0 18px; }
+.legal-foot nav a { min-height: 44px; display: inline-flex; align-items: center; color: var(--ink-2); }
+.legal-foot p { margin: 4px 0 0; color: var(--muted); }

@@ -51,7 +51,7 @@ Wait until the dashboard says the domain is verified (minutes to a few hours).
 | `EMAIL_API_KEY` | secret | the provider API key (Resend: a "sending access" key for that domain only; Postmark: the server token) |
 | `LINK_SECRET` | secret, **and Railway** | 32+ random characters, the same in both places. Generate with `openssl rand -base64 32`. Changing it breaks the links in emails already sent |
 | `EMAIL_PROVIDER` | variable | `resend` or `postmark` |
-| `EMAIL_FROM` | variable | `Contractos <digest@mail.yourdomain.com>` (must be on the verified domain) |
+| `EMAIL_FROM` | variable | `Giboro <digest@mail.yourdomain.com>` (must be on the verified domain) |
 | `EMAIL_REPLY_TO` | variable | an inbox someone reads, optional but recommended |
 | `CONTACT_EMAIL` | variable | the address shown for questions and removal requests |
 | `MAILING_ADDRESS` | variable | a valid postal address, required by CAN-SPAM (a street address, a PO box or a registered commercial mailbox) |

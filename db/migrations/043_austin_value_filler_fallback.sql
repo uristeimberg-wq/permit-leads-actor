@@ -1,4 +1,4 @@
--- 042: an Austin $1 filler total falls to the remodel total (ADR-34 fix).
+-- 043: an Austin $1 filler total falls to the remodel total (ADR-34 fix).
 --
 -- 037 took total_job_valuation unless it was 0, then nulled anything under
 -- $100. Austin puts '1' (a filler) in total_job_valuation on rows whose

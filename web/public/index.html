@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Permit search · Contractos</title>
+<title>Permit search · Giboro</title>
 <meta name="description" content="Search recent building permits by postal code, city and lifecycle stage.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -32,7 +32,7 @@
             <path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-5h6v5"/>
           </svg>
         </span>
-        <span class="brand-name">Contractos</span>
+        <span class="brand-name">Giboro</span>
       </a>
 
       <div class="masthead-right">
@@ -112,8 +112,8 @@
         </button>
         <div class="popover" id="freshPop" hidden>
           <h3>Data freshness</h3>
-          <p class="note">When each source last finished ingesting. A source that
-             is behind means permits filed since then are not in these results.</p>
+          <p class="note">When we last read each city; permits filed since then
+             are not here yet. <a href="/sources">All sources</a></p>
           <div id="freshSources"></div>
         </div>
       </div>
@@ -267,7 +267,11 @@
       <nav class="pager" id="pager" aria-label="Pagination"></nav>
       <!-- Sources live on their own page (/sources); one small link here keeps
            the CC BY credit (City of Miami, Wake County) one tap away. -->
-      <footer class="app-foot"><a href="/sources">Data sources &amp; licenses</a> · <a href="/privacy">Privacy</a></footer>
+      <!-- Same links as every public page (web/legal.js PAGES). -->
+      <footer class="app-foot">
+        <nav aria-label="Legal"><a href="/terms">Terms of use</a><a href="/privacy">Privacy</a><a href="/disclaimer">Disclaimer</a><a href="/sources">Data sources</a><a href="/contact">Contact &amp; removal</a></nav>
+        <p>© Giboro. Public records as published; check the issuing agency's record before relying on it. Not affiliated with any government agency.</p>
+      </footer>
     </div>
   </main>
 

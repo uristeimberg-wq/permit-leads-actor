@@ -45,7 +45,7 @@ function liveConfigProblems(env = process.env) {
   const p = [];
   if (!PROVIDERS.slice(1).includes(env.EMAIL_PROVIDER)) p.push('EMAIL_PROVIDER must be resend or postmark');
   if (!env.EMAIL_API_KEY) p.push('EMAIL_API_KEY (the provider API key, a secret) is not set');
-  if (!/^[^<>@\s]+@[^<>@\s]+\.[^<>@\s]+$|<[^<>@\s]+@[^<>@\s]+\.[^<>@\s]+>$/.test(env.EMAIL_FROM || '')) p.push('EMAIL_FROM (e.g. "Contractos <digest@mail.example.com>") is not set or not an address');
+  if (!/^[^<>@\s]+@[^<>@\s]+\.[^<>@\s]+$|<[^<>@\s]+@[^<>@\s]+\.[^<>@\s]+>$/.test(env.EMAIL_FROM || '')) p.push('EMAIL_FROM (e.g. "Giboro <digest@mail.example.com>") is not set or not an address');
   if (!env.MAILING_ADDRESS || env.MAILING_ADDRESS.trim().length < 10) p.push('MAILING_ADDRESS (a valid postal address, required by CAN-SPAM) is not set');
   if (!env.LINK_SECRET || env.LINK_SECRET.length < MIN_SECRET_LENGTH) p.push(`LINK_SECRET (${MIN_SECRET_LENGTH}+ random characters, same value in Railway) is not set`);
   if (!/^https:\/\/[^\s/]+/.test(env.PUBLIC_BASE_URL || '')) p.push('PUBLIC_BASE_URL (the https address of the web app) is not set');
@@ -134,7 +134,7 @@ function postmarkProvider({ apiKey, fetchImpl, stream }) {
 function providerFromEnv(env = process.env, { fetchImpl = globalThis.fetch } = {}) {
   const wanted = env.EMAIL_PROVIDER || 'dryrun';
   if (!PROVIDERS.includes(wanted)) throw new SendError(`EMAIL_PROVIDER=${wanted} is not one of ${PROVIDERS.join(', ')}`, 'config');
-  const from = env.EMAIL_FROM || 'Contractos <digest@example.invalid>';
+  const from = env.EMAIL_FROM || 'Giboro <digest@example.invalid>';
   const replyTo = env.EMAIL_REPLY_TO || null;
   const allowlist = parseList(env.EMAIL_ALLOWLIST);
   const outDir = env.DIGEST_OUT_DIR || 'digest-preview';

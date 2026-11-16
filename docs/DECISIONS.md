@@ -1126,3 +1126,27 @@ what would make us revisit it. Never delete an entry; supersede it.
   its own path for everyone would be simpler but breaks the front door the
   owner chose; revisit if the home page converts poorly (the dashboard's
   channels show entry paths).
+
+## ADR-44: The product is Giboro; public terms, privacy, disclaimer and contact pages
+
+- **Context (owner, 2026-11-16: "the name of the website is giboro… add all
+  the things we must have in a website, the disclaimer etc."):** screens and
+  emails still said Contractos. COMPLIANCE 6.4 had no terms or privacy
+  notice, 1.15 (Street View) needs public Terms and Privacy that mention
+  Google Maps content, and 2.7 had no public way to ask for a removal.
+- **Decision:** every user-visible "Contractos" becomes "Giboro". Browser
+  storage keys and session-signing strings keep `contractos` so nobody is
+  signed out or loses settings. Five notices live in `web/legal/` and are
+  served by `web/legal.js` before the sign-in gate, so they are public in
+  every access mode: /terms, /privacy (expanded from the analytics page),
+  /disclaimer, /sources, /contact. `{{CONTACT}}` is CONTACT_EMAIL or "not
+  published yet", never an invented address. One footer links all five on
+  the app, the notices, the public SEO pages, the pilot pages and the
+  sign-in page. The freshness popover lists one row per city (its oldest
+  feed, so a city never looks fresher than its stalest part) instead of one
+  per feed, and the /sources page groups credits by city, each credit kept
+  word for word.
+- **Consequences:** the texts are drafts, not legal advice: counsel reviews
+  them before the first paid customer and adds the legal entity, governing
+  law and a postal address. CONTACT_EMAIL must be set in production for the
+  contact and removal pages to be usable.

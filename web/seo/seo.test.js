@@ -69,7 +69,7 @@ assert.ok(idx.includes('href="/markets/tx/austin"'));
 const meth = render.methodologyPage([{ slug: 'austin-tx', label: 'Austin, TX', attribution: 'City of Austin', publicationLag: null, lastSyncAt: null }, { slug: 'fl-sunbiz', label: 'Sunbiz', attribution: 'x' }], BASE);
 assert.ok(meth.includes('City of Austin') && !meth.includes('Sunbiz'), 'methodology lists the market sources');
 const llms = render.llmsTxt(BASE, [{ market: austin, stats: stats() }]);
-assert.ok(llms.startsWith('# Contractos\n\n> '));
+assert.ok(llms.startsWith('# Giboro\n\n> '));
 assert.ok(llms.includes('(https://giboro.com/markets/tx/austin)'));
 assert.ok(!llms.includes('Market facts'));
 assert.ok(render.llmsTxt(BASE, [{ market: austin, stats: stats() }], { full: true }).includes('## Austin, TX'));

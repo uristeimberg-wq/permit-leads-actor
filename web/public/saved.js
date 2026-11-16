@@ -61,7 +61,7 @@
         method, headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined,
       });
     } catch {
-      throw new Error("Couldn't reach the server. Check your connection, or that the Contractos server is running.");
+      throw new Error("Couldn't reach the server. Check your connection, or that the Giboro server is running.");
     }
     // A web page instead of JSON means another app is answering on this address.
     if (!(r.headers.get('content-type') || '').includes('application/json')) {

@@ -62,15 +62,15 @@
   function topBar(current) {
     const here = current || location.pathname.split('/').pop() || 'index.html';
     return `<header class="top"><div class="top-in">
-      <a class="wordmark" href="index.html"><i aria-hidden="true"></i>Contractos<small>pilot</small></a>
+      <a class="wordmark" href="index.html"><i aria-hidden="true"></i>Giboro<small>pilot</small></a>
       <nav class="nav" aria-label="Screens">${NAV.map(([href, label]) => `<a href="${href}"${href === here ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>
       <span class="top-meta"><span class="top-note">From public permit records, synced daily</span> <button type="button" class="tour-open" data-tour-open>Tour</button> <a class="signout" href="/logout">Sign out</a></span>
     </div></header>`;
   }
 
-  /** Footer: one link to the full source and licence list (/sources), not the list itself. */
+  /** Footer: the site's notices (web/legal.js PAGES), sources included; not the source list itself. */
   function attribution() {
-    return '<div class="foot"><a href="/sources">Data sources &amp; licenses</a> <a href="/privacy">Privacy</a></div>';
+    return '<div class="foot"><a href="/terms">Terms of use</a> <a href="/privacy">Privacy</a> <a href="/disclaimer">Disclaimer</a> <a href="/sources">Data sources</a> <a href="/contact">Contact &amp; removal</a></div>';
   }
 
   // ── Enrichment panels (ADR-15) ─────────────────────────────

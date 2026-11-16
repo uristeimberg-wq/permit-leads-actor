@@ -1053,7 +1053,11 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
    allows attribution by a link to a page that holds it). */
 .app-foot { margin-top: var(--sp-5); padding: var(--sp-4) 0 var(--sp-2); border-top: 1px solid var(--line);
   font-size: var(--t-sm); color: var(--ink-3); }
+.app-foot nav { display: flex; flex-wrap: wrap; gap: 0 var(--sp-4); }
 .app-foot a { color: var(--ink-3); display: inline-block; padding-block: 10px; }
+.app-foot a:hover { color: var(--ink); }
+.app-foot p { margin: var(--sp-1) 0 0; font-size: var(--t-xs); color: var(--ink-faint); }
+.popover .note a { color: var(--accent-ink); font-weight: 600; white-space: nowrap; }
 .src-row .lag { grid-column: 1 / -1; font-size: var(--t-sm); color: var(--ink-3); }
 
 /* ===================================================== location picker === */

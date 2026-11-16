@@ -10,10 +10,10 @@ const tests = [];
 const check = (name, fn) => tests.push([name, fn]);
 
 const READY = {
-  EMAIL_PROVIDER: 'resend', EMAIL_SEND_ENABLED: 'yes', EMAIL_API_KEY: 're_test_123', EMAIL_FROM: 'Contractos <digest@mail.example.com>',
+  EMAIL_PROVIDER: 'resend', EMAIL_SEND_ENABLED: 'yes', EMAIL_API_KEY: 're_test_123', EMAIL_FROM: 'Giboro <digest@mail.example.com>',
   MAILING_ADDRESS: '100 Congress Ave, Austin, TX 78701', LINK_SECRET: 'z'.repeat(40), PUBLIC_BASE_URL: 'https://app.example.com',
 };
-const msg = { key: 'digest-1', to: 'a@b.com', from: 'Contractos <digest@mail.example.com>', subject: 'S', html: '<p>h</p>', text: 't',
+const msg = { key: 'digest-1', to: 'a@b.com', from: 'Giboro <digest@mail.example.com>', subject: 'S', html: '<p>h</p>', text: 't',
   headers: { 'List-Unsubscribe': '<https://app.example.com/u/x>', 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } };
 
 function stub(status, body) {

@@ -55,7 +55,7 @@ function loginPage({ next = '/', error = '', invites = false, email = false, own
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Sign in · Contractos</title>
+<title>Sign in · Giboro</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;700&amp;family=Oswald:wght@700&amp;display=swap" rel="stylesheet">
@@ -98,12 +98,14 @@ details.owner[open] { display: flex; flex-direction: column; gap: 8px; }
 .err { margin: 16px 0 0; padding: 8px 12px; background: var(--color-err-wash); color: var(--color-err); border-left: 3px solid var(--color-err); font-size: 14px; }
 footer { font-size: 12px; color: var(--color-muted); }
 footer div { padding-top: 16px; padding-bottom: 16px; border-top: 1px solid oklch(84% 0.012 85); }
+footer .legal { margin: 8px 0 0; }
+footer .legal a { color: inherit; display: inline-block; padding-block: 10px; }
 @media (max-width: 400px) { .plate { padding: 24px 20px 20px; } h1 { font-size: 1.875rem; } }
 @media (prefers-reduced-motion: reduce) { button { transition: none; } }
 </style>
 </head>
 <body>
-<header><div><span class="wordmark"><i aria-hidden="true"></i>Contractos</span></div></header>
+<header><div><span class="wordmark"><i aria-hidden="true"></i>Giboro</span></div></header>
 <main>
   <section class="plate" aria-labelledby="t">
     <h1 id="t">${owner ? 'Owner sign-in' : 'Construction permit data'}</h1>
@@ -128,7 +130,8 @@ footer div { padding-top: 16px; padding-bottom: 16px; border-top: 1px solid oklc
     </form>
   </section>
 </main>
-<footer><div>Built on public records. Individuals' names and contacts are withheld. ${owner ? '' : email ? 'Your email only keeps your saved permits; we do not check it or send you mail.' : 'Your industry only tells us who uses the data; it does not change what you see.'}</div></footer>
+<footer><div>Built on public records. Individuals' names and contacts are withheld. ${owner ? '' : email ? 'Your email only keeps your saved permits; we do not check it or send you mail.' : 'Your industry only tells us who uses the data; it does not change what you see.'}
+<p class="legal">${owner ? '' : 'By signing in you agree to the <a href="/terms">Terms of use</a>. '}<a href="/privacy">Privacy</a> · <a href="/disclaimer">Disclaimer</a> · <a href="/contact">Contact &amp; removal</a></p></div></footer>
 </body>
 </html>`;
 }

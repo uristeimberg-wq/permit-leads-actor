@@ -76,7 +76,7 @@ The key ends up in every viewer's browser, so its restrictions are what keep
 it safe. Use a Google account you control.
 
 1. **Project.** Go to https://console.cloud.google.com/projectcreate, name it
-   `contractos-imagery`, create it, and select it.
+   `giboro-imagery`, create it, and select it.
 2. **Billing.** https://console.cloud.google.com/billing: link a billing
    account (Google requires one even inside the free 10,000 a month).
 3. **Budget alert.** Billing → *Budgets & alerts* → *Create budget*: scope

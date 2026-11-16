@@ -11,7 +11,9 @@
 const { LIFECYCLE_LABEL } = require('../public/stages.js');
 const { MARKETS, marketPath, marketSources } = require('./markets.js');
 
-const BRAND = 'Contractos';
+const BRAND = 'Giboro';
+// Terms, privacy, disclaimer, sources, contact: the one list every page shares.
+const { footerLinks } = require('../legal.js');
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const xmlEsc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
@@ -95,6 +97,7 @@ ul.src li { margin: 0 0 8px; overflow-wrap: anywhere; }
 footer.bottom { border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
 footer.bottom .wrap { padding-top: 12px; padding-bottom: 20px; display: flex; flex-wrap: wrap; gap: 4px 16px; }
 footer.bottom a { min-height: 44px; display: inline-flex; align-items: center; }
+footer.bottom p { flex-basis: 100%; margin: 0; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 @media (max-width: 480px) { table { font-size: 14px; } th, td { padding: 7px 8px; } td.bar, th.bar, .hs { display: none; } }
 `;
@@ -143,9 +146,9 @@ ${(meta.jsonld || []).map(jsonLd).join('\n')}
 ${body}
 </main>
 <footer class="bottom"><div class="wrap">
-  <a href="/sources">Data sources &amp; licenses</a>
   <a href="/data-methodology">Methodology</a>
-  <a href="/privacy">Privacy</a>
+  ${footerLinks()}
+  <p>© Giboro. Public records as published by the issuing agencies. Not affiliated with or endorsed by any government agency.</p>
 </div></footer>
 <!-- Product analytics (docs/ANALYTICS.md); off under Do Not Track or the /privacy opt-out. -->
 <script src="/analytics_core.js" defer></script>
@@ -430,7 +433,7 @@ ${list.length ? '' : '<p class="na">No market has enough recent data to show rig
 
 function methodologyPage(sources, base) {
   const title = 'Data methodology and sources';
-  const description = 'Where Contractos permit data comes from, how often it is read, how records are counted and what is withheld.';
+  const description = 'Where Giboro permit data comes from, how often it is read, how records are counted and what is withheld.';
   const used = new Set(MARKETS.flatMap(marketSources));
   const permits = sources.filter((x) => used.has(x.slug));
   const body = `${crumbsHtml([['Markets', '/markets'], ['Methodology', '/data-methodology']])}
