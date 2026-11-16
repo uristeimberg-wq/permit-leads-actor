@@ -1060,3 +1060,69 @@ what would make us revisit it. Never delete an entry; supersede it.
   tile policy requires on the map itself. Not legal advice: the link form
   for CC BY and TDLR's "attribution with link" (shown only if licence panels
   are turned on) are on counsel's list.
+
+## ADR-42: Public market pages for search and AI crawlers, counts only
+
+- **Date:** 2026-11-16
+- **Context:** the owner asked for the platform to be findable by Google,
+  Bing and AI answer engines (ChatGPT, Perplexity, Claude, AI Overviews).
+  Nothing was indexable: every response sent `X-Robots-Tag: noindex,
+  nofollow`, and there was no robots.txt or sitemap. The app screens show
+  contractor names and phones, so they stay noindex. Contractor identity is
+  only partly verified (TX Comptroller 46%, Sunbiz 73%) and redistribution
+  terms for Miami-Dade, Raleigh, TX Comptroller and Sunbiz are open
+  (docs/COMPLIANCE.md). The target market is unknown.
+- **Decision:** a public, server-rendered layer (`web/seo/`, mounted before
+  the gate and the app's noindex header) with aggregates only:
+  `/markets`, `/markets/<state>/<city>` for the four markets we sync (Austin,
+  Miami-Dade County, City of Miami, Raleigh), `/data-methodology`,
+  `/robots.txt`, `/sitemap.xml`, `/llms.txt`, `/llms-full.txt`. Figures are
+  counts and sums of stored records (db/seo_queries.js): permits issued in
+  30/90 days, declared value (repeats once, ADR-36), the source's own permit
+  type, applications before issue only where the source publishes an
+  application date, status today via the reviewed lifecycle tables, and
+  weekly counts. A market page exists only with a successful sync and at
+  least 50 permits in 90 days; otherwise 404 and out of the sitemap. JSON-LD:
+  Dataset, BreadcrumbList, FAQPage (answers are the live figures, also shown
+  on the page), ItemList and Organization on /markets. Canonical links use
+  PUBLIC_BASE_URL (default https://giboro.com); the railway.app and local
+  hosts send noindex. Aggregates are kept in memory 10 minutes, then served
+  stale while recomputed; each page states its last sync and newest issue
+  date. Not built, on purpose: contractor profile pages, `/solutions/<role>`
+  pages, record-level samples, trade categories of our own, top-contractor
+  lists, lead scores.
+- **Analytics:** visits are put in five channels from the stored referrer
+  host and UTM source (web/referrer_channels.js): AI assistants, search
+  engines, campaign, other sites, direct. Crawler requests to the public pages
+  are counted server-side per day, claimed crawler and route (migration 042,
+  `crawler_visits`; no IP, no full user-agent). Both show on /admin/analytics.
+- **Consequences:** search engines can index a handful of pages, not
+  thousands; that is deliberate (Google's scaled-content policy). The app's
+  root stays noindex, so a search for the brand lands on /markets. A
+  record-level or contractor page needs the counsel answers and a measured
+  identity subset first.
+
+## ADR-43: A public home page at / for first-time visitors; the app stays at / for returning ones
+
+- **Date:** 2026-11-16
+- **Context:** after ADR-42 the domain root was still the app, which sends
+  noindex, so a search for the brand could only land on /markets. The owner
+  approved a public home page ("do what you recommend"). The app has been the
+  front door at / since the redesign (PR #97), and old shared links point at
+  `/?...`.
+- **Decision:** a bare `/` without the `ct_app=1` cookie (a first-time
+  visitor, and every crawler) gets a server-rendered, indexable home page:
+  what the app does, the live 30-day count per market, coverage, links to
+  the markets and methodology, and "Open the app" to /search. Opening the app
+  (/, /search, /saved, /contractors) sets `ct_app=1` (functional, HttpOnly,
+  one year, no identifier, never read by analytics), so returning visitors
+  get the app at `/` as before. Any `/` with a query string is the app, so
+  shared searches keep working. Responses at `/` send `Vary: Cookie`. The
+  home page states facts only: no claims about who the customers are, no
+  intent, no scores.
+- **Consequences:** a new visitor sees one extra page before the app. Crawlers
+  and new visitors see the same page, so this is not cloaking. The welcome
+  pop-up now first appears on /search for a new visitor. Moving the app to
+  its own path for everyone would be simpler but breaks the front door the
+  owner chose; revisit if the home page converts poorly (the dashboard's
+  channels show entry paths).

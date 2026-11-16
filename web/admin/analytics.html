@@ -140,6 +140,17 @@ details summary { cursor: pointer; min-height: 44px; display: flex; align-items:
         <p class="hint">Source = UTM source, else the other site's domain, else direct. Activated = searched and opened a record in the window.</p>
         <details><summary>Table</summary><div id="tSources"></div></details>
       </figure>
+      <figure class="chart-card">
+        <figcaption><span class="ct">Search engines and AI assistants</span></figcaption>
+        <div class="cv"><canvas id="cChannels" role="img" aria-label="Visits by channel"></canvas></div>
+        <p class="hint">Channel = read from the other site's domain and the UTM source (ChatGPT tags its links utm_source=chatgpt.com). A search engine that sends no referrer counts as direct. Signed up = has an email sign-in. Public page = the visit started on /markets or /data-methodology. The source filter above does not apply.</p>
+        <details><summary>Table</summary><div id="tChannels"></div></details>
+      </figure>
+      <figure class="chart-card">
+        <figcaption><span class="ct">Crawlers on the public pages</span></figcaption>
+        <div id="tCrawlers"></div>
+        <p class="hint">Requests to /markets, /data-methodology, robots.txt, sitemap.xml and llms.txt, by the crawler name the User-Agent claims (not verified; anyone can send any name). Crawlers run no JavaScript, so they are counted on the server and never appear in the visits above.</p>
+      </figure>
       <figure class="chart-card wide">
         <figcaption><span class="ct">Roles compared</span></figcaption>
         <div class="trio">

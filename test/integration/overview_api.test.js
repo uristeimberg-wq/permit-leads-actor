@@ -70,11 +70,23 @@ async function main() {
     const base = `http://127.0.0.1:${server.address().port}`;
     const get = async (p) => { const r = await realFetch(base + p); return { status: r.status, body: await r.json() }; };
 
-    await check('front door: / serves the Leads page, /search stays an alias', async () => {
-      const r = await realFetch(`${base}/`, { redirect: 'manual' });
+    await check('front door: / serves the Leads page to anyone who has opened the app (ADR-43), /search stays an alias', async () => {
+      // Opening the app marks the browser; / then serves the Leads page.
+      const opened = await realFetch(`${base}/search`, { redirect: 'manual' });
+      assert.strictEqual(opened.status, 200);
+      assert.match(await opened.text(), /id="app"/);
+      assert.match(opened.headers.get('set-cookie') || '', /ct_app=1/);
+      const r = await realFetch(`${base}/`, { redirect: 'manual', headers: { cookie: 'ct_app=1' } });
       assert.strictEqual(r.status, 200);
       assert.match(await r.text(), /id="app"/);
-      assert.strictEqual((await realFetch(`${base}/search`)).status, 200);
+      // A shared search link opens the app even on a first visit.
+      assert.match(await (await realFetch(`${base}/?areas=a:TX`)).text(), /id="app"/);
+      // A first visit to a bare / gets the public home page instead.
+      const first = await realFetch(`${base}/`, { redirect: 'manual' });
+      assert.strictEqual(first.status, 200);
+      const html = await first.text();
+      assert.doesNotMatch(html, /id="app"/);
+      assert.match(html, /href="\/search"/);
       assert.strictEqual((await realFetch(`${base}/search.html`)).status, 200);
       assert.strictEqual((await realFetch(`${base}/pilot/live/`)).status, 200);
     });

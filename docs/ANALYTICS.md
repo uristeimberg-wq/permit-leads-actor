@@ -159,3 +159,12 @@ first visit, `again` a week after a skip, `requested` for `?welcome=1`),
 `onboarding_completed` and `onboarding_skipped` (ADR-40). Free text
 ("Something else") is never sent. Someone with two roles counts in both;
 `none` = no answer recorded (all visits before Nov 16 2026).
+
+## Search engines, AI assistants and crawlers (ADR-42)
+
+The charts API returns `channels` (AI assistants, search engines, campaign,
+other sites, direct; read from `referrer` and `utm_source` by
+`web/referrer_channels.js`) and `crawlers` (requests to the public pages per
+claimed crawler, from `crawler_visits`, migration 042). A search engine that
+sends no referrer counts as direct. Crawler names come from the User-Agent
+and are not verified.

@@ -173,6 +173,26 @@
     $('tSources').innerHTML = table([['source', 'Source'], ['sessions', 'Visits', 'n'], ['actors', 'People', 'n'], ['activated', 'Activated', 'n'], ['rate', 'Activation', 'n', (_v, r) => pct(r.activated, r.actors)]], rows);
   }
 
+  function paintChannels() {
+    const rows = data.channels || [];
+    const any = rows.some((r) => r.sessions);
+    draw('cChannels', {
+      type: 'bar',
+      data: { labels: rows.map((r) => r.label),
+        datasets: [
+          { label: 'People', data: rows.map((r) => r.actors), backgroundColor: SLOT[0], borderRadius: 4, borderSkipped: 'start' },
+          { label: 'Activated', data: rows.map((r) => r.activated), backgroundColor: SLOT[1], borderRadius: 4, borderSkipped: 'start' },
+          { label: 'Signed up', data: rows.map((r) => r.signedUp), backgroundColor: SLOT[2], borderRadius: 4, borderSkipped: 'start' },
+        ] },
+      options: { indexAxis: 'y', maintainAspectRatio: false, scales: { x: intAxis, y: { grid: { display: false } } }, plugins: { legend: { position: 'bottom' } } },
+    }, any ? null : 'No visits in this window.');
+    $('tChannels').innerHTML = table([['label', 'Channel'], ['sessions', 'Visits', 'n'], ['actors', 'People', 'n'], ['activated', 'Activated', 'n'], ['signedUp', 'Signed up', 'n'], ['landedPublic', 'Started on a public page', 'n']], rows);
+    const crawl = data.crawlers || [];
+    $('tCrawlers').innerHTML = crawl.length
+      ? table([['crawler', 'Claimed crawler'], ['hits', 'Requests', 'n'], ['ok', 'Answered 2xx/3xx', 'n'], ['paths', 'Pages', 'n'], ['last_at', 'Last', '', (v) => esc(String(v || '').slice(0, 16).replace('T', ' '))]], crawl)
+      : '<p class="empty">No crawler requests in this window.</p>';
+  }
+
   function paintRoles() {
     const rows = data.roles;
     const labels = rows.map((r) => roleLabel(r.role));
@@ -216,7 +236,7 @@
     try {
       data = await getJSON(`/api/admin/analytics/charts?${qs}`);
       paintFilters();
-      paintGrowth(); paintIngest(); paintFunnel(); paintSources(); paintRoles();
+      paintGrowth(); paintIngest(); paintFunnel(); paintSources(); paintChannels(); paintRoles();
       const filt = [state.role && `role: ${roleLabel(state.role)}`, state.source && `source: ${state.source}`].filter(Boolean).join(', ');
       $('chartNote').textContent = `Last ${state.days} days, UTC${filt ? `, ${filt}` : ''}. `
         + (data.trackingSince ? `Visitor tracking started ${shortDay(data.trackingSince)}; earlier days are blank, not zero.` : 'No visits recorded yet.')
