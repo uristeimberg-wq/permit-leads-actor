@@ -39,6 +39,7 @@
     // UI
     ui_click: 'ui_interaction',
     // The "What do you do?" welcome pop-up (web/public/lens.js)
+    onboarding_shown: 'ui_interaction',
     onboarding_completed: 'ui_interaction',
     onboarding_skipped: 'ui_interaction',
     // Friction

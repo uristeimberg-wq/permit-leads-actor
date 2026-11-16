@@ -1018,3 +1018,21 @@ what would make us revisit it. Never delete an entry; supersede it.
 - **Consequences:** once per browser (localStorage `contractos.lens.v1`);
   `/?welcome=1` asks again, `/?welcome=0` never asks. When matching is
   switched on, a saved answer starts filtering.
+
+## ADR-40: The welcome pop-up asks again a week after a skip
+
+- **Date:** 2026-11-16
+- **Context:** the owner wants the pop-up to behave like a cookie banner:
+  shown on a first visit, not on every visit, and again for someone who
+  comes back days later or on another phone or tablet.
+- **Decision:** each browser keeps its own record (localStorage
+  `contractos.lens.v1`), so a new device is asked on its first visit. A
+  skip (the button, Escape or closing it) is dated, and the pop-up asks
+  again once 7 days have passed (`web/public/welcome_rule.js`). An answer is
+  never asked again on that browser; the header button changes it where
+  trade matching is on. Skips saved before this change carry no date and
+  are asked once more. Each showing sends `onboarding_shown` with `ask`
+  = `first` / `again` / `requested`.
+- **Consequences:** the same person on two devices is asked on each, since
+  there is no login (ADR-29). Clearing site data counts as a new browser.
+  Still optional: nothing is blocked behind it.

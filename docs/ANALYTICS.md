@@ -154,6 +154,8 @@ drawn with Chart.js 4.4.7 (pinned in package.json, served from node_modules at
 
 Role = the latest answer to the "What do you do?" pop-up (web/public/lens.js):
 page views carry `lens_roles` (role keys, or `skipped`) from the saved lens,
-and the pop-up sends `onboarding_completed` / `onboarding_skipped`. Free text
+and the pop-up sends `onboarding_shown` (with `ask`: `first` on a browser's
+first visit, `again` a week after a skip, `requested` for `?welcome=1`),
+`onboarding_completed` and `onboarding_skipped` (ADR-40). Free text
 ("Something else") is never sent. Someone with two roles counts in both;
 `none` = no answer recorded (all visits before Nov 16 2026).

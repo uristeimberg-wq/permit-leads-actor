@@ -15,7 +15,11 @@
   const EXTRA = [['other', 'Something else', ''], ['all', 'Just show me everything', 'No lens: every permit we hold']];
 
   // Product analytics (web/public/analytics.js): which roles were picked, never the free text.
-  const track = (name, v) => { try { if (window.Track && window.AnalyticsCore) window.Track.event(name, { lens_roles: window.AnalyticsCore.lensRoles(v), areas: (v && v.areas ? v.areas.length : 0) }); } catch { /* never in the way */ } };
+  // analytics.js loads deferred, so an event before it is ready waits for it.
+  const track = (name, v, extra = {}) => {
+    const send = () => { try { if (window.Track && window.AnalyticsCore) window.Track.event(name, { lens_roles: window.AnalyticsCore.lensRoles(v), areas: (v && v.areas ? v.areas.length : 0), ...extra }); } catch { /* never in the way */ } };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', send, { once: true }); else send();
+  };
   const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || null; } catch { return null; } };
   const write = (v) => { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch { /* ignore */ } };
 
@@ -111,7 +115,7 @@
     picker = window.LocationPicker.create(dlg.querySelector('#welcomeLoc'), { label: '', placeholder: 'Search an area, city or ZIP — e.g. Austin' });
     if (index) picker.setIndex(index);
   }
-  dlg.addEventListener('cancel', () => { if (!lens) { save({ skipped: true }); track('onboarding_skipped', lens); } paintButton(); });
+  dlg.addEventListener('cancel', () => { if (!lens || lens.skipped) { save({ skipped: true }); track('onboarding_skipped', lens); } paintButton(); });
 
   const boxes = () => [...dlg.querySelectorAll('input[name="role"]')];
   const optBtns = () => [...dlg.querySelectorAll('[data-opt]')];
@@ -142,7 +146,9 @@
 
   function save({ skipped = false } = {}) {
     if (skipped) {
-      if (!lens) { lens = { v: 2, skipped: true, roles: [], options: {}, areas: [], param: '' }; write(lens); }
+      // A skip is dated so the pop-up can ask again later (welcome_rule.js);
+      // skipping after an answer keeps the answer.
+      if (!lens || lens.skipped) { lens = { v: 2, skipped: true, roles: [], options: {}, areas: [], param: '', skippedAt: new Date().toISOString() }; write(lens); }
       return lens;
     }
     const roles = boxes().filter((b) => b.checked).map((b) => b.value);
@@ -218,9 +224,14 @@
     if (lens) write(lens);
     if (picker && idx) picker.setIndex(idx);
     paintButton();
-    // Ask on the first visit, on the Leads page only.
+    // Ask on the Leads page only: on this browser's first visit, and again a
+    // week after a skip, never after an answer (welcome_rule.js).
     const onLeads = location.pathname === '/' || location.pathname.startsWith('/search');
-    if (ask === '1' || (!lens && ask !== '0' && onLeads)) open();
+    const due = window.WelcomeRule ? window.WelcomeRule.due(lens) : (lens ? null : 'first');
+    if (ask === '1' || (due && ask !== '0' && onLeads)) {
+      open();
+      track('onboarding_shown', lens, { ask: ask === '1' ? 'requested' : due });
+    }
   });
   window.addEventListener('leads:areas', paintButton);
 })();
