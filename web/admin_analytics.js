@@ -19,6 +19,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const express = require('express');
 const { HIGH_INTENT } = require('./public/analytics_core.js');
+const { charts, parseChartScope } = require('./admin_charts.js');
 
 const RANGES = { today: null, '7d': 7, '30d': 30, all: null };
 
@@ -292,6 +293,8 @@ function csvCell(v) {
 const toCsv = (columns, rows) => [columns.join(','), ...rows.map((r) => columns.map((c) => csvCell(r[c])).join(','))].join('\r\n') + '\r\n';
 
 const PAGE_HTML = path.join(__dirname, 'admin', 'analytics.html');
+// The package's exports map hides dist/: resolve its main file (dist/chart.cjs) and take the UMD build beside it.
+const CHART_JS = path.join(path.dirname(require.resolve('chart.js')), 'chart.umd.js');
 
 /**
  * @param {{query: Function, isOwner: (req) => boolean}} deps
@@ -323,6 +326,10 @@ function router({ query, isOwner, userIdOf = () => null }) {
     if (d != null && !UUID.test(String(d))) return res.status(400).json({ error: 'Bad device id' });
     return res.json(await markInternal(query, { deviceId: d || null, userId: userIdOf(req) || null }));
   }));
+  r.get('/admin/analytics/charts.js', requireOwner, (_req, res) => res.type('js').sendFile(path.join(__dirname, 'admin', 'analytics_charts.js')));
+  r.get('/api/admin/analytics/charts', requireOwner, wrap(async (req, res) => res.json(await charts(query, parseChartScope(req.query)))));
+  // Chart.js, pinned in package.json and served from node_modules: no third-party CDN on this page.
+  r.get('/admin/analytics/chart.umd.js', requireOwner, (_req, res) => res.type('js').sendFile(CHART_JS));
   r.get('/api/admin/analytics/users', requireOwner, wrap(async (_req, res) => res.json({ users: await listUsers(query) })));
   r.get('/api/admin/analytics/users/:id/timeline', requireOwner, wrap(async (req, res) => {
     if (!/^\d{1,18}$/.test(req.params.id)) return res.status(400).json({ error: 'Bad user id' });

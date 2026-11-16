@@ -68,6 +68,22 @@ td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space:
 .timeline li { margin: 2px 0; overflow-wrap: anywhere; }
 .timeline time { color: var(--muted); font-variant-numeric: tabular-nums; }
 footer { color: var(--muted); font-size: 12px; padding: 24px 0; }
+.charts { margin-bottom: 16px; }
+.charts .controls { margin: 8px 0; }
+.chart-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); margin-top: 8px; }
+.chart-card { margin: 0; min-width: 0; border-top: 2px solid var(--ink); padding-top: 8px; }
+.chart-card.wide { grid-column: 1 / -1; }
+.chart-card figcaption { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.chart-card .ct { font: 700 1.05rem/1.1 var(--display); text-transform: uppercase; }
+.chart-card figcaption select { font-size: 14px; }
+.cv { position: relative; height: 260px; }
+.cv.sm { height: 200px; }
+.cv.is-empty { height: auto; min-height: 60px; }
+.trio { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
+.mini { margin: 0 0 4px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.hint { color: var(--muted); font-size: 12px; line-height: 1.4; margin: 6px 0 0; }
+details { margin-top: 6px; font-size: 14px; }
+details summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--accent-deep); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -86,6 +102,56 @@ footer { color: var(--muted); font-size: 12px; padding: 24px 0; }
   </div>
   <p id="status" class="note" role="status">Loading…</p>
   <section class="kpis" id="kpis" aria-label="Key numbers"></section>
+  <section class="card charts" id="charts" aria-labelledby="chartsTitle">
+    <h2 id="chartsTitle">Trends</h2>
+    <div class="controls" id="chartControls">
+      <div class="seg" role="group" aria-label="Chart window" id="chartDays">
+        <button type="button" data-days="7">7D</button><button type="button" data-days="30">30D</button><button type="button" data-days="90">90D</button>
+      </div>
+      <select id="chartRole" aria-label="Pop-up answer"><option value="">Every role</option></select>
+      <select id="chartSource" aria-label="Traffic source"><option value="">Every source</option></select>
+    </div>
+    <p class="note" id="chartNote" role="status"></p>
+    <div class="chart-grid">
+      <figure class="chart-card wide">
+        <figcaption><span class="ct">People per day</span>
+          <select id="growthMode" aria-label="Lines"><option value="overview">Active, new, returning, sign-ups</option><option value="role">Active, by pop-up answer</option></select></figcaption>
+        <div class="cv"><canvas id="cGrowth" role="img" aria-label="People per day"></canvas></div>
+        <p class="hint">Active = used the app that day. New = first visit that day. Returning = active, first seen on an earlier day. Sign-ups = new email sign-ins (optional; saving permits needs one).</p>
+        <details><summary>Table</summary><div id="tGrowth"></div></details>
+      </figure>
+      <figure class="chart-card wide">
+        <figcaption><span class="ct">Records added per day</span>
+          <select id="ingestMode" aria-label="Stack by"><option value="stage">By stage when found</option><option value="region">By region</option></select>
+          <select id="ingestRegion" aria-label="Region"><option value="">Every region</option></select></figcaption>
+        <div class="cv"><canvas id="cIngest" role="img" aria-label="Records added per day"></canvas></div>
+        <p class="hint">Counted on the day our sync first saw the record, not the day it was filed. A source's first sync adds its whole back history on one day. Pre-approval = planning cases (site plans, subdivisions). Not filters: these ignore the role and source above.</p>
+        <details><summary>Table</summary><div id="tIngest"></div></details>
+      </figure>
+      <figure class="chart-card">
+        <figcaption><span class="ct">Funnel</span></figcaption>
+        <div class="cv"><canvas id="cFunnel" role="img" aria-label="Funnel"></canvas></div>
+        <p class="hint">People first seen in the window. Each step counts people who also did every step before it. High intent = called/copied a phone or saved a permit; there is no export or alert feature to count.</p>
+        <details><summary>Table</summary><div id="tFunnel"></div></details>
+      </figure>
+      <figure class="chart-card">
+        <figcaption><span class="ct">Traffic sources</span></figcaption>
+        <div class="cv"><canvas id="cSources" role="img" aria-label="Traffic sources"></canvas></div>
+        <p class="hint">Source = UTM source, else the other site's domain, else direct. Activated = searched and opened a record in the window.</p>
+        <details><summary>Table</summary><div id="tSources"></div></details>
+      </figure>
+      <figure class="chart-card wide">
+        <figcaption><span class="ct">Roles compared</span></figcaption>
+        <div class="trio">
+          <div><p class="mini">Avg active time per visit</p><div class="cv sm"><canvas id="cRoleTime" role="img" aria-label="Average active time per visit by role"></canvas></div></div>
+          <div><p class="mini">Searches per person</p><div class="cv sm"><canvas id="cRoleSearch" role="img" aria-label="Searches per person by role"></canvas></div></div>
+          <div><p class="mini">Day-7 retention</p><div class="cv sm"><canvas id="cRoleRet" role="img" aria-label="Day-7 retention by role"></canvas></div></div>
+        </div>
+        <p class="hint">Three charts, not one, because seconds, counts and percentages don't share an axis. Someone who picked two roles counts in both. Day-7 retention needs a first visit at least 7 days ago.</p>
+        <details><summary>Table</summary><div id="tRoles"></div></details>
+      </figure>
+    </div>
+  </section>
   <div class="grid">
     <section class="card"><h2>Retention</h2><div id="retention"></div></section>
     <section class="card"><h2>Funnel</h2><div id="funnel"></div></section>
@@ -109,6 +175,8 @@ footer { color: var(--muted); font-size: 12px; padding: 24px 0; }
   <section class="card timeline" id="timelineCard" hidden><h2 id="timelineTitle">Timeline</h2><div id="timeline"></div></section>
 </main>
 <footer><div class="wrap">Definitions: docs/ANALYTICS.md. An actor is a registered user, else a device.</div></footer>
+<script src="/admin/analytics/chart.umd.js"></script>
 <script src="/admin/analytics/page.js"></script>
+<script src="/admin/analytics/charts.js"></script>
 </body>
 </html>

@@ -14,6 +14,8 @@
   const KEY = 'contractos.lens.v1';
   const EXTRA = [['other', 'Something else', ''], ['all', 'Just show me everything', 'No lens: every permit we hold']];
 
+  // Product analytics (web/public/analytics.js): which roles were picked, never the free text.
+  const track = (name, v) => { try { if (window.Track && window.AnalyticsCore) window.Track.event(name, { lens_roles: window.AnalyticsCore.lensRoles(v), areas: (v && v.areas ? v.areas.length : 0) }); } catch { /* never in the way */ } };
   const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || null; } catch { return null; } };
   const write = (v) => { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch { /* ignore */ } };
 
@@ -104,12 +106,12 @@
       const b = e.target.closest('[data-opt]');
       if (b) b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'));
     });
-    form.addEventListener('submit', (e) => { e.preventDefault(); apply(save()); });
-    dlg.querySelector('#welcomeSkip').addEventListener('click', () => { save({ skipped: true }); dlg.close(); paintButton(); });
+    form.addEventListener('submit', (e) => { e.preventDefault(); const v = save(); track('onboarding_completed', v); apply(v); });
+    dlg.querySelector('#welcomeSkip').addEventListener('click', () => { save({ skipped: true }); track('onboarding_skipped', lens); dlg.close(); paintButton(); });
     picker = window.LocationPicker.create(dlg.querySelector('#welcomeLoc'), { label: '', placeholder: 'Search an area, city or ZIP — e.g. Austin' });
     if (index) picker.setIndex(index);
   }
-  dlg.addEventListener('cancel', () => { if (!lens) save({ skipped: true }); paintButton(); });
+  dlg.addEventListener('cancel', () => { if (!lens) { save({ skipped: true }); track('onboarding_skipped', lens); } paintButton(); });
 
   const boxes = () => [...dlg.querySelectorAll('input[name="role"]')];
   const optBtns = () => [...dlg.querySelectorAll('[data-opt]')];

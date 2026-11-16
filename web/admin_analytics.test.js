@@ -11,7 +11,7 @@ let failures = 0;
 const check = async (name, fn) => { try { await fn(); console.log(`ok   - ${name}`); } catch (e) { failures += 1; console.error(`FAIL - ${name}`); console.error(e); } };
 const basic = (s) => `Basic ${Buffer.from(s).toString('base64')}`;
 const OWNER_ONLY = /^\/(digest\/(preview|sample)|admin|api\/admin)(\/|$)/;
-const PATHS = ['/api/admin/analytics/summary?range=7d', '/api/admin/analytics/users', '/api/admin/analytics/users/1/timeline', '/api/admin/analytics/export.csv?kind=events'];
+const PATHS = ['/api/admin/analytics/summary?range=7d', '/api/admin/analytics/users', '/api/admin/analytics/users/1/timeline', '/api/admin/analytics/export.csv?kind=events', '/api/admin/analytics/charts?days=7', '/admin/analytics/chart.umd.js', '/admin/analytics/charts.js'];
 
 async function withApp(password, fn) {
   const sessions = users.sessions({ key: Buffer.from('k'.repeat(32)) });
@@ -129,6 +129,13 @@ async function withApp(password, fn) {
     assert.strictEqual((await go('/admin/analytics')).status, 403);
     for (const p of PATHS) assert.strictEqual((await go(p)).status, 403, p);
   }));
+
+  await check('chart filters: only known windows, roles and a short source', () => {
+    const { parseChartScope } = require('./admin_charts.js');
+    assert.deepStrictEqual(parseChartScope({}), { days: 30, role: null, source: null });
+    assert.deepStrictEqual(parseChartScope({ days: '90', role: 'sub', source: ' google.com ' }), { days: 90, role: 'sub', source: 'google.com' });
+    assert.deepStrictEqual(parseChartScope({ days: '365', role: 'x; drop', source: 'y'.repeat(200) }), { days: 30, role: null, source: null });
+  });
 
   await check('scope parsing and CSV cells', () => {
     const bogus = admin.parseScope({ range: 'bogus', user: '1; drop' });

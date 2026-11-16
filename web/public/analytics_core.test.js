@@ -6,6 +6,14 @@ const C = require('./analytics_core.js');
 let failures = 0;
 const check = (name, fn) => { try { fn(); console.log(`ok   - ${name}`); } catch (e) { failures += 1; console.error(`FAIL - ${name}`); console.error(e); } };
 
+check('the pop-up answer: known role keys only, sorted, or skipped, or nothing', () => {
+  assert.deepStrictEqual(C.lensRoles({ roles: ['sub', 'gc', 'sub', 'evil'] }), ['gc', 'sub']);
+  assert.strictEqual(C.lensRoles({ skipped: true, roles: [] }), 'skipped');
+  assert.strictEqual(C.lensRoles({ roles: [] }), null);
+  assert.strictEqual(C.lensRoles(null), null);
+  assert.strictEqual(C.EVENTS.onboarding_completed, 'ui_interaction');
+});
+
 check('emails, phones and tokens in free text are redacted', () => {
   assert.strictEqual(C.redactText('call bob@acme.com re roof'), 'call [email] re roof');
   assert.strictEqual(C.redactText('512-555-0100 kitchen'), '[phone] kitchen');

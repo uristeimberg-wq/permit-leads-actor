@@ -123,7 +123,9 @@
   const RECORD_PAGES = { '/pilot/live/job.html': 'permit', '/pilot/live/contractor.html': 'contractor' };
   const pageRecord = RECORD_PAGES[location.pathname] && params.get('id')
     ? { target_entity_type: RECORD_PAGES[location.pathname], target_record_id: params.get('id') } : {};
-  event('page_view', { session_start: session.isNew, view_id: viewId }, pageRecord);
+  // The answer to the "What do you do?" pop-up, so visitors can be compared by role.
+  const lensRoles = () => { try { return C.lensRoles(JSON.parse(store.get('contractos.lens.v1') || 'null')); } catch { return null; } };
+  event('page_view', { session_start: session.isNew, view_id: viewId, lens_roles: lensRoles() }, pageRecord);
 
   let openRecord = null;   // { type, id, timer, props }
   function recordOpen(type, id, props = {}) {
