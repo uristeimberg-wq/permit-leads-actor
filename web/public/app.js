@@ -477,7 +477,6 @@ async function loadFreshness() {
     })
     .join('');
 
-  paintCredits(sources);
 
   // Popover toggle.
   badge.addEventListener('click', () => {
@@ -492,17 +491,6 @@ async function loadFreshness() {
       badge.setAttribute('aria-expanded', 'false');
     }
   });
-}
-
-/** Every source's credit line under the results (CC BY needs it wherever City of Miami data shows). */
-async function paintCredits(sources) {
-  let enrichment = [];
-  try { ({ enrichment = [] } = await getJSON('/api/credits')); } catch { enrichment = []; }
-  const permitCredits = sources.filter((s) => s.attribution).map((s) => `${s.label || s.source_area}: ${s.attribution}`);
-  const lines = [...permitCredits, ...enrichment.map((e) => e.attribution)];
-  $('credits').innerHTML = `
-    <p><b>Sources.</b> ${lines.map(esc).join(' · ') || 'Public permit records.'}</p>
-    <p>Contacts come from the public permit record; individuals are withheld. Not affiliated with or endorsed by these agencies. Data as published, may be incomplete.</p>`;
 }
 
 /* ------------------------------------------------------------ active chips */
@@ -1913,7 +1901,7 @@ async function loadJobExtras(id) {
       ${row('Lot', num(pr.lotSqft, ' sq ft'))}
       ${row('Assessed value', pr.assessedValueBand ? pr.assessedValueBand.label : '')}
     </dl>
-    <p class="check-count">Source: ${esc(v.attribution || v.source || 'appraiser')}${pr.valueNote ? ` · ${esc(pr.valueNote)}` : ''}. Owner, sale and exemption fields are not collected.</p>`
+    <p class="check-count">${pr.valueNote ? `${esc(pr.valueNote)}. ` : ''}Owner, sale and exemption fields are not collected.</p>`
     : (j.unmeasuredHidden ? '' : '<div class="sect">Property</div><p class="check-count">No appraiser record joined to this permit.</p>');
 
   const loc = j.location;

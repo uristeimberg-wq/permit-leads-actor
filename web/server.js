@@ -90,6 +90,7 @@ app.use(require('./admin_analytics.js').router({
 }));
 // What is collected, and the opt-out switch.
 app.get('/privacy', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'privacy.html')));
+app.get('/sources', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'sources.html')));
 
 // The signed-in user and their saved permits (/api/me...).
 app.use(users.router({ store: userStore, sessions: userSessions, permitsByIds: queries.permitsByIds }));

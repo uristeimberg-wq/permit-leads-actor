@@ -1036,3 +1036,27 @@ what would make us revisit it. Never delete an entry; supersede it.
 - **Consequences:** the same person on two devices is asked on each, since
   there is no login (ADR-29). Clearing site data counts as a new browser.
   Still optional: nothing is blocked behind it.
+
+## ADR-41: Source credits move to one page, linked from every screen
+
+- **Date:** 2026-11-16
+- **Context:** the owner asked that the app not show sources at all. The
+  credit list under the results had grown to a paragraph per market and
+  filled a phone screen (the Saved tab). City of Miami and Wake County data
+  are CC BY 4.0, which needs attribution "in any reasonable manner".
+- **Decision:** the credit list, the extra source note and the "Source:"
+  line under the job drawer's property facts are removed from the app.
+  Every screen keeps one small footer link, "Data sources & licenses", to
+  `/sources`, which lists each permit source's and enrichment source's
+  stored credit (`sources.attribution_text`, read from `/api/freshness`
+  and `/api/credits`), the OpenStreetMap credit, the not-affiliated note and
+  that CC BY data was normalized. CC BY 4.0 s.3(a)(2) says attribution may
+  be given "by providing a URI or hyperlink to a resource that includes the
+  required information". The pilot screens' `attribution()` renders the same
+  link. Email digests keep their credit line.
+- **Consequences:** a viewer no longer sees which agency a value came from
+  without opening `/sources`. Provenance is still stored on every value
+  (hard rule 6). The map keeps Leaflet's OpenStreetMap credit, which the
+  tile policy requires on the map itself. Not legal advice: the link form
+  for CC BY and TDLR's "attribution with link" (shown only if licence panels
+  are turned on) are on counsel's list.

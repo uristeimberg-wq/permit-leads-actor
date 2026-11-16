@@ -68,17 +68,9 @@
     </div></header>`;
   }
 
-  function attribution(meta) {
-    // No meta (a contractor profile spans sources): name every source we use.
-    const AUSTIN = 'City of Austin, Texas – data.austintexas.gov, dataset 3syk-w9eu';
-    const MIAMI = 'Miami-Dade County Open Data (ArcGIS building permits layer)';
-    // City of Miami is CC BY 4.0: this credit must appear wherever its data does.
-    const MIAMI_CITY = '© 2019 City of Miami, Department of Innovation and Technology, GIS Team. Licensed CC BY 4.0 (creativecommons.org/licenses/by/4.0); normalized by us';
-    const RALEIGH = 'City of Raleigh Open Data';
-    const src = !meta || !meta.source ? `${AUSTIN}; ${MIAMI}; ${MIAMI_CITY}; ${RALEIGH}`
-      : meta.source === 'miami-dade-fl' ? MIAMI : meta.source === 'austin-tx' ? AUSTIN : (meta.attribution || meta.source);
-    return `<div class="foot"><span>Source: ${esc(src)}. Contacts come from the public permit record; individuals are withheld.</span>
-      <span>Not affiliated with or endorsed by these agencies. Data as published, may be incomplete. Wrong or want a listing removed? Tell your pilot contact.</span></div>`;
+  /** Footer: one link to the full source and licence list (/sources), not the list itself. */
+  function attribution() {
+    return '<div class="foot"><a href="/sources">Data sources &amp; licenses</a> <a href="/privacy">Privacy</a></div>';
   }
 
   // ── Enrichment panels (ADR-15) ─────────────────────────────
