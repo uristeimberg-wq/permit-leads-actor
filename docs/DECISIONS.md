@@ -1001,3 +1001,20 @@ what would make us revisit it. Never delete an entry; supersede it.
   domain to mark it internal. `GEO_COUNTRY_HEADER=CF-IPCountry` would now
   fill country, but only for traffic through Cloudflare and the header is
   forgeable on the railway.app address, so it stays unset.
+
+## ADR-39: The welcome pop-up asks even while trade matching is off
+
+- **Date:** 2026-11-16
+- **Context:** #113 hid Uri's "What do you do?" pop-up whenever `/api/lens`
+  says trade matching is off (`SHOW_INFERENCES` and `SHOW_UNMEASURED` unset,
+  ADR-26, ADR-33), which is the live site. So no visitor saw it and the
+  role analytics from ADR-37 stayed empty.
+- **Decision:** the owner chose to show the pop-up on a first visit to the
+  Leads page anyway, skippable as before. While matching is off, the answer
+  only sets the location the visitor picked and is recorded by analytics
+  (role keys, never the free text); the role filters and ranks nothing, the
+  header lens button stays hidden, and the pop-up says leads are not filtered
+  by trade yet. Neither flag is turned on.
+- **Consequences:** once per browser (localStorage `contractos.lens.v1`);
+  `/?welcome=1` asks again, `/?welcome=0` never asks. When matching is
+  switched on, a saved answer starts filtering.

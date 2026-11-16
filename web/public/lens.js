@@ -89,7 +89,7 @@
         </fieldset>
         <p class="welcome-note">${config.enabled
           ? 'Your lens filters and ranks the leads, and each card says why it matched. Switch it off anytime with “Show everything”.'
-          : 'Trade matching is not switched on for this site yet, so your lens sets the location; your trades are saved for when it is.'}</p>
+          : 'We don\u2019t filter leads by trade yet, so you\u2019ll see every permit in the places you pick. Your answer helps us decide what to build next.'}</p>
         <div class="welcome-foot">
           <button type="button" class="btn btn-ghost" id="welcomeSkip">Skip for now</button>
           <button type="submit" class="btn btn-primary" id="welcomeGo">Show my leads</button>
@@ -161,7 +161,7 @@
 
   function apply(v) {
     dlg.close();
-    if (window.Leads) window.Leads.apply({ areas: v.areas, lens: v.param });
+    if (window.Leads) window.Leads.apply({ areas: v.areas, lens: config.enabled ? v.param : '' });
     paintButton();
   }
 
@@ -206,11 +206,13 @@
   const cfgReady = fetch('/api/lens').then((r) => (r.ok ? r.json() : null)).catch(() => null);
   const areasReady = window.Leads ? window.Leads.areas : Promise.resolve(null);
   Promise.all([cfgReady, areasReady]).then(([cfg, idx]) => {
-    // Trade matching is off on this site (ADR-26, ADR-33): no lens button, no
-    // welcome popup, rather than a lens that cannot filter.
-    if (!cfg || !cfg.enabled) { if (slot) { slot.innerHTML = ''; slot.setAttribute('aria-hidden', 'true'); } return; }
-    disabled = false;
+    if (!cfg) return;
     config = cfg;
+    // Trade matching is off on this site (ADR-26, ADR-33): no lens button and
+    // no trade filter, but the welcome popup still asks (skippable). Its answer
+    // only sets the location and is recorded by analytics; the role filters nothing.
+    disabled = !cfg.enabled;
+    if (disabled && slot) { slot.innerHTML = ''; slot.setAttribute('aria-hidden', 'true'); }
     index = idx;
     lens = upgrade(lens);
     if (lens) write(lens);
