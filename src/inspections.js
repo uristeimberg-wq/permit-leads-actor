@@ -36,8 +36,8 @@ function resultClass(source, raw) {
 }
 
 /**
- * Maps one raw row to an inspection, or null when it has no key or no permit
- * number. `keyParts` builds the inspection key from several columns where the
+ * Maps one raw row to an inspection, or null when its first key part or its
+ * permit number is missing. `keyParts` builds the inspection key from several columns where the
  * source has no inspection id (Miami-Dade).
  */
 function mapInspection(source, row) {
@@ -47,7 +47,11 @@ function mapInspection(source, row) {
     const v = row[k];
     return typeof v === 'number' && /date|scheduled/i.test(k) ? toIsoDate(v) : clean(v);
   });
-  if (parts.some((x) => x == null)) return null;
+  // The first part (the permit or the inspection id) is required. A later
+  // part the source leaves blank is '-': the first daily read (2026-11-15)
+  // skipped 755 Miami-Dade rows whose staff number or order was blank.
+  if (parts[0] == null) return null;
+  for (let i = 1; i < parts.length; i += 1) if (parts[i] == null) parts[i] = '-';
   const permitNumber = clean(row[f.permitNumber]);
   if (!permitNumber) return null;
   const completedRaw = f.completed ? clean(row[f.completed]) : null;
