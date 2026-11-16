@@ -232,50 +232,55 @@
 
   const fail = (el, err) => { el.innerHTML = `<div class="state err">${esc(err.message)}</div>`; };
 
-  // GC relationships rest on job links (ADR-33). While the server hides them
-  // (/api/lens jobLinks false), the GCs page is only an explanation, so every
-  // link to it (nav, overview buttons and notes, map popups, the tour step)
-  // is removed rather than leading to an empty page. The answer is kept for
-  // the session so the next page hides them before it paints.
-  const GCS_KEY = 'ct_gcs_hidden';
+  // The GCs page and the New permits page rest on job links (ADR-33). While
+  // the server hides them (/api/lens jobLinks false) each page is only an
+  // explanation, so every link to them (nav, overview buttons and notes, map
+  // popups, the tour steps that open them) is removed rather than leading to
+  // an empty page. The pages still load by URL. The answer is kept for the
+  // session so the next page hides them before it paints.
+  const HIDDEN_PAGES = ['gcs.html', 'digest.html'];
+  const LINK_SEL = HIDDEN_PAGES.flatMap((p) => [`a[href^="${p}"]`, `a[href^="/pilot/live/${p}"]`]).join(', ');
+  const HIDE_KEY = 'ct_joblinks_hidden';
   const sget = (k) => { try { return sessionStorage.getItem(k); } catch (_e) { return null; } };
   const sset = (k, v) => { try { sessionStorage.setItem(k, v); } catch (_e) { /* private window */ } };
-  let gcsHidden = sget(GCS_KEY) === '1';
-  function dropGcsLinks(scope) {
-    for (const a of (scope || document).querySelectorAll('a[href^="gcs.html"], a[href^="/pilot/live/gcs.html"]')) {
+  let linksHidden = sget(HIDE_KEY) === '1';
+  function dropLinks(scope) {
+    for (const a of (scope || document).querySelectorAll(LINK_SEL)) {
       const p = a.parentElement;
       if (p && p.matches('p.note') && p.textContent.trim() === a.textContent.trim()) p.remove();
       else a.remove();
     }
   }
-  function dropGcsTourStep() {
+  function dropTourSteps() {
     const steps = window.Tour && window.Tour.STEPS;
     if (!steps) return;
-    const i = steps.findIndex((s) => s.page === 'gcs.html');
-    if (i >= 0) steps.splice(i, 1);
+    for (let i = steps.length - 1; i >= 0; i -= 1) {
+      const target = String(steps[i].href || '').split('/').pop();
+      if (HIDDEN_PAGES.includes(steps[i].page) || HIDDEN_PAGES.includes(target)) steps.splice(i, 1);
+    }
   }
-  function applyGcsHidden() {
-    dropGcsLinks();
-    dropGcsTourStep();
+  function applyHidden() {
+    dropLinks();
+    dropTourSteps();
     new MutationObserver((muts) => {
-      for (const m of muts) for (const n of m.addedNodes) if (n.nodeType === 1) { if (n.matches('a[href^="gcs.html"]')) dropGcsLinks(n.parentElement); else dropGcsLinks(n); }
+      for (const m of muts) for (const n of m.addedNodes) if (n.nodeType === 1) { if (n.matches(LINK_SEL)) dropLinks(n.parentElement); else dropLinks(n); }
     }).observe(document.body, { childList: true, subtree: true });
   }
-  function initGcsLinks() {
-    if (gcsHidden) applyGcsHidden();
+  function initHiddenLinks() {
+    if (linksHidden) applyHidden();
     fetch('/api/lens', { headers: { accept: 'application/json' } })
       .then((r) => (r.ok ? r.json() : null))
       .then((cfg) => {
         if (!cfg || typeof cfg.jobLinks !== 'boolean') return;
         const hide = !cfg.jobLinks;
-        sset(GCS_KEY, hide ? '1' : '0');
-        if (hide && !gcsHidden) { gcsHidden = true; applyGcsHidden(); }
-        else if (!hide && gcsHidden) location.reload(); // turned back on: show the links again
+        sset(HIDE_KEY, hide ? '1' : '0');
+        if (hide && !linksHidden) { linksHidden = true; applyHidden(); }
+        else if (!hide && linksHidden) location.reload(); // turned back on: show the links again
       })
       .catch(() => { /* keep what we had */ });
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initGcsLinks);
-  else initGcsLinks();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initHiddenLinks);
+  else initHiddenLinks();
 
   window.Live = { esc, params, qs, api, date, dateTime, money, pct, daysSince, phone, who, phoneCell, freshness, topBar, attribution, fail, propertyCard, registryList, registrationList, labelTables, noHover, estPill, shortDate, dateRange, AREA, areaOf, areaOptions, TRADE, TRADE_PERSON };
 }());

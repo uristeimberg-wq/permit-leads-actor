@@ -16,7 +16,7 @@
     `<a href="?${L.qs({ source: k })}"${k === source ? ' aria-current="true"' : ''}>${L.esc(label)}</a>`).join('');
   $('ov-title').textContent = `${city} permit activity`;
   if ($('cta-gcs')) $('cta-gcs').href = `gcs.html?${L.qs({ source })}`;
-  $('cta-leads').href = `digest.html?${L.qs({ source })}`;
+  if ($('cta-leads')) $('cta-leads').href = `digest.html?${L.qs({ source })}`;
 
   L.api(`/api/pilot/overview?${L.qs({ source })}`).then(render).catch((err) => {
     $('hero-line').textContent = '';
