@@ -255,7 +255,7 @@ jobs:
           EMAIL_REPLY_TO: ${{ vars.EMAIL_REPLY_TO }}
           CONTACT_EMAIL: ${{ vars.CONTACT_EMAIL }}
           MAILING_ADDRESS: ${{ vars.MAILING_ADDRESS }}
-          PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL || 'https://permits-production-9581a3c0.up.railway.app' }}
+          PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL || 'https://giboro.com' }}
           EMAIL_API_KEY: ${{ secrets.EMAIL_API_KEY }}
           LINK_SECRET: ${{ secrets.LINK_SECRET }}
           DIGEST_OUT_DIR: digest-preview

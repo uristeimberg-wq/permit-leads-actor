@@ -55,7 +55,7 @@ Wait until the dashboard says the domain is verified (minutes to a few hours).
 | `EMAIL_REPLY_TO` | variable | an inbox someone reads, optional but recommended |
 | `CONTACT_EMAIL` | variable | the address shown for questions and removal requests |
 | `MAILING_ADDRESS` | variable | a valid postal address, required by CAN-SPAM (a street address, a PO box or a registered commercial mailbox) |
-| `PUBLIC_BASE_URL` | variable, **and Railway** | the web app's https address, today `https://permits-production-9581a3c0.up.railway.app` (also the default) |
+| `PUBLIC_BASE_URL` | variable, **and Railway** | the web app's https address, today `https://giboro.com` (also the default; the old railway.app address still serves, but new emails should not link to it) |
 | `EMAIL_ALLOWLIST` | variable | for the first test: your own address only. Remove it to send to every subscriber |
 | `EMAIL_SEND_ENABLED` | variable | `yes` turns real sending on. Set it last |
 

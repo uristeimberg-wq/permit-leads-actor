@@ -38,9 +38,11 @@ app.get('/healthz/schema', async (_req, res) => {
   try { res.json({ schema: await db.schemaVersion(), code: CODE_MIGRATION, commit: COMMIT }); } catch { res.status(503).json({ schema: null, code: CODE_MIGRATION, commit: COMMIT }); }
 });
 
-// Railway (and most hosts) put one proxy in front: trust it for req.ip (the
-// sign-in rate limit) and req.secure (the Secure cookie flag).
-app.set('trust proxy', 1);
+// Railway's edge is always in front; giboro.com adds Cloudflare before it.
+// Trust Railway, and the hop before it only when it is a Cloudflare edge, for
+// req.ip (the sign-in and analytics rate limits) and req.secure (the Secure
+// cookie flag). See web/proxy_trust.js.
+app.set('trust proxy', require('./proxy_trust').trustProxy);
 
 // Signed links from digest emails (ADR-20): one job page per token, and the
 // unsubscribe. Before the gate, because a customer opens them without the
@@ -88,6 +90,7 @@ app.use(require('./admin_analytics.js').router({
 }));
 // What is collected, and the opt-out switch.
 app.get('/privacy', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'privacy.html')));
+app.get('/sources', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'sources.html')));
 
 // The signed-in user and their saved permits (/api/me...).
 app.use(users.router({ store: userStore, sessions: userSessions, permitsByIds: queries.permitsByIds }));

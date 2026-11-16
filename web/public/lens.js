@@ -14,6 +14,12 @@
   const KEY = 'contractos.lens.v1';
   const EXTRA = [['other', 'Something else', ''], ['all', 'Just show me everything', 'No lens: every permit we hold']];
 
+  // Product analytics (web/public/analytics.js): which roles were picked, never the free text.
+  // analytics.js loads deferred, so an event before it is ready waits for it.
+  const track = (name, v, extra = {}) => {
+    const send = () => { try { if (window.Track && window.AnalyticsCore) window.Track.event(name, { lens_roles: window.AnalyticsCore.lensRoles(v), areas: (v && v.areas ? v.areas.length : 0), ...extra }); } catch { /* never in the way */ } };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', send, { once: true }); else send();
+  };
   const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || null; } catch { return null; } };
   const write = (v) => { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch { /* ignore */ } };
 
@@ -87,7 +93,7 @@
         </fieldset>
         <p class="welcome-note">${config.enabled
           ? 'Your lens filters and ranks the leads, and each card says why it matched. Switch it off anytime with “Show everything”.'
-          : 'Trade matching is not switched on for this site yet, so your lens sets the location; your trades are saved for when it is.'}</p>
+          : 'We don\u2019t filter leads by trade yet, so you\u2019ll see every permit in the places you pick. Your answer helps us decide what to build next.'}</p>
         <div class="welcome-foot">
           <button type="button" class="btn btn-ghost" id="welcomeSkip">Skip for now</button>
           <button type="submit" class="btn btn-primary" id="welcomeGo">Show my leads</button>
@@ -104,12 +110,12 @@
       const b = e.target.closest('[data-opt]');
       if (b) b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'));
     });
-    form.addEventListener('submit', (e) => { e.preventDefault(); apply(save()); });
-    dlg.querySelector('#welcomeSkip').addEventListener('click', () => { save({ skipped: true }); dlg.close(); paintButton(); });
+    form.addEventListener('submit', (e) => { e.preventDefault(); const v = save(); track('onboarding_completed', v); apply(v); });
+    dlg.querySelector('#welcomeSkip').addEventListener('click', () => { save({ skipped: true }); track('onboarding_skipped', lens); dlg.close(); paintButton(); });
     picker = window.LocationPicker.create(dlg.querySelector('#welcomeLoc'), { label: '', placeholder: 'Search an area, city or ZIP — e.g. Austin' });
     if (index) picker.setIndex(index);
   }
-  dlg.addEventListener('cancel', () => { if (!lens) save({ skipped: true }); paintButton(); });
+  dlg.addEventListener('cancel', () => { if (!lens || lens.skipped) { save({ skipped: true }); track('onboarding_skipped', lens); } paintButton(); });
 
   const boxes = () => [...dlg.querySelectorAll('input[name="role"]')];
   const optBtns = () => [...dlg.querySelectorAll('[data-opt]')];
@@ -140,7 +146,9 @@
 
   function save({ skipped = false } = {}) {
     if (skipped) {
-      if (!lens) { lens = { v: 2, skipped: true, roles: [], options: {}, areas: [], param: '' }; write(lens); }
+      // A skip is dated so the pop-up can ask again later (welcome_rule.js);
+      // skipping after an answer keeps the answer.
+      if (!lens || lens.skipped) { lens = { v: 2, skipped: true, roles: [], options: {}, areas: [], param: '', skippedAt: new Date().toISOString() }; write(lens); }
       return lens;
     }
     const roles = boxes().filter((b) => b.checked).map((b) => b.value);
@@ -159,7 +167,7 @@
 
   function apply(v) {
     dlg.close();
-    if (window.Leads) window.Leads.apply({ areas: v.areas, lens: v.param });
+    if (window.Leads) window.Leads.apply({ areas: v.areas, lens: config.enabled ? v.param : '' });
     paintButton();
   }
 
@@ -204,19 +212,26 @@
   const cfgReady = fetch('/api/lens').then((r) => (r.ok ? r.json() : null)).catch(() => null);
   const areasReady = window.Leads ? window.Leads.areas : Promise.resolve(null);
   Promise.all([cfgReady, areasReady]).then(([cfg, idx]) => {
-    // Trade matching is off on this site (ADR-26, ADR-33): no lens button, no
-    // welcome popup, rather than a lens that cannot filter.
-    if (!cfg || !cfg.enabled) { if (slot) { slot.innerHTML = ''; slot.setAttribute('aria-hidden', 'true'); } return; }
-    disabled = false;
+    if (!cfg) return;
     config = cfg;
+    // Trade matching is off on this site (ADR-26, ADR-33): no lens button and
+    // no trade filter, but the welcome popup still asks (skippable). Its answer
+    // only sets the location and is recorded by analytics; the role filters nothing.
+    disabled = !cfg.enabled;
+    if (disabled && slot) { slot.innerHTML = ''; slot.setAttribute('aria-hidden', 'true'); }
     index = idx;
     lens = upgrade(lens);
     if (lens) write(lens);
     if (picker && idx) picker.setIndex(idx);
     paintButton();
-    // Ask on the first visit, on the Leads page only.
+    // Ask on the Leads page only: on this browser's first visit, and again a
+    // week after a skip, never after an answer (welcome_rule.js).
     const onLeads = location.pathname === '/' || location.pathname.startsWith('/search');
-    if (ask === '1' || (!lens && ask !== '0' && onLeads)) open();
+    const due = window.WelcomeRule ? window.WelcomeRule.due(lens) : (lens ? null : 'first');
+    if (ask === '1' || (due && ask !== '0' && onLeads)) {
+      open();
+      track('onboarding_shown', lens, { ask: ask === '1' ? 'requested' : due });
+    }
   });
   window.addEventListener('leads:areas', paintButton);
 })();

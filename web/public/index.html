@@ -263,13 +263,9 @@
       <div class="active-filters" id="activeFilters"></div>
       <div id="results"></div>
       <nav class="pager" id="pager" aria-label="Pagination"></nav>
-      <footer class="credits" id="credits"></footer>
-      <p class="source-note" style="font-size:12px;opacity:.75;margin-top:16px">
-        Sources: City of Austin, Texas – data.austintexas.gov, dataset 3syk-w9eu; Miami-Dade County Open Data
-        (ArcGIS building permits layer). Not affiliated with or endorsed by these agencies. Data as published,
-        may be incomplete. Owner and individual contacts are withheld.
-        <a href="/privacy">Privacy and usage analytics</a>.
-      </p>
+      <!-- Sources live on their own page (/sources); one small link here keeps
+           the CC BY credit (City of Miami, Wake County) one tap away. -->
+      <footer class="app-foot"><a href="/sources">Data sources &amp; licenses</a> · <a href="/privacy">Privacy</a></footer>
     </div>
   </main>
 
@@ -351,6 +347,7 @@
 <script src="location.js"></script>
 <script src="saved.js"></script>
 <script src="app.js"></script>
+<script src="welcome_rule.js"></script>
 <script src="lens.js"></script>
 <!-- Product analytics (docs/ANALYTICS.md); off under Do Not Track or the /privacy opt-out. -->
 <script src="/analytics_core.js" defer></script>

@@ -23,7 +23,8 @@ are in `docs/DATA_SOURCES.md`, "Licence and terms review".
 3. **Every source records its terms review** in `sources`: URL, date,
    reviewer, automated-access verdict, redistribution verdict. A source with
    `automated_access = 'no'` cannot be scheduled. A source whose licence
-   requires attribution shows it on every screen and export that uses it.
+   requires attribution credits it on every screen and export that uses it;
+   on screens that credit is the footer link to `/sources` (ADR-41).
 4. **Contacts carry provenance and a display policy.** Business contacts on
    the permit are shown. Anything that looks like an individual, such as an
    applicant's personal phone or a sole proprietor's cell, defaults to

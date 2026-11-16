@@ -125,6 +125,9 @@
   $('range').addEventListener('click', (e) => { const b = e.target.closest('[data-range]'); if (b) { state.range = b.dataset.range; load(); } });
   $('user').addEventListener('change', (e) => { state.user = e.target.value; load(); if (state.user) openTimeline(state.user); else $('timelineCard').hidden = true; });
   $('users').addEventListener('click', (e) => { const b = e.target.closest('[data-user]'); if (b) openTimeline(b.dataset.user); });
+  // Shared with the charts (web/admin/analytics_charts.js).
+  window.AdminUI = { esc, n, pct, secs, table, getJSON, ready: marked };
+
   marked.then(() => {
     loadUsers().catch((err) => { $('users').innerHTML = `<p class="err">${esc(err.message)}</p>`; });
     load();

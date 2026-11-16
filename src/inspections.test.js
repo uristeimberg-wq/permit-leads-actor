@@ -49,8 +49,10 @@ check('an unknown wording is unknown, never guessed (rule 3)', () => {
   assert.strictEqual(resultClass(MD, '  rejected   work concealed '), 'rejected');
 });
 
-check('a row without a key part or a permit number is skipped, not stored under a made-up key', () => {
-  assert.strictEqual(mapInspection(MD, { ...MD_ROW, inspector_id: null }), null);
+check('a blank later key part is "-"; a row without its first key part or a permit number is skipped', () => {
+  assert.strictEqual(mapInspection(MD, { ...MD_ROW, inspector_id: null }).inspectionKey, '2026043726 | 37 | 2026-11-16 | 231 | -');
+  assert.strictEqual(mapInspection(MD, { ...MD_ROW, permit_number: null }), null);
+  assert.strictEqual(mapInspection(RAL, { ...RAL_ROW, IMInspectionID: null }), null);
   assert.strictEqual(mapInspection(RAL, { ...RAL_ROW, LinkNumber: ' ' }), null);
 });
 

@@ -87,8 +87,10 @@ it safe. Use a Google account you control.
 5. **Create and restrict the key.** APIs & Services → *Credentials* →
    *Create credentials* → *API key*. Open the key:
    - *Application restrictions*: **Websites**. Add
-     `https://permits-production-9581a3c0.up.railway.app/*` (and your own
-     domain later; `http://localhost:3000/*` only on a separate dev key).
+     `https://giboro.com/*` and
+     `https://permits-production-9581a3c0.up.railway.app/*` (the old
+     address still serves; `http://localhost:3000/*` only on a separate
+     dev key).
    - *API restrictions*: **Restrict key** → only **Street View Static API**.
    - Save.
 6. **Daily cap.** APIs & Services → *Enabled APIs* → Street View Static API →

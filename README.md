@@ -7,8 +7,9 @@ newest work is the **data engine**: finding jobs before a permit is issued,
 linking every filing to its property and its companies by official keys, and
 recording where each value came from and how sure we are of it.
 
-**Live demo:** https://permits-production-9581a3c0.up.railway.app (shared
-password, ask the owner). Screens can lag the database by up to 10 minutes
+**Live app:** https://giboro.com (Cloudflare in front of Railway; the old
+address https://permits-production-9581a3c0.up.railway.app still works). Open
+access; only digest previews and `/admin` need the owner key. Screens can lag the database by up to 10 minutes
 because of the in-memory cache.
 
 ## Markets
@@ -137,6 +138,17 @@ runs. The log names the step: `Migrations (start)` from the container,
 the applied migration, the newest one the deployed code ships, and the
 commit Railway built; the smoke workflow prints it. To apply migrations
 without a deploy or a sync, run the `migrate` workflow.
+
+**Domain (ADR-38).** `giboro.com` is the canonical address: Cloudflare
+(proxied) in front of the Railway service, set up with Railway's Cloudflare
+integration. The railway.app address keeps serving and is not redirected.
+Cloudflare's SSL/TLS mode must be **Full** or **Full (strict)**: *Flexible*
+sends plain http to Railway, which redirects to https, and the browser loops.
+Cookies and the analytics device id are per host, so a browser signed in or
+marked internal on the railway.app address starts fresh on giboro.com: sign
+in with the owner key there and open `/admin/analytics` once on each device.
+`PUBLIC_BASE_URL` (Railway variable and GitHub variable) is
+`https://giboro.com`.
 
 ## Repository map
 

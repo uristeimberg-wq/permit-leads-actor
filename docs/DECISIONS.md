@@ -980,3 +980,83 @@ what would make us revisit it. Never delete an entry; supersede it.
   own device to that user; the timelines are a discovery aid, not an audit
   trail. Retention: events and sessions are deleted after 13 months (owner
   decision 2026-11-15; `ingest/analytics_retention.js`, daily in the sync).
+
+## ADR-38: giboro.com is the canonical address, behind Cloudflare
+
+- **Date:** 2026-11-16
+- **Context:** the owner connected `giboro.com` to the Railway web service
+  through Railway's Cloudflare integration (proxied). The railway.app address
+  stays live.
+- **Decision:** every link the system writes (digest emails, the perf and
+  status-label checks, docs) uses `https://giboro.com`. The old address is
+  not redirected: emails and bookmarks already point at it, and a redirect
+  would add a hop and a failure mode for no gain while both serve the same
+  app. The app trusts Railway's edge, and the hop before it only when it is a
+  Cloudflare address (`web/proxy_trust.js`), so `req.ip` is the visitor
+  rather than a Cloudflare edge shared by everyone near it; the sign-in and
+  analytics rate limits key on it.
+- **Consequences:** Cloudflare's SSL mode must be Full or Full (strict).
+  Cookies and the analytics device id (localStorage) are per host, so the
+  owner signs in and opens `/admin/analytics` once per device on the new
+  domain to mark it internal. `GEO_COUNTRY_HEADER=CF-IPCountry` would now
+  fill country, but only for traffic through Cloudflare and the header is
+  forgeable on the railway.app address, so it stays unset.
+
+## ADR-39: The welcome pop-up asks even while trade matching is off
+
+- **Date:** 2026-11-16
+- **Context:** #113 hid Uri's "What do you do?" pop-up whenever `/api/lens`
+  says trade matching is off (`SHOW_INFERENCES` and `SHOW_UNMEASURED` unset,
+  ADR-26, ADR-33), which is the live site. So no visitor saw it and the
+  role analytics from ADR-37 stayed empty.
+- **Decision:** the owner chose to show the pop-up on a first visit to the
+  Leads page anyway, skippable as before. While matching is off, the answer
+  only sets the location the visitor picked and is recorded by analytics
+  (role keys, never the free text); the role filters and ranks nothing, the
+  header lens button stays hidden, and the pop-up says leads are not filtered
+  by trade yet. Neither flag is turned on.
+- **Consequences:** once per browser (localStorage `contractos.lens.v1`);
+  `/?welcome=1` asks again, `/?welcome=0` never asks. When matching is
+  switched on, a saved answer starts filtering.
+
+## ADR-40: The welcome pop-up asks again a week after a skip
+
+- **Date:** 2026-11-16
+- **Context:** the owner wants the pop-up to behave like a cookie banner:
+  shown on a first visit, not on every visit, and again for someone who
+  comes back days later or on another phone or tablet.
+- **Decision:** each browser keeps its own record (localStorage
+  `contractos.lens.v1`), so a new device is asked on its first visit. A
+  skip (the button, Escape or closing it) is dated, and the pop-up asks
+  again once 7 days have passed (`web/public/welcome_rule.js`). An answer is
+  never asked again on that browser; the header button changes it where
+  trade matching is on. Skips saved before this change carry no date and
+  are asked once more. Each showing sends `onboarding_shown` with `ask`
+  = `first` / `again` / `requested`.
+- **Consequences:** the same person on two devices is asked on each, since
+  there is no login (ADR-29). Clearing site data counts as a new browser.
+  Still optional: nothing is blocked behind it.
+
+## ADR-41: Source credits move to one page, linked from every screen
+
+- **Date:** 2026-11-16
+- **Context:** the owner asked that the app not show sources at all. The
+  credit list under the results had grown to a paragraph per market and
+  filled a phone screen (the Saved tab). City of Miami and Wake County data
+  are CC BY 4.0, which needs attribution "in any reasonable manner".
+- **Decision:** the credit list, the extra source note and the "Source:"
+  line under the job drawer's property facts are removed from the app.
+  Every screen keeps one small footer link, "Data sources & licenses", to
+  `/sources`, which lists each permit source's and enrichment source's
+  stored credit (`sources.attribution_text`, read from `/api/freshness`
+  and `/api/credits`), the OpenStreetMap credit, the not-affiliated note and
+  that CC BY data was normalized. CC BY 4.0 s.3(a)(2) says attribution may
+  be given "by providing a URI or hyperlink to a resource that includes the
+  required information". The pilot screens' `attribution()` renders the same
+  link. Email digests keep their credit line.
+- **Consequences:** a viewer no longer sees which agency a value came from
+  without opening `/sources`. Provenance is still stored on every value
+  (hard rule 6). The map keeps Leaflet's OpenStreetMap credit, which the
+  tile policy requires on the map itself. Not legal advice: the link form
+  for CC BY and TDLR's "attribution with link" (shown only if licence panels
+  are turned on) are on counsel's list.

@@ -38,11 +38,27 @@
     logout: 'auth',
     // UI
     ui_click: 'ui_interaction',
+    // The "What do you do?" welcome pop-up (web/public/lens.js)
+    onboarding_shown: 'ui_interaction',
+    onboarding_completed: 'ui_interaction',
+    onboarding_skipped: 'ui_interaction',
     // Friction
     ui_error_encountered: 'error',
     api_request_failed: 'error',
     rage_click_detected: 'error',
   };
+  // The pop-up's role keys (web/lens_config.js). Anything else is dropped.
+  const ROLES = ['sub', 'gc', 'supplier', 'other', 'all'];
+  /**
+   * What the visitor answered in the pop-up, from its saved lens: an array of
+   * role keys, 'skipped', or null (not answered on this browser).
+   */
+  function lensRoles(lens) {
+    if (!lens || typeof lens !== 'object') return null;
+    if (lens.skipped) return 'skipped';
+    const roles = Array.isArray(lens.roles) ? [...new Set(lens.roles.filter((r) => ROLES.includes(r)))].sort() : [];
+    return roles.length ? roles : null;
+  }
   const ENTITY_TYPES = ['permit', 'pre_approval', 'contractor', 'property', 'project'];
   const HIGH_INTENT = ['contact_info_clicked', 'record_saved', 'data_exported', 'alert_created'];
 
@@ -196,7 +212,7 @@
   }
 
   return {
-    EVENTS, ENTITY_TYPES, HIGH_INTENT, SCROLL_MARKS, SESSION_IDLE_MS, UUID,
+    EVENTS, ENTITY_TYPES, HIGH_INTENT, ROLES, lensRoles, SCROLL_MARKS, SESSION_IDLE_MS, UUID,
     redactText, sanitizeProps, activeTimer, eventQueue, scrollMarks, scrollPercent, rageDetector, uuid, sessionFor,
   };
 }));

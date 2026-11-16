@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data sources and licenses · Contractos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;700&amp;family=Oswald:wght@700&amp;display=swap" rel="stylesheet">
+<style>
+:root { --paper: oklch(96.4% 0.009 85); --plate: oklch(98.6% 0.005 85); --ink: oklch(22% 0.02 260); --ink-2: oklch(31% 0.018 260);
+  --muted: oklch(44% 0.014 260); --accent: oklch(52% 0.15 48); --accent-deep: oklch(40% 0.12 48); --accent-ink: oklch(98.6% 0.005 85); --focus: oklch(50% 0.17 48);
+  --display: "Oswald", "Arial Narrow", ui-sans-serif, sans-serif; --body: "Archivo", ui-sans-serif, system-ui, sans-serif; }
+*, *::before, *::after { box-sizing: border-box; }
+html, body { overflow-x: clip; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 16px/1.55 var(--body); -webkit-font-smoothing: antialiased; }
+header { background: var(--ink); }
+.wrap { max-width: 760px; margin: 0 auto; padding: 0 16px; }
+header .wrap { min-height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.wordmark { display: flex; align-items: center; gap: 8px; font: 700 20px/1 var(--display); text-transform: uppercase; color: var(--plate); }
+.wordmark i { width: 12px; height: 12px; background: var(--accent); display: inline-block; }
+header a.back { color: var(--plate); min-height: 44px; display: inline-flex; align-items: center; }
+main { padding: 24px 0 40px; }
+h1 { font: 700 2.25rem/1.05 var(--display); text-transform: uppercase; margin: 0 0 12px; overflow-wrap: anywhere; }
+h2 { font: 700 1.25rem/1.15 var(--display); text-transform: uppercase; margin: 28px 0 8px; }
+p, li { color: var(--ink-2); }
+.plate { background: var(--plate); border: 3px solid var(--ink); padding: 20px; margin-top: 24px; }
+.btn { min-height: 44px; padding: 0 16px; border: 0; cursor: pointer; background: var(--accent); color: var(--accent-ink); font: 700 15px/1 var(--display); text-transform: uppercase; letter-spacing: .02em; }
+.btn:hover { background: var(--accent-deep); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+a { color: var(--accent-deep); } header a.back { color: var(--plate); } ul.src { padding-left: 20px; } ul.src li { margin: 0 0 8px; overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<header><div class="wrap"><span class="wordmark"><i aria-hidden="true"></i>Contractos</span><a class="back" href="/">Back to the app</a></div></header>
+<main class="wrap">
+  <h1>Data sources and licenses</h1>
+  <p>Contractos is built from public records. These are the sources behind what the app shows, each with the credit its publisher asks for.</p>
+
+  <h2>Permit and filing records</h2>
+  <ul class="src" id="permitSources"><li>Loading…</li></ul>
+
+  <h2>Property, licence and business records</h2>
+  <ul class="src" id="enrichSources"><li>Loading…</li></ul>
+
+  <h2>Map</h2>
+  <ul class="src"><li>Map tiles © <a href="https://www.openstreetmap.org/copyright" rel="noopener noreferrer">OpenStreetMap</a> contributors.</li></ul>
+
+  <h2>Notes</h2>
+  <p>Not affiliated with or endorsed by these agencies. Data as published, and may be incomplete. Contacts come from the public permit record; owner and individual contacts are withheld.</p>
+  <p>Data licensed under <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener noreferrer">CC BY 4.0</a> was normalized by us (fields renamed, statuses grouped, duplicates merged).</p>
+  <p><a href="/privacy">Privacy and usage analytics</a></p>
+</main>
+<script>
+(function () {
+  var esc = function (v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  function fill(id, items) {
+    document.getElementById(id).innerHTML = items.length
+      ? items.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('')
+      : '<li>None listed.</li>';
+  }
+  function get(url) { return fetch(url, { headers: { accept: 'application/json' } }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }); }
+  get('/api/freshness').then(function (d) {
+    var seen = {};
+    fill('permitSources', (d.sources || []).filter(function (s) { return s.attribution; }).map(function (s) {
+      return (s.label || s.source_area) + ': ' + s.attribution;
+    }).filter(function (t) { if (seen[t]) return false; seen[t] = 1; return true; }));
+  }).catch(function () { fill('permitSources', ['Could not load the list. Try again later.']); });
+  get('/api/credits').then(function (d) {
+    var seen = {};
+    fill('enrichSources', (d.enrichment || []).map(function (e) { return e.attribution; })
+      .filter(function (t) { if (!t || seen[t]) return false; seen[t] = 1; return true; }));
+  }).catch(function () { fill('enrichSources', ['Could not load the list. Try again later.']); });
+}());
+</script>
+</body>
+</html>

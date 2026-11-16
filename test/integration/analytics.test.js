@@ -233,6 +233,52 @@ async function main() {
       assert.strictEqual((await one('SELECT is_internal FROM analytics_sessions WHERE session_id = $1', [S1])).is_internal, false);
     });
 
+    await check('charts: growth, funnel, roles, sources and records added, from real rows, filtered by pop-up answer and source', async () => {
+      const DA = uuid('2', 21); const DB = uuid('2', 22);
+      const SA = uuid('1', 21); const SB = uuid('1', 22); const SC = uuid('1', 23);
+      // A supplier first seen 8 days ago from a newsletter (written directly: the endpoint pins old client clocks to now).
+      await db.query(`INSERT INTO analytics_sessions (session_id, anonymous_device_id, started_at, last_active_at, utm_source, duration_seconds)
+                      VALUES ($1, $2, now() - interval '8 days', now() - interval '8 days', 'newsletter', 120)`, [SA, DA]);
+      for (const [i, name, props, ctx] of [[1, 'page_view', { lens_roles: ['supplier'] }, {}], [2, 'search_executed', { query: 'pool' }, {}],
+        [3, 'record_clicked', {}, { t: 'permit', id: '9' }]]) {
+        await db.query(`INSERT INTO analytics_events (event_id, session_id, anonymous_device_id, event_name, event_category, properties, target_entity_type, target_record_id, client_timestamp)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now() - interval '8 days' + $9 * interval '1 second')`,
+        [uuid('0', 2100 + i), SA, DA, name, i === 1 ? 'navigation' : i === 2 ? 'search' : 'record_engagement', props, ctx.t || null, ctx.id || null, i]);
+      }
+      // Back today and calls a contractor.
+      assert.strictEqual((await post({ session_id: SB, anonymous_device_id: DA, session: { entry_path: '/' },
+        events: [ev('page_view', { lens_roles: ['supplier'] }, { minAgo: 2 }), ev('contact_info_clicked', { method: 'call' }, { minAgo: 1 })] })).status, 202);
+      // Someone from Google who skipped the pop-up and searched.
+      assert.strictEqual((await post({ session_id: SC, anonymous_device_id: DB, session: { entry_path: '/', referrer: 'google.com' },
+        events: [ev('page_view', { lens_roles: 'skipped' }, { minAgo: 2 }), ev('onboarding_skipped', { lens_roles: 'skipped' }, { minAgo: 2 }), ev('search_executed', { query: 'x' }, { minAgo: 1 })] })).status, 202);
+
+      const sup = (await adminGet('/api/admin/analytics/charts?days=30&role=supplier')).body;
+      assert.strictEqual(sup.growth.length, 30);
+      const today = sup.growth[29]; const eight = sup.growth[21];
+      assert.deepStrictEqual([today.dau, today.new_actors, today.returning], [1, 0, 1]);
+      assert.deepStrictEqual([eight.dau, eight.new_actors], [1, 1]);
+      assert.deepStrictEqual([sup.funnel.landed, sup.funnel.answered, sup.funnel.searched, sup.funnel.opened, sup.funnel.intent, sup.funnel.returned], [1, 1, 1, 1, 1, 1]);
+      // Per visit: the newsletter visit 8 days ago and today's direct one.
+      assert.deepStrictEqual(sup.sources.map((r) => [r.source, r.actors, r.activated]).sort(), [['(direct)', 1, 1], ['newsletter', 1, 1]]);
+      const supRole = sup.roles.find((r) => r.role === 'supplier');
+      assert.deepStrictEqual([supRole.actors, supRole.d7Eligible, supRole.d7Returned, supRole.avgSessionSeconds], [1, 1, 1, 60], 'two visits: 120 s and 0 s');
+      assert.ok(sup.roles.some((r) => r.role === 'skipped'), 'the role comparison ignores the role filter');
+
+      const skip = (await adminGet('/api/admin/analytics/charts?days=7&role=skipped&source=google.com')).body;
+      assert.deepStrictEqual([skip.funnel.landed, skip.funnel.answered, skip.funnel.any_searched], [1, 0, 1]);
+      assert.deepStrictEqual(skip.sources.map((r) => [r.source, r.actors, r.activated]), [['google.com', 1, 0]]);
+      assert.ok(skip.sourceOptions.some((o) => o.source === 'newsletter'));
+      assert.strictEqual((await adminGet('/api/admin/analytics/charts?days=7&role=nobody')).body.scope.role, null);
+
+      // Records added: the day we first saw them, by region and by stage then.
+      await db.query(`INSERT INTO permits (source_area, permit_number, first_seen_at, first_seen_stage)
+                      VALUES ('raleigh-nc', 'IT-1', now() - interval '2 days', 'in_review'), ('raleigh-nc', 'IT-2', now() - interval '2 days', 'issued'),
+                             ('raleigh-nc', 'IT-3', now() - interval '40 days', 'issued')`);
+      const ing = (await adminGet('/api/admin/analytics/charts?days=7')).body.ingestion.filter((r) => r.region === 'raleigh-nc');
+      assert.deepStrictEqual(ing.map((r) => [r.stage, r.n]).sort(), [['permit_issued', 1], ['permit_pending', 1]], 'the 40-day-old one is outside the window');
+      assert.strictEqual((await adminGet('/api/admin/analytics/charts', { cookie })).status, 403);
+    });
+
     await check('the privacy page is public', async () => {
       const r = await fetch(`${base}/privacy`);
       assert.strictEqual(r.status, 200);

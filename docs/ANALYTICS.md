@@ -127,3 +127,35 @@ are replaced with the server time.
 `web/admin_analytics.test.js` (401/403), and
 `test/integration/analytics.test.js` (idempotency, dwell, zero results,
 stitching, exclusions, dashboard numbers, timeline, CSV, append-only).
+
+## Trend charts
+
+`GET /api/admin/analytics/charts?days=7|30|90&role=&source=` (web/admin_charts.js),
+drawn with Chart.js 4.4.7 (pinned in package.json, served from node_modules at
+`/admin/analytics/chart.umd.js`, owner only; no CDN). Each chart has a table view.
+
+- **People per day**: active, new (first visit that day), returning (first
+  seen earlier), email sign-ups (`app_users.created_at`; email sign-in is
+  optional). Or active people split by pop-up answer. Days before visitor
+  tracking started are blank, not zero.
+- **Records added per day**: `permits.first_seen_at` and
+  `planning_cases.first_seen_at` (when our sync first saw a record, not its
+  filing date), by region or by the stage it was in then: pre-approval
+  (planning case), permit not yet issued, issued or later, other/unknown. A
+  source's first sync puts its back history on one day.
+- **Funnel**: people first seen in the window; each step requires every
+  earlier one: answered the pop-up, searched, opened a record, high intent
+  (`contact_info_clicked`, `record_saved`; no export or alert feature exists),
+  came back on a later day. The table also gives "did it at all".
+- **Roles compared**: three small charts (avg active time per visit, searches
+  per person, day-7 retention), because they have different units.
+- **Traffic sources**: per visit, UTM source else referrer host else direct;
+  activated = searched and opened a record in the window.
+
+Role = the latest answer to the "What do you do?" pop-up (web/public/lens.js):
+page views carry `lens_roles` (role keys, or `skipped`) from the saved lens,
+and the pop-up sends `onboarding_shown` (with `ask`: `first` on a browser's
+first visit, `again` a week after a skip, `requested` for `?welcome=1`),
+`onboarding_completed` and `onboarding_skipped` (ADR-40). Free text
+("Something else") is never sent. Someone with two roles counts in both;
+`none` = no answer recorded (all visits before Nov 16 2026).

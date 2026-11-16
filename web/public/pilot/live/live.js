@@ -68,17 +68,9 @@
     </div></header>`;
   }
 
-  function attribution(meta) {
-    // No meta (a contractor profile spans sources): name every source we use.
-    const AUSTIN = 'City of Austin, Texas – data.austintexas.gov, dataset 3syk-w9eu';
-    const MIAMI = 'Miami-Dade County Open Data (ArcGIS building permits layer)';
-    // City of Miami is CC BY 4.0: this credit must appear wherever its data does.
-    const MIAMI_CITY = '© 2019 City of Miami, Department of Innovation and Technology, GIS Team. Licensed CC BY 4.0 (creativecommons.org/licenses/by/4.0); normalized by us';
-    const RALEIGH = 'City of Raleigh Open Data';
-    const src = !meta || !meta.source ? `${AUSTIN}; ${MIAMI}; ${MIAMI_CITY}; ${RALEIGH}`
-      : meta.source === 'miami-dade-fl' ? MIAMI : meta.source === 'austin-tx' ? AUSTIN : (meta.attribution || meta.source);
-    return `<div class="foot"><span>Source: ${esc(src)}. Contacts come from the public permit record; individuals are withheld.</span>
-      <span>Not affiliated with or endorsed by these agencies. Data as published, may be incomplete. Wrong or want a listing removed? Tell your pilot contact.</span></div>`;
+  /** Footer: one link to the full source and licence list (/sources), not the list itself. */
+  function attribution() {
+    return '<div class="foot"><a href="/sources">Data sources &amp; licenses</a> <a href="/privacy">Privacy</a></div>';
   }
 
   // ── Enrichment panels (ADR-15) ─────────────────────────────
@@ -231,6 +223,56 @@
   const dateRange = (a, b) => (a === b ? shortDate(a) : `${shortDate(a)} – ${shortDate(b)}`);
 
   const fail = (el, err) => { el.innerHTML = `<div class="state err">${esc(err.message)}</div>`; };
+
+  // The GCs page and the New permits page rest on job links (ADR-33). While
+  // the server hides them (/api/lens jobLinks false) each page is only an
+  // explanation, so every link to them (nav, overview buttons and notes, map
+  // popups, the tour steps that open them) is removed rather than leading to
+  // an empty page. The pages still load by URL. The answer is kept for the
+  // session so the next page hides them before it paints.
+  const HIDDEN_PAGES = ['gcs.html', 'digest.html'];
+  const LINK_SEL = HIDDEN_PAGES.flatMap((p) => [`a[href^="${p}"]`, `a[href^="/pilot/live/${p}"]`]).join(', ');
+  const HIDE_KEY = 'ct_joblinks_hidden';
+  const sget = (k) => { try { return sessionStorage.getItem(k); } catch (_e) { return null; } };
+  const sset = (k, v) => { try { sessionStorage.setItem(k, v); } catch (_e) { /* private window */ } };
+  let linksHidden = sget(HIDE_KEY) === '1';
+  function dropLinks(scope) {
+    for (const a of (scope || document).querySelectorAll(LINK_SEL)) {
+      const p = a.parentElement;
+      if (p && p.matches('p.note') && p.textContent.trim() === a.textContent.trim()) p.remove();
+      else a.remove();
+    }
+  }
+  function dropTourSteps() {
+    const steps = window.Tour && window.Tour.STEPS;
+    if (!steps) return;
+    for (let i = steps.length - 1; i >= 0; i -= 1) {
+      const target = String(steps[i].href || '').split('/').pop();
+      if (HIDDEN_PAGES.includes(steps[i].page) || HIDDEN_PAGES.includes(target)) steps.splice(i, 1);
+    }
+  }
+  function applyHidden() {
+    dropLinks();
+    dropTourSteps();
+    new MutationObserver((muts) => {
+      for (const m of muts) for (const n of m.addedNodes) if (n.nodeType === 1) { if (n.matches(LINK_SEL)) dropLinks(n.parentElement); else dropLinks(n); }
+    }).observe(document.body, { childList: true, subtree: true });
+  }
+  function initHiddenLinks() {
+    if (linksHidden) applyHidden();
+    fetch('/api/lens', { headers: { accept: 'application/json' } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((cfg) => {
+        if (!cfg || typeof cfg.jobLinks !== 'boolean') return;
+        const hide = !cfg.jobLinks;
+        sset(HIDE_KEY, hide ? '1' : '0');
+        if (hide && !linksHidden) { linksHidden = true; applyHidden(); }
+        else if (!hide && linksHidden) location.reload(); // turned back on: show the links again
+      })
+      .catch(() => { /* keep what we had */ });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initHiddenLinks);
+  else initHiddenLinks();
 
   window.Live = { esc, params, qs, api, date, dateTime, money, pct, daysSince, phone, who, phoneCell, freshness, topBar, attribution, fail, propertyCard, registryList, registrationList, labelTables, noHover, estPill, shortDate, dateRange, AREA, areaOf, areaOptions, TRADE, TRADE_PERSON };
 }());
