@@ -232,5 +232,50 @@
 
   const fail = (el, err) => { el.innerHTML = `<div class="state err">${esc(err.message)}</div>`; };
 
+  // GC relationships rest on job links (ADR-33). While the server hides them
+  // (/api/lens jobLinks false), the GCs page is only an explanation, so every
+  // link to it (nav, overview buttons and notes, map popups, the tour step)
+  // is removed rather than leading to an empty page. The answer is kept for
+  // the session so the next page hides them before it paints.
+  const GCS_KEY = 'ct_gcs_hidden';
+  const sget = (k) => { try { return sessionStorage.getItem(k); } catch (_e) { return null; } };
+  const sset = (k, v) => { try { sessionStorage.setItem(k, v); } catch (_e) { /* private window */ } };
+  let gcsHidden = sget(GCS_KEY) === '1';
+  function dropGcsLinks(scope) {
+    for (const a of (scope || document).querySelectorAll('a[href^="gcs.html"], a[href^="/pilot/live/gcs.html"]')) {
+      const p = a.parentElement;
+      if (p && p.matches('p.note') && p.textContent.trim() === a.textContent.trim()) p.remove();
+      else a.remove();
+    }
+  }
+  function dropGcsTourStep() {
+    const steps = window.Tour && window.Tour.STEPS;
+    if (!steps) return;
+    const i = steps.findIndex((s) => s.page === 'gcs.html');
+    if (i >= 0) steps.splice(i, 1);
+  }
+  function applyGcsHidden() {
+    dropGcsLinks();
+    dropGcsTourStep();
+    new MutationObserver((muts) => {
+      for (const m of muts) for (const n of m.addedNodes) if (n.nodeType === 1) { if (n.matches('a[href^="gcs.html"]')) dropGcsLinks(n.parentElement); else dropGcsLinks(n); }
+    }).observe(document.body, { childList: true, subtree: true });
+  }
+  function initGcsLinks() {
+    if (gcsHidden) applyGcsHidden();
+    fetch('/api/lens', { headers: { accept: 'application/json' } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((cfg) => {
+        if (!cfg || typeof cfg.jobLinks !== 'boolean') return;
+        const hide = !cfg.jobLinks;
+        sset(GCS_KEY, hide ? '1' : '0');
+        if (hide && !gcsHidden) { gcsHidden = true; applyGcsHidden(); }
+        else if (!hide && gcsHidden) location.reload(); // turned back on: show the links again
+      })
+      .catch(() => { /* keep what we had */ });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initGcsLinks);
+  else initGcsLinks();
+
   window.Live = { esc, params, qs, api, date, dateTime, money, pct, daysSince, phone, who, phoneCell, freshness, topBar, attribution, fail, propertyCard, registryList, registrationList, labelTables, noHover, estPill, shortDate, dateRange, AREA, areaOf, areaOptions, TRADE, TRADE_PERSON };
 }());

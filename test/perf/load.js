@@ -85,10 +85,19 @@ async function browserRun(name, ctxOpts, throttle) {
       const t0 = Date.now();
       await page.goto(`${BASE}${path}`, { waitUntil: 'domcontentloaded', timeout: 120000 });
       const dcl = Date.now() - t0;
-      // Data is on screen when the first skeleton placeholder is gone.
-      const sel = path.includes('gcs') ? '#list .state, #list table, #list .gc, main table' : '#hero-fig b:not(.skel)';
+      // Data is on screen when the first skeleton placeholder is gone. The GCs
+      // page has no skeleton: it is done when its lede leaves "Loading…" (with
+      // inferences off, ADR-26, the lede is the explanation and the table is
+      // hidden, so waiting for a table would never end).
       let dataAt = null;
-      try { await page.waitForSelector(sel, { timeout: 120000 }); dataAt = Date.now() - t0; } catch { /* reported as null */ }
+      try {
+        if (path.includes('gcs')) {
+          await page.waitForFunction(() => { const l = document.getElementById('lede'); return l && !/^Loading/.test(l.textContent.trim()); }, null, { timeout: 120000 });
+        } else {
+          await page.waitForSelector('#hero-fig b:not(.skel)', { timeout: 120000 });
+        }
+        dataAt = Date.now() - t0;
+      } catch { /* reported as null */ }
       results.push({ label: `${label} #${i + 1}`, dcl, dataAt });
       await page.close();
     }
