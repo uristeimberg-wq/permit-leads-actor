@@ -7,7 +7,7 @@
 // NAMES — those must be read off the live layer and declared per source in
 // `fieldMap`. Do not guess them.
 
-const { createStatusNormalizer, normalizePermit } = require('../normalize.js');
+const { createStatusNormalizer, normalizePermit, propertyClassOf } = require('../normalize.js');
 const { lifecycleStage } = require('../lifecycle.js');
 const { fetchWithRetry } = require('./http.js');
 const { parsePage } = require('./validate.js');
@@ -203,6 +203,7 @@ function mapFeatures(features, source, { includeIssued = true, log }) {
       stageSince: pick('statusDate'),
       lifecycleStage: lifecycleStage(source, rawStatus, derived ? derived.statusStage : undefined),
       filingKind: source.filingKind || null,
+      propertyClass: propertyClassOf(source.propertyClass, attrs),
 
       owner: pick('owner'),
       parcelNumber: pick('parcelNumber'),

@@ -100,6 +100,7 @@ const FILTER_PARAMS = [
   'stage', 'statusRaw', 'status', 'permitType', 'minValuation',
   'trade', 'minScore', 'q', 'page', 'pageSize', 'sort',
   'hasContact', 'contractor', 'areas', 'ownerBuilder', 'contractorIds',
+  'propertyClass',
 ];
 
 const showOwnerBuilder = () => process.env.SHOW_OWNER_BUILDER === '1';

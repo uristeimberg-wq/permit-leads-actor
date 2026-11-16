@@ -64,6 +64,23 @@ check('valuation is the job total only, never one trade\'s column (ADR-34)', () 
   assert.strictEqual(withTotal.valuation, 250000);
   const [remodel] = mapRows([{ ...REAL_ROW, total_job_valuation: '0', total_valuation_remodel: '40000' }], AUSTIN, { log: fakeLog() });
   assert.strictEqual(remodel.valuation, 40000);
+
+  // A $1 filler total also falls to the remodel total (Austin 2025-055228 BP:
+  // total_job_valuation '1', total_valuation_remodel '1352').
+  const [filler] = mapRows([{ ...REAL_ROW, total_job_valuation: '1', total_valuation_remodel: '1352' }], AUSTIN, { log: fakeLog() });
+  assert.strictEqual(filler.valuation, 1352);
+  // Fillers in both totals: no value, never a trade column.
+  const [none] = mapRows([{ ...REAL_ROW, total_job_valuation: '1', total_valuation_remodel: '1' }], AUSTIN, { log: fakeLog() });
+  assert.strictEqual(none.valuation, null);
+});
+
+check('Austin permit_class_mapped becomes the property class', () => {
+  const [res] = mapRows([{ ...REAL_ROW, permit_class_mapped: 'Residential' }], AUSTIN, { log: fakeLog() });
+  assert.strictEqual(res.propertyClass, 'residential');
+  const [com] = mapRows([{ ...REAL_ROW, permit_class_mapped: 'Commercial' }], AUSTIN, { log: fakeLog() });
+  assert.strictEqual(com.propertyClass, 'non_residential');
+  const [none] = mapRows([REAL_ROW], AUSTIN, { log: fakeLog() });
+  assert.strictEqual(none.propertyClass, null);
 });
 
 check('buildAddress reassembles the split address columns', () => {

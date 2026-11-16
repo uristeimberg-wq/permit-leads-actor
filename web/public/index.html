@@ -212,6 +212,16 @@
           <!-- Several types at once, with a search box (location.js picker). -->
           <div id="typePicker"></div>
           <div class="field">
+            <label for="propertyClass">Property</label>
+            <select class="select" id="propertyClass" name="propertyClass">
+              <option value="">Any property</option>
+              <option value="residential">Residential</option>
+              <option value="non_residential">Non-residential</option>
+            </select>
+            <!-- The class is the city's own (src/sources.js propertyClass). -->
+            <p class="hint">As the city classes it. Austin, Miami-Dade, City of Miami and Raleigh only.</p>
+          </div>
+          <div class="field">
             <label for="minValuation">Minimum valuation ($)</label>
             <input class="input" id="minValuation" name="minValuation"
                    inputmode="numeric" placeholder="Any value">

@@ -10,7 +10,7 @@
 // to implement generically; a given dataset's field NAMES are not, and must be
 // read off the live dataset and declared per source in `fieldMap`.
 
-const { createStatusNormalizer, normalizePermit } = require('../normalize.js');
+const { createStatusNormalizer, normalizePermit, declaredValue, propertyClassOf } = require('../normalize.js');
 const { lifecycleStage, statusKey } = require('../lifecycle.js');
 const { fetchWithRetry } = require('./http.js');
 const { parsePage } = require('./validate.js');
@@ -152,12 +152,16 @@ function mapRows(rows, source, { includeIssued = true, log }) {
   // A fieldMap entry may name one column or several. Austin spreads valuation
   // across a dozen columns (total_job_valuation, *_remodel, per-trade), none of
   // which is populated on most rows, so the first meaningful one wins.
+  // For valuation, "meaningful" means a value that would be shown (ADR-34):
+  // Austin puts a $1 filler in total_job_valuation on rows whose
+  // total_valuation_remodel holds the real total, so the filler must not win.
   const isEmpty = (v) => v == null || v === '' || Number(v) === 0;
   const pick = (row, key) => {
     const spec = map[key];
     if (!spec) return undefined;
     if (!Array.isArray(spec)) return row[spec];
-    return spec.map((f) => row[f]).find((v) => !isEmpty(v));
+    const skip = key === 'valuation' ? (v) => declaredValue(v) == null : isEmpty;
+    return spec.map((f) => row[f]).find((v) => !skip(v));
   };
 
   const permits = rows.map((row) => {
@@ -188,6 +192,7 @@ function mapRows(rows, source, { includeIssued = true, log }) {
       stageSince: pick(row, 'statusDate'),
       lifecycleStage: lifecycleStage(source, rawStatus),
       filingKind: source.filingKind || null,
+      propertyClass: propertyClassOf(source.propertyClass, row),
 
       owner: pick(row, 'owner'),
       contractorName: pick(row, 'contractorName'),

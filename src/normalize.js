@@ -14,6 +14,19 @@ const declaredValue = (v) => {
   return Number.isFinite(n) && n >= MIN_DECLARED_VALUE && n < MAX_DECLARED_VALUE ? n : null;
 };
 
+// Residential or not, as the source itself classes the property. A source
+// opts in with `propertyClass: { field, values }` in src/sources.js, whose
+// `values` maps each published word to a class; a source without it, an empty
+// cell or an unmapped word gives null. "Non-residential", not "commercial":
+// Raleigh's Non-Residential also covers institutional and industrial work.
+const PROPERTY_CLASSES = ['residential', 'non_residential'];
+function propertyClassOf(spec, row) {
+  if (!spec || !row) return null;
+  const raw = row[spec.field];
+  if (raw == null) return null;
+  return spec.values[String(raw).trim()] ?? null;
+}
+
 // The only two statuses scoring.js awards a timing bonus for. Anything else
 // silently earns +0, which is why unmapped values are reported loudly below.
 const KNOWN_STATUSES = new Set(['applied', 'issued']);
@@ -131,6 +144,9 @@ function normalizePermit(fields) {
     submittedOn: toIsoDate(fields.submittedOn),
     stageSince: toIsoDate(fields.stageSince),
     lifecycleStage: fields.lifecycleStage ?? 'unknown',
+    // 'residential' | 'non_residential' | null, from the source's own class
+    // column (propertyClassOf). Null is "not published", never a guess.
+    propertyClass: PROPERTY_CLASSES.includes(fields.propertyClass) ? fields.propertyClass : null,
     filingKind: fields.filingKind ?? null,
 
     // Detail-page fields. These come from the page already fetched for the
@@ -179,4 +195,7 @@ function toScorable(permit) {
   return { ...permit, description: permit.workDescription || '', workDescription: text };
 }
 
-module.exports = { createStatusNormalizer, normalizePermit, toScorable, normalizePhone, KNOWN_STATUSES, declaredValue, MIN_DECLARED_VALUE, MAX_DECLARED_VALUE };
+module.exports = {
+  createStatusNormalizer, normalizePermit, toScorable, normalizePhone, KNOWN_STATUSES,
+  declaredValue, MIN_DECLARED_VALUE, MAX_DECLARED_VALUE, PROPERTY_CLASSES, propertyClassOf,
+};

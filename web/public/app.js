@@ -33,7 +33,8 @@ const TYPING_DELAY = 300;
 
 const TEXT_FILTERS = ['contractor', 'minValuation', 'q'];
 // No trade filter: it read our keyword fit scores, an inference (ADR-26).
-const PICK_FILTERS = ['from', 'to'];
+const PICK_FILTERS = ['from', 'to', 'propertyClass'];
+const PROPERTY_CLASS_LABELS = { residential: 'Residential', non_residential: 'Non-residential' };
 
 // Permit types: a multi-select with search (location.js picker), sent as
 // `permitType=a|b`. Some raw types contain commas; none contains a pipe.
@@ -511,7 +512,7 @@ const CHIP_LABELS = {
   zip: 'ZIP', city: 'City', jurisdiction: 'Jurisdiction', permitType: 'Type',
   trade: 'Trade', minValuation: 'Min value', contractor: 'Contractor',
   from: 'From', to: 'To', q: 'Search', hasContact: 'Contact', stage: 'Stage',
-  areas: 'Map area', ownerBuilder: 'Owner',
+  areas: 'Map area', ownerBuilder: 'Owner', propertyClass: 'Property',
 };
 
 function paintActiveFilters(filters) {
@@ -547,6 +548,7 @@ function paintActiveFilters(filters) {
     const shown = key === 'hasContact' ? 'has a phone number'
       : key === 'ownerBuilder' ? 'filed by the homeowner'
       : key === 'minValuation' ? (money(value) || value)
+      : key === 'propertyClass' ? (PROPERTY_CLASS_LABELS[value] || value)
       : value;
     chips.push([key, CHIP_LABELS[key] || key, shown]);
   }

@@ -84,6 +84,19 @@ check('mapFeatures converts ArcGIS attributes into scorable permits', () => {
   assert.strictEqual(scorePermit(permit, 'flooring').score, 102);
 });
 
+check('mapFeatures reads the property class a source publishes (City of Miami PropertyType)', () => {
+  const miami = SOURCES['miami-city-fl'];
+  const [res, com] = mapFeatures([
+    { attributes: { PermitNumber: 'BD1', PropertyType: 'Residential' } },
+    { attributes: { PermitNumber: 'BD2', PropertyType: 'Commercial' } },
+  ], miami, { log: fakeLog() });
+  assert.strictEqual(res.propertyClass, 'residential');
+  assert.strictEqual(com.propertyClass, 'non_residential');
+  // A source without a class column gives null, never a guess.
+  const [none] = mapFeatures([{ attributes: { PERMIT_NUM: 'X', PropertyType: 'Residential' } }], SOURCE, { log: fakeLog() });
+  assert.strictEqual(none.propertyClass, null);
+});
+
 check('mapFeatures builds a permit URL from a template', () => {
   const src = { ...SOURCE, permitUrlTemplate: 'https://example.test/p?id={permitNumber}' };
   const [permit] = mapFeatures([{ attributes: { PERMIT_NUM: 'BLD 2026/9' } }], src, { log: fakeLog() });

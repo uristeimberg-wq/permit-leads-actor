@@ -1,5 +1,6 @@
 const assert = require('node:assert');
-const { createStatusNormalizer, normalizePermit } = require('./normalize.js');
+const { createStatusNormalizer, normalizePermit, propertyClassOf } = require('./normalize.js');
+const { SOURCES } = require('./sources.js');
 const { mapRows } = require('./adapters/csv.js');
 const { scorePermit } = require('./scoring.js');
 
@@ -132,6 +133,21 @@ check('csv mapRows tolerates rows missing mapped columns', () => {
   assert.strictEqual(permit.address, null);
   assert.strictEqual(permit.workDescription, '');
   assert.strictEqual(permit.status, 'applied');
+});
+
+check('property class is the source\'s own word, mapped; anything else is null', () => {
+  const spec = SOURCES['miami-dade-fl'].propertyClass;
+  assert.strictEqual(propertyClassOf(spec, { ResidentialCommercial: 'R' }), 'residential');
+  assert.strictEqual(propertyClassOf(spec, { ResidentialCommercial: ' C ' }), 'non_residential');
+  assert.strictEqual(propertyClassOf(spec, { ResidentialCommercial: 'X' }), null);
+  assert.strictEqual(propertyClassOf(spec, {}), null);
+  assert.strictEqual(propertyClassOf(undefined, { ResidentialCommercial: 'R' }), null);
+  // Raleigh's word for the other class is Non-Residential.
+  assert.strictEqual(propertyClassOf(SOURCES['raleigh-nc'].propertyClass, { permitclassmapped: 'Non-Residential' }), 'non_residential');
+  // normalizePermit keeps only a known class.
+  assert.strictEqual(normalizePermit({ propertyClass: 'residential' }).propertyClass, 'residential');
+  assert.strictEqual(normalizePermit({ propertyClass: 'commercial' }).propertyClass, null);
+  assert.strictEqual(normalizePermit({}).propertyClass, null);
 });
 
 console.log('\nDone.');

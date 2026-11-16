@@ -224,6 +224,10 @@ const SOURCES = {
     },
     dateField: 'issue_date',
     defaultState: 'TX',
+    // Residential vs non-residential, as Austin classes it (permit_class_mapped).
+    // Measured 2026-11-16 on 15,687 stored raw records: Residential 10,070,
+    // Commercial 5,617, no other value.
+    propertyClass: { field: 'permit_class_mapped', values: { Residential: 'residential', Commercial: 'non_residential' } },
     fieldMap: {
       permitNumber: 'permit_number',
       permitType: 'permit_type_desc',
@@ -409,6 +413,9 @@ const SOURCES = {
     // first, ObjectId as the tiebreak.
     orderByFields: 'PermitIssuedDate DESC, ObjectId',
     defaultState: 'FL',
+    // ResidentialCommercial, measured 2026-11-16 on stored raw records:
+    // R 664, C 418, empty 1.
+    propertyClass: { field: 'ResidentialCommercial', values: { R: 'residential', C: 'non_residential' } },
     fieldMap: {
       permitNumber: 'PermitNumber',
       // ApplicationTypeDescription is human-readable ("RE-ROOF/REPAIR");
@@ -489,6 +496,9 @@ const SOURCES = {
       { field: 'Statusdate', days: 14 },
     ],
     defaultState: 'FL',
+    // PropertyType, measured 2026-11-16 on 2,806 stored raw records:
+    // Commercial 1,627, Residential 1,179, no other value.
+    propertyClass: { field: 'PropertyType', values: { Residential: 'residential', Commercial: 'non_residential' } },
     fieldMap: {
       permitNumber: 'PermitNumber',
       permitType: 'ScopeofWork',
@@ -570,6 +580,9 @@ const SOURCES = {
     dateField: 'issueddate',
     orderByFields: 'issueddate DESC, OBJECTID',
     defaultState: 'NC',
+    // permitclassmapped, on both layers. Measured 2026-11-16 on 6,747 stored
+    // raw records: Non-Residential 3,923, Residential 2,824, no other value.
+    propertyClass: { field: 'permitclassmapped', values: { Residential: 'residential', 'Non-Residential': 'non_residential' } },
     fieldMap: {
       permitNumber: 'permitnum',
       permitType: 'permittype',

@@ -10,6 +10,7 @@ const { redactContractor, isShownContractor, dropSuppressedPhone } = require('..
 const { maskDescription } = require('../src/description_names.js');
 const { SOURCES: SOURCE_CONFIG } = require('../src/sources.js');
 const { locationSql, countedValueSql } = require('../src/display_policy.js');
+const { PROPERTY_CLASSES } = require('../src/normalize.js');
 
 // Names inside a description are masked for display (rule 5).
 const maskRow = (r) => (r && r.work_description != null ? { ...r, work_description: maskDescription(r.work_description) } : r);
@@ -33,6 +34,7 @@ const RESULT_COLUMNS = `
   id, source_area, permit_number, jurisdiction, address, street, city, state, zip,
   permit_type, work_description, valuation, valuation_repeats,
   status, status_raw, status_stage, lifecycle_stage, filing_kind, stage_since,
+  property_class,
   permit_url, filed_date, trade_scores, first_seen_at, last_seen_at,
   parcel_number, parcel_block, parcel_lot, parcel_subdivision,
   construction_type, other_construction_type,
@@ -150,6 +152,12 @@ function buildWhere(filters, params = []) {
     params.push(NON_CONTRACTORS);
     clauses.push(`(contractor_name IS NOT NULL AND (upper(trim(contractor_name)) = ANY($${params.length}::text[])
       OR contractor_name ~* '^\\s*owner\\M' OR contractor_name ~* '\\mhomeowner\\M'))`);
+  }
+  // Residential or non-residential, as the source classes the property
+  // (sources.js propertyClass). A source that publishes no class has NULL and
+  // matches neither, so this filter narrows to the markets that publish one.
+  if (filters.propertyClass && PROPERTY_CLASSES.includes(String(filters.propertyClass))) {
+    add('property_class = ?', String(filters.propertyClass));
   }
   if (filters.minValuation != null && filters.minValuation !== '') {
     // A repeated project figure passes once, on its first permit (ADR-36).
