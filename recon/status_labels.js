@@ -121,7 +121,7 @@ async function record() {
 async function live() {
   out('## What the live site serves');
   out();
-  const base = 'https://permits-production-9581a3c0.up.railway.app';
+  const base = process.env.PUBLIC_BASE_URL || 'https://giboro.com';
   for (const path of ['/healthz/schema', '/app.js', '/stages.js']) {
     try {
       const res = await fetch(base + path, { signal: AbortSignal.timeout(30000) });

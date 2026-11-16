@@ -10,7 +10,7 @@ on:
       url:
         description: Base URL of the deployment
         type: string
-        default: https://permits-production-9581a3c0.up.railway.app
+        default: https://giboro.com
       cold_wait_s:
         description: Seconds of idle before a cold-start probe (0 = skip; Neon Free suspends after 300)
         type: string
@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      BASE: ${{ inputs.url || 'https://permits-production-9581a3c0.up.railway.app' }}
+      BASE: ${{ inputs.url || 'https://giboro.com' }}
       COLD_WAIT_S: ${{ inputs.cold_wait_s || '330' }}
       DEMO_PASSWORD: ${{ secrets.DEMO_PASSWORD }}
     steps:

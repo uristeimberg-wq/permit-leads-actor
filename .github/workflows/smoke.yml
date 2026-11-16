@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       url:
-        description: Base URL of the deployment, e.g. https://permits-production-xxxx.up.railway.app
+        description: Base URL of the deployment, e.g. https://giboro.com (or the railway.app address)
         type: string
         required: true
 
