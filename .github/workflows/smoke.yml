@@ -62,6 +62,9 @@ jobs:
             c=$(code -u "x:$DEMO_PASSWORD" "$BASE/admin/analytics"); echo "owner analytics page: $c (want 200)"; [ "$c" = 200 ] || fail=1
             curl -s --max-time 60 -u "x:$DEMO_PASSWORD" "$BASE/api/admin/analytics/summary?range=all" \
               | jq -c '{sessions: .totals.sessions, events: .totals.events, excluded, dau: .activity.dau, mau: .activity.mau, stickiness: .activity.stickiness, daysTracked: .activity.daysTracked}' || fail=1
+            curl -s --max-time 60 -u "x:$DEMO_PASSWORD" "$BASE/api/admin/analytics/charts?days=30" \
+              | jq -ec '{days: (.growth|length), trackingSince, funnel: .funnel.landed, roles: (.roles|length), sources: (.sources|length), recordsAdded: ([.ingestion[].n]|add)}' || fail=1
+            c=$(code -u "x:$DEMO_PASSWORD" "$BASE/admin/analytics/chart.umd.js"); echo "chart library: $c (want 200)"; [ "$c" = 200 ] || fail=1
             curl -s --max-time 60 -u "x:$DEMO_PASSWORD" "$BASE/api/pilot/meta" \
               | jq -c '{lastSyncAt, lastSyncStatus, historyFrom, historyTo}' || fail=1
             curl -s --max-time 60 -u "x:$DEMO_PASSWORD" "$BASE/api/pilot/gcs?source=austin-tx&trade=electrical&months=12" \
